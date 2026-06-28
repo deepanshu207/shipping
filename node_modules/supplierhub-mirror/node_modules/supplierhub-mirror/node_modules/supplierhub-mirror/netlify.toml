@@ -1,44 +1,44 @@
 [functions]
   node_bundler = "esbuild"
-  included_files = ["netlify/functions/**"]
+  external_node_modules = ["sharp"]
 
 [build]
   publish = "supplierhub.in"
   functions = "netlify/functions"
   command = "npm install"
 
-# Mock endpoints (no-login generate) — handled by Netlify Function
+# Image generation — real Meesho-style optimization (Netlify Function)
 [[redirects]]
   from = "/auth/me"
-  to = "/.netlify/functions/mock-api"
+  to = "/.netlify/functions/generate-api"
   status = 200
 
 [[redirects]]
   from = "/auth/logout"
-  to = "/.netlify/functions/mock-api"
+  to = "/.netlify/functions/generate-api"
   status = 200
 
 [[redirects]]
   from = "/api/meesho/getLowestShippingCharge"
-  to = "/.netlify/functions/mock-api"
+  to = "/.netlify/functions/generate-api"
   status = 200
 
 [[redirects]]
   from = "/api/meesho/fetchAllRequestId"
-  to = "/.netlify/functions/mock-api"
+  to = "/.netlify/functions/generate-api"
   status = 200
 
 [[redirects]]
   from = "/api/meesho/request/*"
-  to = "/.netlify/functions/mock-api"
+  to = "/.netlify/functions/generate-api"
   status = 200
 
 [[redirects]]
   from = "/api/meesho/request-status/*"
-  to = "/.netlify/functions/mock-api"
+  to = "/.netlify/functions/generate-api"
   status = 200
 
-# Public categories API — proxy to SupplierHub backend (same-origin, no CORS)
+# Categories — proxy to SupplierHub backend
 [[redirects]]
   from = "/api/*"
   to = "https://backend.supplierhub.in/api/:splat"
@@ -51,7 +51,7 @@
   status = 200
   force = true
 
-# SPA: direct URLs like /meesho-image-generator must serve index.html
+# SPA fallback
 [[redirects]]
   from = "/*"
   to = "/index.html"
