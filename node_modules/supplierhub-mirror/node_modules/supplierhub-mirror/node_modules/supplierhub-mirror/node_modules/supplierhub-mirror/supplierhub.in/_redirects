@@ -1,0 +1,9 @@
+/auth/me /.netlify/functions/mock-api 200
+/auth/logout /.netlify/functions/mock-api 200
+/api/meesho/getLowestShippingCharge /.netlify/functions/mock-api 200
+/api/meesho/fetchAllRequestId /.netlify/functions/mock-api 200
+/api/meesho/request/* /.netlify/functions/mock-api 200
+/api/meesho/request-status/* /.netlify/functions/mock-api 200
+/api/* https://backend.supplierhub.in/api/:splat 200
+/auth/* https://backend.supplierhub.in/auth/:splat 200
+/* /index.html 200
