@@ -1,0 +1,8 @@
+{
+  "name": "supplierhub-mirror",
+  "private": true,
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0",
+    "busboy": "^1.6.0"
+  }
+}
