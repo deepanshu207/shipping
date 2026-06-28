@@ -1,9 +1,3 @@
-/auth/me /.netlify/functions/generate-api 200
-/auth/logout /.netlify/functions/generate-api 200
-/api/meesho/getLowestShippingCharge /.netlify/functions/generate-api 200
-/api/meesho/fetchAllRequestId /.netlify/functions/generate-api 200
-/api/meesho/request/* /.netlify/functions/generate-api 200
-/api/meesho/request-status/* /.netlify/functions/generate-api 200
-/api/* https://backend.supplierhub.in/api/:splat 200
-/auth/* https://backend.supplierhub.in/auth/:splat 200
+/api/* /.netlify/functions/generate-api/api/:splat 200
+/auth/* /.netlify/functions/generate-api/auth/:splat 200
 /* /index.html 200

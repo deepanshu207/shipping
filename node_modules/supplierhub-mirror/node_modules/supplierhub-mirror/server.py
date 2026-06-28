@@ -1,33 +1,19 @@
-"""Serve the SupplierHub SPA with a local mock API for no-login image generation."""
-import base64
-import cgi
-import io
+"""Serve the SupplierHub SPA with a local API (no SupplierHub backend)."""
 import json
 import os
 import re
 import socketserver
+import subprocess
 import time
-import urllib.error
-import urllib.request
 import uuid
 from http.server import SimpleHTTPRequestHandler
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent / "supplierhub.in"
-BACKEND = "https://backend.supplierhub.in"
+REPO = Path(__file__).resolve().parent
 PORT = 8000
-MOCK_MODE = True
-
-HOP_BY_HOP = {
-    "connection",
-    "keep-alive",
-    "proxy-authenticate",
-    "proxy-authorization",
-    "te",
-    "trailers",
-    "transfer-encoding",
-    "upgrade",
-}
+CATEGORIES_FILE = ROOT / "data" / "meesho-categories.json"
+OPTIMIZE_SCRIPT = REPO / "scripts" / "optimize-stdin.mjs"
 
 MOCK_REQUESTS: dict[str, dict] = {}
 GUEST_USER = {
@@ -47,7 +33,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
     def _api_path(self) -> str:
         return self.path.split("?", 1)[0]
 
-    def _should_proxy(self) -> bool:
+    def _should_handle_api(self) -> bool:
         return self._api_path().startswith("/api/") or self._api_path().startswith("/auth/")
 
     def _json_response(self, status: int, payload: dict) -> None:
@@ -63,6 +49,9 @@ class SPAHandler(SimpleHTTPRequestHandler):
         return self.rfile.read(length) if length else b""
 
     def _parse_multipart(self, body: bytes) -> dict:
+        import cgi
+        import io
+
         content_type = self.headers.get("Content-Type", "")
         form = cgi.FieldStorage(
             fp=io.BytesIO(body),
@@ -88,26 +77,36 @@ class SPAHandler(SimpleHTTPRequestHandler):
                 parsed[key] = field.value
         return parsed
 
-    def _mock_results(self, request_id: str) -> list[dict]:
-        req = MOCK_REQUESTS[request_id]
-        image = req["image"]
-        tag_name = req["tag_name"]
-        image_url = f"data:{image['type']};base64,{base64.b64encode(image['bytes']).decode()}"
-        charges = ["38", "45", "52", "61"]
-        return [
-            {
-                "shippingCharge": charge,
-                "imageUrl": image_url,
-                "tagName": tag_name,
-                "lowest": charge == "38",
-            }
-            for charge in charges
-        ]
+    def _optimize_image(self, image_bytes: bytes, tag_name: str) -> list[dict]:
+        proc = subprocess.run(
+            ["node", str(OPTIMIZE_SCRIPT), tag_name],
+            input=image_bytes,
+            capture_output=True,
+            cwd=str(REPO),
+            timeout=120,
+        )
+        if proc.returncode != 0:
+            err = proc.stderr.decode("utf-8", errors="replace")
+            raise RuntimeError(err or "Image optimization failed")
+        return json.loads(proc.stdout.decode("utf-8"))
 
-    def _handle_mock(self) -> bool:
-        if not MOCK_MODE:
-            return False
+    def _process_request(self, request_id: str) -> None:
+        req = MOCK_REQUESTS.get(request_id)
+        if not req or req.get("status") == "completed" or req.get("processing"):
+            return
 
+        req["processing"] = True
+        try:
+            req["results"] = self._optimize_image(req["image_bytes"], req["tag_name"])
+            req["status"] = "completed"
+            req["image_bytes"] = None
+        except Exception as exc:
+            req["status"] = "failed"
+            req["error"] = str(exc)
+        finally:
+            req["processing"] = False
+
+    def _handle_api(self) -> bool:
         path = self._api_path()
 
         if path == "/auth/me" and self.command == "GET":
@@ -118,6 +117,13 @@ class SPAHandler(SimpleHTTPRequestHandler):
             self._json_response(200, {"ok": True})
             return True
 
+        if path == "/api/meesho/fetchCategoryTreeOrder" and self.command == "GET":
+            if not CATEGORIES_FILE.exists():
+                self._json_response(503, {"message": "Categories file missing. Run fetch script."})
+                return True
+            self._json_response(200, json.loads(CATEGORIES_FILE.read_text(encoding="utf-8")))
+            return True
+
         if path == "/api/meesho/fetchAllRequestId" and self.command == "GET":
             history = []
             for request_id, req in sorted(
@@ -125,26 +131,18 @@ class SPAHandler(SimpleHTTPRequestHandler):
                 key=lambda item: item[1]["created_at"],
                 reverse=True,
             ):
-                if time.time() - req["created_at"] >= 5:
-                    history.append(
-                        {
-                            "requestId": request_id,
-                            "status": "completed",
-                            "tagName": req["tag_name"],
-                            "createdAt": req["created_at"] * 1000,
-                            "results": self._mock_results(request_id),
-                        }
-                    )
-                else:
-                    history.append(
-                        {
-                            "requestId": request_id,
-                            "status": "processing",
-                            "tagName": req["tag_name"],
-                            "createdAt": req["created_at"] * 1000,
-                            "results": [],
-                        }
-                    )
+                done = req.get("status") == "completed"
+                history.append(
+                    {
+                        "requestId": request_id,
+                        "status": done
+                        and "completed"
+                        or ("failed" if req.get("status") == "failed" else "processing"),
+                        "tagName": req["tag_name"],
+                        "createdAt": int(req["created_at"] * 1000),
+                        "results": req.get("results", []) if done else [],
+                    }
+                )
             self._json_response(200, {"data": history, "credits": GUEST_USER["credits"]})
             return True
 
@@ -160,7 +158,10 @@ class SPAHandler(SimpleHTTPRequestHandler):
                 "created_at": time.time(),
                 "tag_id": form.get("tagId", ""),
                 "tag_name": form.get("tagName", "Product"),
-                "image": image,
+                "image_bytes": image["bytes"],
+                "status": "processing",
+                "results": [],
+                "processing": False,
             }
             self._json_response(200, {"requestId": request_id})
             return True
@@ -173,50 +174,25 @@ class SPAHandler(SimpleHTTPRequestHandler):
                 self._json_response(404, {"message": "Request not found"})
                 return True
 
-            if time.time() - req["created_at"] < 5:
+            if req.get("status") != "completed" and not req.get("processing"):
+                self._process_request(request_id)
+
+            if req.get("status") == "failed":
+                self._json_response(200, {"status": "failed", "results": []})
+                return True
+
+            if time.time() - req["created_at"] < 3 or req.get("status") != "completed":
                 self._json_response(200, {"status": "processing", "results": []})
                 return True
 
             self._json_response(
                 200,
-                {"status": "completed", "results": self._mock_results(request_id)},
+                {"status": "completed", "results": req.get("results", [])},
             )
             return True
 
-        return False
-
-    def _proxy(self) -> None:
-        url = f"{BACKEND}{self.path}"
-        body = self._read_body() if self.command in {"POST", "PUT", "PATCH", "DELETE"} else None
-
-        headers = {}
-        for key, value in self.headers.items():
-            lower = key.lower()
-            if lower in HOP_BY_HOP or lower == "host":
-                continue
-            headers[key] = value
-
-        request = urllib.request.Request(url, data=body, headers=headers, method=self.command)
-        try:
-            with urllib.request.urlopen(request) as response:
-                self.send_response(response.status)
-                for key, value in response.headers.items():
-                    if key.lower() not in HOP_BY_HOP:
-                        self.send_header(key, value)
-                self.end_headers()
-                self.wfile.write(response.read())
-        except urllib.error.HTTPError as error:
-            self.send_response(error.code)
-            for key, value in error.headers.items():
-                if key.lower() not in HOP_BY_HOP:
-                    self.send_header(key, value)
-            self.end_headers()
-            self.wfile.write(error.read())
-
-    def _handle_api(self) -> None:
-        if self._handle_mock():
-            return
-        self._proxy()
+        self._json_response(404, {"message": "Not found", "route": path})
+        return True
 
     def _send_cors_preflight(self) -> None:
         origin = self.headers.get("Origin", "http://localhost:8000")
@@ -228,12 +204,12 @@ class SPAHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_OPTIONS(self) -> None:
-        if self._should_proxy():
+        if self._should_handle_api():
             return self._send_cors_preflight()
         return super().do_OPTIONS()
 
     def do_GET(self) -> None:
-        if self._should_proxy():
+        if self._should_handle_api():
             return self._handle_api()
         if self.path.startswith("/assets/") or Path(self.path).suffix:
             return super().do_GET()
@@ -241,7 +217,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_HEAD(self) -> None:
-        if self._should_proxy():
+        if self._should_handle_api():
             return self._handle_api()
         if self.path.startswith("/assets/") or Path(self.path).suffix:
             return super().do_HEAD()
@@ -249,22 +225,22 @@ class SPAHandler(SimpleHTTPRequestHandler):
         return super().do_HEAD()
 
     def do_POST(self) -> None:
-        if self._should_proxy():
+        if self._should_handle_api():
             return self._handle_api()
         self.send_error(405, "Method Not Allowed")
 
     def do_PUT(self) -> None:
-        if self._should_proxy():
+        if self._should_handle_api():
             return self._handle_api()
         self.send_error(405)
 
     def do_PATCH(self) -> None:
-        if self._should_proxy():
+        if self._should_handle_api():
             return self._handle_api()
         self.send_error(405)
 
     def do_DELETE(self) -> None:
-        if self._should_proxy():
+        if self._should_handle_api():
             return self._handle_api()
         self.send_error(405)
 
@@ -273,7 +249,6 @@ if __name__ == "__main__":
     os.chdir(ROOT)
     with socketserver.TCPServer(("", PORT), SPAHandler) as httpd:
         print(f"Serving {ROOT} at http://localhost:{PORT}")
-        print(f"Mock mode: {MOCK_MODE} (generate works without login)")
-        print(f"Categories proxy -> {BACKEND}")
+        print("Own API (categories + image optimize) — no SupplierHub proxy")
         print(f"Open http://localhost:{PORT}/meesho-image-generator")
         httpd.serve_forever()

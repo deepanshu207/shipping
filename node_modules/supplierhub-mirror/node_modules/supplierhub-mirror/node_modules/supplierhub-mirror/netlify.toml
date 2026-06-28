@@ -1,55 +1,23 @@
 [functions]
   node_bundler = "esbuild"
   external_node_modules = ["sharp"]
+  included_files = ["supplierhub.in/data/**"]
 
 [build]
   publish = "supplierhub.in"
   functions = "netlify/functions"
   command = "npm install"
 
-# Image generation — real Meesho-style optimization (Netlify Function)
-[[redirects]]
-  from = "/auth/me"
-  to = "/.netlify/functions/generate-api"
-  status = 200
-
-[[redirects]]
-  from = "/auth/logout"
-  to = "/.netlify/functions/generate-api"
-  status = 200
-
-[[redirects]]
-  from = "/api/meesho/getLowestShippingCharge"
-  to = "/.netlify/functions/generate-api"
-  status = 200
-
-[[redirects]]
-  from = "/api/meesho/fetchAllRequestId"
-  to = "/.netlify/functions/generate-api"
-  status = 200
-
-[[redirects]]
-  from = "/api/meesho/request/*"
-  to = "/.netlify/functions/generate-api"
-  status = 200
-
-[[redirects]]
-  from = "/api/meesho/request-status/*"
-  to = "/.netlify/functions/generate-api"
-  status = 200
-
-# Categories — proxy to SupplierHub backend
+# All API + auth served by our own Netlify Function (no SupplierHub proxy)
 [[redirects]]
   from = "/api/*"
-  to = "https://backend.supplierhub.in/api/:splat"
+  to = "/.netlify/functions/generate-api/api/:splat"
   status = 200
-  force = true
 
 [[redirects]]
   from = "/auth/*"
-  to = "https://backend.supplierhub.in/auth/:splat"
+  to = "/.netlify/functions/generate-api/auth/:splat"
   status = 200
-  force = true
 
 # SPA fallback
 [[redirects]]

@@ -1,5 +1,11 @@
-import sharp from "sharp";
+import { readFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 import { randomBytes } from "crypto";
+import { generateAllVariants } from "./image-optimize.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const CATEGORIES_PATH = join(__dirname, "../../supplierhub.in/data/meesho-categories.json");
 
 const GUEST_USER = {
   id: "guest-local",
@@ -10,12 +16,14 @@ const GUEST_USER = {
   picture: null,
 };
 
-const VARIANTS = [
-  { coverage: 0.62, quality: 82, label: "Tier 1 · Smallest frame (try first)" },
-  { coverage: 0.65, quality: 78, label: "Tier 2 · Compact" },
-  { coverage: 0.68, quality: 74, label: "Tier 3 · Balanced" },
-  { coverage: 0.7, quality: 70, label: "Tier 4 · Standard Meesho size" },
-];
+let categoriesCache = null;
+
+function getCategories() {
+  if (!categoriesCache) {
+    categoriesCache = JSON.parse(readFileSync(CATEGORIES_PATH, "utf8"));
+  }
+  return categoriesCache;
+}
 
 function getStore() {
   if (!globalThis.__meeshoRequests) {
@@ -26,64 +34,6 @@ function getStore() {
 
 function json(data, status = 200) {
   return Response.json(data, { status });
-}
-
-async function compressToTarget(buffer, quality) {
-  let q = quality;
-  let output = await sharp(buffer).jpeg({ quality: q, mozjpeg: true }).toBuffer();
-  while (output.length > 300 * 1024 && q > 45) {
-    q -= 5;
-    output = await sharp(buffer).jpeg({ quality: q, mozjpeg: true }).toBuffer();
-  }
-  return output;
-}
-
-async function buildVariant(imageBuffer, variant) {
-  const canvasSize = 2000;
-  const productSize = Math.round(canvasSize * variant.coverage);
-
-  const product = await sharp(imageBuffer)
-    .rotate()
-    .resize(productSize, productSize, { fit: "inside", withoutEnlargement: false })
-    .toBuffer();
-
-  const composed = await sharp({
-    create: {
-      width: canvasSize,
-      height: canvasSize,
-      channels: 3,
-      background: { r: 255, g: 255, b: 255 },
-    },
-  })
-    .composite([{ input: product, gravity: "center" }])
-    .png()
-    .toBuffer();
-
-  const jpeg = await compressToTarget(composed, variant.quality);
-  const fileSizeKb = Math.round(jpeg.length / 1024);
-
-  return {
-    buffer: jpeg,
-    fileSizeKb,
-    tagName: `${variant.label} · ${fileSizeKb} KB`,
-  };
-}
-
-async function generateAllVariants(imageBuffer, categoryName) {
-  const built = [];
-  for (const variant of VARIANTS) {
-    built.push(await buildVariant(imageBuffer, variant));
-  }
-
-  built.sort((a, b) => a.fileSizeKb - b.fileSizeKb);
-
-  return built.map((item, index) => ({
-    imageUrl: `data:image/jpeg;base64,${item.buffer.toString("base64")}`,
-    tagName: item.tagName || categoryName,
-    fileSizeKb: item.fileSizeKb,
-    shippingCharge: String(item.fileSizeKb),
-    lowest: index === 0,
-  }));
 }
 
 async function processRequest(requestId) {
@@ -104,10 +54,29 @@ async function processRequest(requestId) {
   }
 }
 
+function resolveRoute(request) {
+  const url = new URL(request.url);
+  const fnPrefix = "/.netlify/functions/generate-api";
+
+  if (url.pathname.startsWith(fnPrefix)) {
+    const rest = url.pathname.slice(fnPrefix.length) || "/";
+    return rest.startsWith("/") ? rest : `/${rest}`;
+  }
+
+  for (const header of ["x-nf-rewrite-path", "x-forwarded-uri", "x-original-url"]) {
+    const value = request.headers.get(header);
+    if (value) {
+      const path = value.split("?")[0];
+      if (path.startsWith("/api/") || path.startsWith("/auth/")) return path;
+    }
+  }
+
+  return url.pathname;
+}
+
 export default async (request, context) => {
   try {
-    const url = new URL(request.url);
-    const route = url.pathname;
+    const route = resolveRoute(request);
     const method = request.method;
 
     if (route === "/auth/me" && method === "GET") {
@@ -116,6 +85,10 @@ export default async (request, context) => {
 
     if (route === "/auth/logout" && method === "POST") {
       return json({ ok: true });
+    }
+
+    if (route === "/api/meesho/fetchCategoryTreeOrder" && method === "GET") {
+      return json(getCategories());
     }
 
     const store = getStore();
@@ -187,7 +160,7 @@ export default async (request, context) => {
         return json({ status: "failed", results: [] });
       }
 
-      if (Date.now() - req.createdAt < 4000 || req.status !== "completed") {
+      if (Date.now() - req.createdAt < 3000 || req.status !== "completed") {
         return json({ status: "processing", results: [] });
       }
 
