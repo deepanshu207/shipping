@@ -2,10 +2,10 @@ import sharp from "sharp";
 
 /** SupplierDen-style tiers — fixed KB targets, native trimmed dimensions. */
 const TIERS = [
-  { targetKb: 32, label: "Lowest · upload to Meesho first", lowest: true },
-  { targetKb: 34, label: "Recommended · balanced", recommended: true },
-  { targetKb: 36, label: "Standard" },
-  { targetKb: 38, label: "High detail" },
+  { targetKb: 30, label: "Lowest · upload to Meesho first", lowest: true },
+  { targetKb: 32, label: "Recommended · balanced", recommended: true },
+  { targetKb: 34, label: "Standard" },
+  { targetKb: 36, label: "High detail" },
 ];
 
 export function kbFromBytes(bytes) {
@@ -30,32 +30,26 @@ async function encodeAtQuality(buffer, quality) {
 
 /** Binary search: highest mozjpeg quality that fits under targetBytes. */
 async function compressToTarget(buffer, targetBytes) {
-  let lo = 8;
+  let lo = 1;
   let hi = 85;
   let best = await encodeAtQuality(buffer, lo);
 
-  if (best.length > targetBytes) {
-    for (let q = 7; q >= 5; q--) {
-      const out = await encodeAtQuality(buffer, q);
-      if (out.length < best.length) best = out;
-      if (out.length <= targetBytes) return out;
+  if (best.length <= targetBytes) {
+    while (hi - lo > 1) {
+      const mid = Math.floor((lo + hi) / 2);
+      const out = await encodeAtQuality(buffer, mid);
+      if (out.length <= targetBytes) {
+        best = out;
+        lo = mid;
+      } else {
+        hi = mid;
+      }
     }
-    return best;
+    const top = await encodeAtQuality(buffer, lo);
+    return top.length <= targetBytes ? top : best;
   }
 
-  while (hi - lo > 1) {
-    const mid = Math.floor((lo + hi) / 2);
-    const out = await encodeAtQuality(buffer, mid);
-    if (out.length <= targetBytes) {
-      best = out;
-      lo = mid;
-    } else {
-      hi = mid;
-    }
-  }
-
-  const top = await encodeAtQuality(buffer, lo);
-  return top.length <= targetBytes ? top : best;
+  return best;
 }
 
 export async function prepareInput(imageBuffer) {
@@ -68,6 +62,10 @@ export async function prepareInput(imageBuffer) {
   } catch {
     trimmedBuffer = await pipeline.toBuffer();
   }
+
+  trimmedBuffer = await sharp(trimmedBuffer)
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .toBuffer();
 
   let meta = await sharp(trimmedBuffer).metadata();
   let w = meta.width || 0;
