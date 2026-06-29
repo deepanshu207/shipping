@@ -1,11 +1,11 @@
 import sharp from "sharp";
 
-/** Meesho shipping tiers — fixed KB at native trimmed dimensions. */
+/** Meesho shipping tiers — smallest KB at exact pixel dimensions. */
 const TIERS = [
-  { targetKb: 28, label: "Lowest · upload to Meesho first", lowest: true },
-  { targetKb: 30, label: "Recommended · balanced", recommended: true },
-  { targetKb: 32, label: "Standard" },
-  { targetKb: 34, label: "High detail" },
+  { targetKb: 24, label: "Lowest · upload to Meesho first", lowest: true },
+  { targetKb: 26, label: "Recommended · balanced", recommended: true },
+  { targetKb: 28, label: "Standard" },
+  { targetKb: 30, label: "High detail" },
 ];
 
 export function kbFromBytes(bytes) {
@@ -29,59 +29,61 @@ async function encodeAtQuality(buffer, quality) {
   return mozjpeg(buffer, quality).toBuffer();
 }
 
-/** Binary search: highest mozjpeg quality that fits under targetBytes. */
-async function compressToTarget(buffer, targetBytes) {
-  let lo = 1;
-  let hi = 85;
+async function binarySearch(buffer, targetBytes, lo, hi) {
   let best = await encodeAtQuality(buffer, lo);
+  if (best.length > targetBytes) return best;
 
-  if (best.length <= targetBytes) {
-    while (hi - lo > 1) {
-      const mid = Math.floor((lo + hi) / 2);
-      const out = await encodeAtQuality(buffer, mid);
-      if (out.length <= targetBytes) {
-        best = out;
-        lo = mid;
-      } else {
-        hi = mid;
-      }
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    const out = await encodeAtQuality(buffer, mid);
+    if (out.length <= targetBytes) {
+      best = out;
+      lo = mid;
+    } else {
+      hi = mid;
     }
-    const top = await encodeAtQuality(buffer, lo);
-    return top.length <= targetBytes ? top : best;
   }
+  const top = await encodeAtQuality(buffer, lo);
+  return top.length <= targetBytes ? top : best;
+}
 
-  return best;
+/** Max mozjpeg compression — blur fallback keeps same dimensions. */
+async function compressToTarget(buffer, targetBytes) {
+  let jpeg = await binarySearch(buffer, targetBytes, 1, 90);
+  if (jpeg.length <= targetBytes) return jpeg;
+
+  jpeg = await encodeAtQuality(buffer, 1);
+  if (jpeg.length <= targetBytes) return jpeg;
+
+  const soft = await sharp(buffer).blur(0.35).toBuffer();
+  jpeg = await binarySearch(soft, targetBytes, 1, 75);
+  if (jpeg.length <= targetBytes) return jpeg;
+
+  return encodeAtQuality(soft, 1);
 }
 
 export async function prepareInput(imageBuffer) {
   const inputBytes = imageBuffer.length;
   let pipeline = sharp(imageBuffer).rotate();
 
-  let trimmedBuffer;
-  try {
-    trimmedBuffer = await pipeline.clone().trim({ threshold: 12 }).toBuffer();
-  } catch {
-    trimmedBuffer = await pipeline.toBuffer();
-  }
-
-  trimmedBuffer = await sharp(trimmedBuffer)
+  let buffer = await pipeline
     .flatten({ background: { r: 255, g: 255, b: 255 } })
     .toBuffer();
 
-  let meta = await sharp(trimmedBuffer).metadata();
+  let meta = await sharp(buffer).metadata();
   let w = meta.width || 0;
   let h = meta.height || 0;
 
   if (Math.max(w, h) > 2000) {
-    trimmedBuffer = await sharp(trimmedBuffer)
+    buffer = await sharp(buffer)
       .resize(2000, 2000, { fit: "inside", withoutEnlargement: true })
       .toBuffer();
-    meta = await sharp(trimmedBuffer).metadata();
+    meta = await sharp(buffer).metadata();
     w = meta.width || w;
     h = meta.height || h;
   }
 
-  return { buffer: trimmedBuffer, width: w, height: h, inputBytes };
+  return { buffer, width: w, height: h, inputBytes };
 }
 
 async function buildVariant(prepared, tier) {

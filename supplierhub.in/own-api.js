@@ -2,19 +2,19 @@
  * Own API for Meesho Image Generator — runs entirely in the browser.
  */
 (function () {
-  /** Meesho shipping tiers — fixed KB at original (trimmed) dimensions. */
+  /** Meesho shipping tiers — smallest KB at exact pixel dimensions. */
   const TIERS = [
-    { targetKb: 28, label: "Lowest · upload to Meesho first", lowest: true },
-    { targetKb: 30, label: "Recommended · balanced", recommended: true },
-    { targetKb: 32, label: "Standard" },
-    { targetKb: 34, label: "High detail" },
+    { targetKb: 24, label: "Lowest · upload to Meesho first", lowest: true },
+    { targetKb: 26, label: "Recommended · balanced", recommended: true },
+    { targetKb: 28, label: "Standard" },
+    { targetKb: 30, label: "High detail" },
   ];
 
-  const TRIM_THRESHOLD = 12;
-  const WHITE_SNAP = 20;
+  const WHITE_SNAP = 24;
   const MAX_SIDE = 2000;
   const MOZJPEG_URL = "/vendor/mozjpeg.mjs";
-  const MOZ_OPTS = {
+  const MOZ_BASE = {
+    baseline: false,
     progressive: true,
     optimize_coding: true,
     quant_table: 3,
@@ -23,6 +23,8 @@
     trellis_multipass: true,
     trellis_opt_zero: true,
     trellis_opt_table: true,
+    trellis_loops: 4,
+    separate_chroma_quality: true,
   };
 
   const GUEST_USER = {
@@ -108,22 +110,35 @@
     return ctx.getImageData(0, 0, canvas.width, canvas.height);
   }
 
-  async function encodeAtQuality(canvas, quality) {
+  async function encodeAtQuality(canvas, quality, extra) {
     const q = Math.max(1, Math.min(100, Math.round(quality)));
     const encode = mozEncodeFn || (await loadMozjpeg());
     if (encode) {
-      return encode(canvasImageData(canvas), { ...MOZ_OPTS, quality: q });
+      const chromaQ = Math.max(1, Math.round(q * 0.5));
+      return encode(canvasImageData(canvas), {
+        ...MOZ_BASE,
+        quality: q,
+        chroma_quality: chromaQ,
+        ...extra,
+      });
     }
     return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", q / 100));
   }
 
-  /** Flatten near-white to pure #FFF — smaller JPEG at same dimensions. */
+  /** Merge near-white and light greys → pure white (same pixel grid). */
   function snapWhite(canvas) {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const d = img.data;
     for (let i = 0; i < d.length; i += 4) {
-      if (255 - d[i] <= WHITE_SNAP && 255 - d[i + 1] <= WHITE_SNAP && 255 - d[i + 2] <= WHITE_SNAP) {
+      const r = d[i];
+      const g = d[i + 1];
+      const b = d[i + 2];
+      if (255 - r <= WHITE_SNAP && 255 - g <= WHITE_SNAP && 255 - b <= WHITE_SNAP) {
+        d[i] = 255;
+        d[i + 1] = 255;
+        d[i + 2] = 255;
+      } else if (Math.max(r, g, b) - Math.min(r, g, b) < 8 && r > 230) {
         d[i] = 255;
         d[i + 1] = 255;
         d[i + 2] = 255;
@@ -132,55 +147,7 @@
     ctx.putImageData(img, 0, 0);
   }
 
-  /** Strip excess white borders (same as sharp trim threshold). */
-  function trimNearWhite(canvas) {
-    const ctx = canvas.getContext("2d");
-    const { width, height } = canvas;
-    if (width < 2 || height < 2) return canvas;
-
-    const { data } = ctx.getImageData(0, 0, width, height);
-
-    function isBg(x, y) {
-      const i = (y * width + x) * 4;
-      return (
-        255 - data[i] <= TRIM_THRESHOLD &&
-        255 - data[i + 1] <= TRIM_THRESHOLD &&
-        255 - data[i + 2] <= TRIM_THRESHOLD
-      );
-    }
-
-    function rowHasContent(y) {
-      for (let x = 0; x < width; x++) if (!isBg(x, y)) return true;
-      return false;
-    }
-
-    function colHasContent(x, top, bottom) {
-      for (let y = top; y <= bottom; y++) if (!isBg(x, y)) return true;
-      return false;
-    }
-
-    let top = 0;
-    let bottom = height - 1;
-    let left = 0;
-    let right = width - 1;
-
-    while (top < bottom && !rowHasContent(top)) top++;
-    while (bottom > top && !rowHasContent(bottom)) bottom--;
-    while (left < right && !colHasContent(left, top, bottom)) left++;
-    while (right > left && !colHasContent(right, top, bottom)) right--;
-
-    const tw = right - left + 1;
-    const th = bottom - top + 1;
-    if (tw <= 0 || th <= 0 || (tw === width && th === height)) return canvas;
-
-    const trimmed = document.createElement("canvas");
-    trimmed.width = tw;
-    trimmed.height = th;
-    trimmed.getContext("2d").drawImage(canvas, left, top, tw, th, 0, 0, tw, th);
-    return trimmed;
-  }
-
-  /** Draw at native size — never upscale; cap at 2000px max side only. */
+  /** Exact upload dimensions — never upscale; cap max side at 2000 only. */
   function prepareCanvas(img) {
     let w = img.width;
     let h = img.height;
@@ -201,52 +168,68 @@
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(img, 0, 0, w, h);
     snapWhite(c);
-    return trimNearWhite(c);
+    return c;
   }
 
-  /** Binary search mozjpeg quality 1–80 to hit targetBytes exactly. */
-  async function compressCanvas(canvas, targetBytes) {
-    let lo = 1;
-    let hi = 80;
+  function blurCanvas(src, px) {
+    const c = document.createElement("canvas");
+    c.width = src.width;
+    c.height = src.height;
+    const ctx = c.getContext("2d");
+    ctx.filter = `blur(${px}px)`;
+    ctx.drawImage(src, 0, 0);
+    ctx.filter = "none";
+    return c;
+  }
+
+  /** Binary search: highest mozjpeg quality ≤ targetBytes. */
+  async function binarySearch(canvas, targetBytes, lo, hi) {
     let best = await encodeAtQuality(canvas, lo);
+    if (best.size > targetBytes) return best;
 
-    if (best.size <= targetBytes) {
-      while (hi - lo > 1) {
-        const mid = Math.floor((lo + hi) / 2);
-        const blob = await encodeAtQuality(canvas, mid);
-        if (blob.size <= targetBytes) {
-          best = blob;
-          lo = mid;
-        } else {
-          hi = mid;
-        }
+    while (hi - lo > 1) {
+      const mid = Math.floor((lo + hi) / 2);
+      const blob = await encodeAtQuality(canvas, mid);
+      if (blob.size <= targetBytes) {
+        best = blob;
+        lo = mid;
+      } else {
+        hi = mid;
       }
-      const top = await encodeAtQuality(canvas, lo);
-      return top.size <= targetBytes ? top : best;
     }
-
-    return best;
+    const top = await encodeAtQuality(canvas, lo);
+    return top.size <= targetBytes ? top : best;
   }
 
-  async function renderVariant(img, tier) {
-    const canvas = prepareCanvas(img);
-    const targetBytes = tier.targetKb * 1024;
-    const blob = await compressCanvas(canvas, targetBytes);
+  /** Max compression at same width×height — mozjpeg + fallback passes. */
+  async function compressCanvas(canvas, targetBytes) {
+    let blob = await binarySearch(canvas, targetBytes, 1, 90);
+    if (blob.size <= targetBytes) return blob;
 
-    return {
-      blob,
-      bytes: blob.size,
-      label: `${tier.label} · ${canvas.width}×${canvas.height}`,
-      recommended: !!tier.recommended,
-      lowest: !!tier.lowest,
-    };
+    blob = await encodeAtQuality(canvas, 1, { chroma_quality: 1, trellis_loops: 6 });
+    if (blob.size <= targetBytes) return blob;
+
+    const soft = blurCanvas(canvas, 0.35);
+    blob = await binarySearch(soft, targetBytes, 1, 75);
+    if (blob.size <= targetBytes) return blob;
+
+    return encodeAtQuality(soft, 1, { chroma_quality: 1, trellis_loops: 6 });
   }
 
   async function optimizeToVariants(source) {
     const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
+    const canvas = prepareCanvas(img);
     const built = [];
     for (const tier of TIERS) {
-      built.push(await renderVariant(img, tier));
+      const targetBytes = tier.targetKb * 1024;
+      const blob = await compressCanvas(canvas, targetBytes);
+      built.push({
+        blob,
+        bytes: blob.size,
+        label: `${tier.label} · ${canvas.width}×${canvas.height}`,
+        recommended: !!tier.recommended,
+        lowest: !!tier.lowest,
+      });
     }
     return built;
   }
