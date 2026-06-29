@@ -2,28 +2,18 @@
  * Own API for Meesho Image Generator — runs entirely in the browser.
  */
 (function () {
-  const TIER_SPECS = [
-    { ratio: 0.7, capKb: 38, label: "Lowest · upload this first", lowest: true },
-    { ratio: 0.78, capKb: 45, label: "Recommended · balanced", recommended: true },
-    { ratio: 0.86, capKb: 50, label: "Standard" },
-    { ratio: 0.92, capKb: 55, label: "High detail" },
+  /** SupplierDen-style: 32–38 KB at original (trimmed) dimensions. */
+  const TIERS = [
+    { targetKb: 32, label: "Lowest · upload to Meesho first", lowest: true },
+    { targetKb: 34, label: "Recommended · balanced", recommended: true },
+    { targetKb: 36, label: "Standard" },
+    { targetKb: 38, label: "High detail" },
   ];
 
-  function tierTarget(inputBytes, spec) {
-    const fromRatio = Math.floor(inputBytes * spec.ratio);
-    const fromCap = spec.capKb * 1024;
-    return Math.max(12 * 1024, Math.min(fromRatio, fromCap));
-  }
-
-  function pickCanvas(imgW, imgH, inputBytes) {
-    const maxSide = Math.max(imgW, imgH);
-    let canvas = Math.min(2000, Math.ceil(maxSide / 50) * 50);
-    if (canvas < maxSide) canvas = maxSide;
-    if (inputBytes <= 80 * 1024 && maxSide <= 1400) {
-      canvas = Math.min(canvas, Math.max(1000, Math.ceil(maxSide / 100) * 100));
-    }
-    return canvas;
-  }
+  const TRIM_THRESHOLD = 12;
+  const MAX_SIDE = 2000;
+  const Q_FLOOR = 0.08;
+  const Q_CEIL = 0.92;
 
   const GUEST_USER = {
     id: "guest-local",
@@ -87,13 +77,93 @@
     return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
   }
 
-  /** Binary search: best quality that fits under targetBytes (same pixel dimensions). */
-  async function compressCanvas(canvas, targetBytes, startQ, minQ) {
-    let lo = minQ;
-    let hi = startQ;
-    let best = await blobAtQuality(canvas, minQ);
+  /** Strip excess white borders (same as sharp trim threshold). */
+  function trimNearWhite(canvas) {
+    const ctx = canvas.getContext("2d");
+    const { width, height } = canvas;
+    if (width < 2 || height < 2) return canvas;
 
-    while (hi - lo > 0.008) {
+    const { data } = ctx.getImageData(0, 0, width, height);
+
+    function isBg(x, y) {
+      const i = (y * width + x) * 4;
+      return (
+        255 - data[i] <= TRIM_THRESHOLD &&
+        255 - data[i + 1] <= TRIM_THRESHOLD &&
+        255 - data[i + 2] <= TRIM_THRESHOLD
+      );
+    }
+
+    function rowHasContent(y) {
+      for (let x = 0; x < width; x++) if (!isBg(x, y)) return true;
+      return false;
+    }
+
+    function colHasContent(x, top, bottom) {
+      for (let y = top; y <= bottom; y++) if (!isBg(x, y)) return true;
+      return false;
+    }
+
+    let top = 0;
+    let bottom = height - 1;
+    let left = 0;
+    let right = width - 1;
+
+    while (top < bottom && !rowHasContent(top)) top++;
+    while (bottom > top && !rowHasContent(bottom)) bottom--;
+    while (left < right && !colHasContent(left, top, bottom)) left++;
+    while (right > left && !colHasContent(right, top, bottom)) right--;
+
+    const tw = right - left + 1;
+    const th = bottom - top + 1;
+    if (tw <= 0 || th <= 0 || (tw === width && th === height)) return canvas;
+
+    const trimmed = document.createElement("canvas");
+    trimmed.width = tw;
+    trimmed.height = th;
+    trimmed.getContext("2d").drawImage(canvas, left, top, tw, th, 0, 0, tw, th);
+    return trimmed;
+  }
+
+  /** Draw at native size — never upscale; cap at 2000px max side only. */
+  function prepareCanvas(img) {
+    let w = img.width;
+    let h = img.height;
+    const max = Math.max(w, h);
+    if (max > MAX_SIDE) {
+      const scale = MAX_SIDE / max;
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+    }
+
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, w, h);
+    return trimNearWhite(c);
+  }
+
+  /** Binary search: highest JPEG quality that fits under targetBytes. */
+  async function compressCanvas(canvas, targetBytes) {
+    let lo = Q_FLOOR;
+    let hi = Q_CEIL;
+    let best = await blobAtQuality(canvas, Q_FLOOR);
+
+    if (best.size > targetBytes) {
+      for (let q = Q_FLOOR - 0.02; q >= 0.01; q -= 0.01) {
+        const blob = await blobAtQuality(canvas, q);
+        if (blob.size < best.size) best = blob;
+        if (blob.size <= targetBytes) return blob;
+      }
+      return best;
+    }
+
+    while (hi - lo > 0.004) {
       const mid = (lo + hi) / 2;
       const blob = await blobAtQuality(canvas, mid);
       if (blob.size <= targetBytes) {
@@ -104,49 +174,29 @@
       }
     }
 
-    const top = await blobAtQuality(canvas, startQ);
-    if (top.size <= targetBytes) return top;
-    return best;
+    const top = await blobAtQuality(canvas, lo);
+    return top.size <= targetBytes ? top : best;
   }
 
-  async function renderVariant(img, canvas, targetBytes, spec, inputBytes) {
-    const out = document.createElement("canvas");
-    out.width = canvas;
-    out.height = canvas;
-    const ctx = out.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas, canvas);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-
-    const maxSide = Math.round(canvas * 0.96);
-    const scale = Math.min(maxSide / img.width, maxSide / img.height, 1);
-    const w = Math.round(img.width * scale);
-    const h = Math.round(img.height * scale);
-    ctx.drawImage(img, Math.round((canvas - w) / 2), Math.round((canvas - h) / 2), w, h);
-
-    let blob = await compressCanvas(out, targetBytes, 0.84, 0.52);
-
-    if (inputBytes && blob.size > inputBytes) {
-      blob = await compressCanvas(out, Math.floor(inputBytes * 0.88), 0.78, 0.45);
-    }
+  async function renderVariant(img, tier) {
+    const canvas = prepareCanvas(img);
+    const targetBytes = tier.targetKb * 1024;
+    const blob = await compressCanvas(canvas, targetBytes);
 
     return {
       blob,
       bytes: blob.size,
-      label: `${spec.label} · ${canvas}px`,
-      recommended: !!spec.recommended,
-      lowest: !!spec.lowest,
+      label: `${tier.label} · ${canvas.width}×${canvas.height}`,
+      recommended: !!tier.recommended,
+      lowest: !!tier.lowest,
     };
   }
 
   async function optimizeToVariants(source) {
-    const inputBytes = source instanceof File ? source.size : 52000;
     const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
-    const canvas = pickCanvas(img.width, img.height, inputBytes);
     const built = [];
-    for (const spec of TIER_SPECS) {
-      built.push(await renderVariant(img, canvas, tierTarget(inputBytes, spec), spec, inputBytes));
+    for (const tier of TIERS) {
+      built.push(await renderVariant(img, tier));
     }
     return built;
   }

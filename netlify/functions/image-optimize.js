@@ -1,32 +1,15 @@
 import sharp from "sharp";
 
-/** SupplierHub-style: never upscale; output KB must stay below upload. */
-const TIER_SPECS = [
-  { ratio: 0.7, capKb: 38, label: "Lowest · upload this first", lowest: true },
-  { ratio: 0.78, capKb: 45, label: "Recommended · balanced", recommended: true },
-  { ratio: 0.86, capKb: 50, label: "Standard" },
-  { ratio: 0.92, capKb: 55, label: "High detail" },
+/** SupplierDen-style tiers — fixed KB targets, native trimmed dimensions. */
+const TIERS = [
+  { targetKb: 32, label: "Lowest · upload to Meesho first", lowest: true },
+  { targetKb: 34, label: "Recommended · balanced", recommended: true },
+  { targetKb: 36, label: "Standard" },
+  { targetKb: 38, label: "High detail" },
 ];
 
 export function kbFromBytes(bytes) {
   return Math.max(1, Math.ceil(bytes / 1024));
-}
-
-function tierTarget(inputBytes, spec) {
-  const fromRatio = Math.floor(inputBytes * spec.ratio);
-  const fromCap = spec.capKb * 1024;
-  return Math.max(12 * 1024, Math.min(fromRatio, fromCap));
-}
-
-function pickCanvas(contentW, contentH, inputBytes) {
-  const maxSide = Math.max(contentW, contentH);
-  let canvas = Math.min(2000, Math.ceil(maxSide / 50) * 50);
-  if (canvas < maxSide) canvas = maxSide;
-
-  if (inputBytes <= 80 * 1024 && maxSide <= 1400) {
-    canvas = Math.min(canvas, Math.max(1000, Math.ceil(maxSide / 100) * 100));
-  }
-  return canvas;
 }
 
 function mozjpeg(buffer, quality) {
@@ -45,25 +28,34 @@ async function encodeAtQuality(buffer, quality) {
   return mozjpeg(buffer, quality).toBuffer();
 }
 
-async function compressToTarget(buffer, targetBytes, startQuality = 82, minQuality = 55) {
-  let best = await encodeAtQuality(buffer, minQuality);
-  if (best.length <= targetBytes) return best;
+/** Binary search: highest mozjpeg quality that fits under targetBytes. */
+async function compressToTarget(buffer, targetBytes) {
+  let lo = 8;
+  let hi = 85;
+  let best = await encodeAtQuality(buffer, lo);
 
-  let lo = minQuality;
-  let hi = startQuality;
-  best = await encodeAtQuality(buffer, minQuality);
+  if (best.length > targetBytes) {
+    for (let q = 7; q >= 5; q--) {
+      const out = await encodeAtQuality(buffer, q);
+      if (out.length < best.length) best = out;
+      if (out.length <= targetBytes) return out;
+    }
+    return best;
+  }
 
-  while (lo <= hi) {
+  while (hi - lo > 1) {
     const mid = Math.floor((lo + hi) / 2);
     const out = await encodeAtQuality(buffer, mid);
     if (out.length <= targetBytes) {
       best = out;
-      lo = mid + 1;
+      lo = mid;
     } else {
-      hi = mid - 1;
+      hi = mid;
     }
   }
-  return best;
+
+  const top = await encodeAtQuality(buffer, lo);
+  return top.length <= targetBytes ? top : best;
 }
 
 export async function prepareInput(imageBuffer) {
@@ -72,7 +64,7 @@ export async function prepareInput(imageBuffer) {
 
   let trimmedBuffer;
   try {
-    trimmedBuffer = await pipeline.clone().trim({ threshold: 15 }).toBuffer();
+    trimmedBuffer = await pipeline.clone().trim({ threshold: 12 }).toBuffer();
   } catch {
     trimmedBuffer = await pipeline.toBuffer();
   }
@@ -93,65 +85,28 @@ export async function prepareInput(imageBuffer) {
   return { buffer: trimmedBuffer, width: w, height: h, inputBytes };
 }
 
-async function composeOnCanvas(prepared, canvas) {
-  const productMax = Math.round(canvas * 0.96);
-
-  const product = await sharp(prepared.buffer)
-    .resize(productMax, productMax, {
-      fit: "inside",
-      withoutEnlargement: true,
-      kernel: sharp.kernel.lanczos3,
-    })
-    .toBuffer();
-
-  return sharp({
-    create: {
-      width: canvas,
-      height: canvas,
-      channels: 3,
-      background: { r: 255, g: 255, b: 255 },
-    },
-  })
-    .composite([{ input: product, gravity: "center" }])
-    .toBuffer();
-}
-
-async function directRecompress(prepared, targetBytes) {
-  return compressToTarget(prepared.buffer, targetBytes, 80, 52);
-}
-
-async function buildVariant(prepared, canvas, targetBytes, spec) {
-  const composed = await composeOnCanvas(prepared, canvas);
-  let jpeg = await compressToTarget(composed, targetBytes, 84, 52);
-
-  if (jpeg.length > prepared.inputBytes) {
-    const direct = await directRecompress(prepared, targetBytes);
-    if (direct.length < jpeg.length) jpeg = direct;
-  }
-
-  if (jpeg.length > prepared.inputBytes) {
-    jpeg = await compressToTarget(composed, Math.floor(prepared.inputBytes * 0.88), 78, 48);
-  }
+async function buildVariant(prepared, tier) {
+  const targetBytes = tier.targetKb * 1024;
+  const jpeg = await compressToTarget(prepared.buffer, targetBytes);
 
   return {
     buffer: jpeg,
     fileSizeBytes: jpeg.length,
     fileSizeKb: kbFromBytes(jpeg.length),
-    tagName: `${spec.label} · ${canvas}px`,
-    recommended: !!spec.recommended,
-    lowest: !!spec.lowest,
-    canvas,
+    tagName: `${tier.label} · ${prepared.width}×${prepared.height}`,
+    recommended: !!tier.recommended,
+    lowest: !!tier.lowest,
+    width: prepared.width,
+    height: prepared.height,
   };
 }
 
 export async function generateAllVariants(imageBuffer, categoryName) {
   const prepared = await prepareInput(imageBuffer);
-  const canvas = pickCanvas(prepared.width, prepared.height, prepared.inputBytes);
   const built = [];
 
-  for (const spec of TIER_SPECS) {
-    const target = tierTarget(prepared.inputBytes, spec);
-    built.push(await buildVariant(prepared, canvas, target, spec));
+  for (const tier of TIERS) {
+    built.push(await buildVariant(prepared, tier));
   }
 
   const minBytes = Math.min(...built.map((b) => b.fileSizeBytes));
