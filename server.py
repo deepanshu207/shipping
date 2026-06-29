@@ -1,5 +1,6 @@
 """Serve the Meesho Image Generator SPA with own local API."""
 import json
+import mimetypes
 import os
 import re
 import socketserver
@@ -12,6 +13,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent
 ROOT = REPO / "supplierhub.in"
 PORT = 8000
+
+mimetypes.add_type("application/javascript", ".mjs")
+mimetypes.add_type("application/wasm", ".wasm")
 CATEGORIES_FILE = ROOT / "data" / "meesho-categories.json"
 OPTIMIZE_SCRIPT = REPO / "scripts" / "optimize-stdin.mjs"
 

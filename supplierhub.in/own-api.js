@@ -2,19 +2,28 @@
  * Own API for Meesho Image Generator — runs entirely in the browser.
  */
 (function () {
-  /** SupplierDen-style: 30–36 KB at original (trimmed) dimensions. */
+  /** Meesho shipping tiers — fixed KB at original (trimmed) dimensions. */
   const TIERS = [
-    { targetKb: 30, label: "Lowest · upload to Meesho first", lowest: true },
-    { targetKb: 32, label: "Recommended · balanced", recommended: true },
-    { targetKb: 34, label: "Standard" },
-    { targetKb: 36, label: "High detail" },
+    { targetKb: 28, label: "Lowest · upload to Meesho first", lowest: true },
+    { targetKb: 30, label: "Recommended · balanced", recommended: true },
+    { targetKb: 32, label: "Standard" },
+    { targetKb: 34, label: "High detail" },
   ];
 
   const TRIM_THRESHOLD = 12;
+  const WHITE_SNAP = 20;
   const MAX_SIDE = 2000;
-  const MOZJPEG_CDN = "https://esm.sh/@jsquash/jpeg@1.6.0";
-  let mozEncodeFn = null;
-  let mozLoadPromise = null;
+  const MOZJPEG_URL = "/vendor/mozjpeg.mjs";
+  const MOZ_OPTS = {
+    progressive: true,
+    optimize_coding: true,
+    quant_table: 3,
+    auto_subsample: true,
+    chroma_subsample: 2,
+    trellis_multipass: true,
+    trellis_opt_zero: true,
+    trellis_opt_table: true,
+  };
 
   const GUEST_USER = {
     id: "guest-local",
@@ -74,12 +83,15 @@
     });
   }
 
-  /** Load mozjpeg WASM (same encoder SupplierDen / Squoosh uses). */
+  let mozEncodeFn = null;
+  let mozLoadPromise = null;
+
+  /** Load mozjpeg WASM bundled locally — best JPEG size at same pixels. */
   function loadMozjpeg() {
     if (mozLoadPromise) return mozLoadPromise;
-    mozLoadPromise = import(/* webpackIgnore: true */ MOZJPEG_CDN)
+    mozLoadPromise = import(/* webpackIgnore: true */ MOZJPEG_URL)
       .then((mod) => {
-        mozEncodeFn = mod.encode;
+        mozEncodeFn = mod.encodeImageData;
         return mozEncodeFn;
       })
       .catch((err) => {
@@ -100,8 +112,7 @@
     const q = Math.max(1, Math.min(100, Math.round(quality)));
     const encode = mozEncodeFn || (await loadMozjpeg());
     if (encode) {
-      const buf = await encode(canvasImageData(canvas), { quality: q });
-      return new Blob([buf], { type: "image/jpeg" });
+      return encode(canvasImageData(canvas), { ...MOZ_OPTS, quality: q });
     }
     return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", q / 100));
   }
@@ -112,7 +123,7 @@
     const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const d = img.data;
     for (let i = 0; i < d.length; i += 4) {
-      if (255 - d[i] <= 14 && 255 - d[i + 1] <= 14 && 255 - d[i + 2] <= 14) {
+      if (255 - d[i] <= WHITE_SNAP && 255 - d[i + 1] <= WHITE_SNAP && 255 - d[i + 2] <= WHITE_SNAP) {
         d[i] = 255;
         d[i + 1] = 255;
         d[i + 2] = 255;
@@ -445,5 +456,5 @@
   window.XMLHttpRequest = OwnXHR;
 
   window.__MEESHO_OWN_API__ = true;
-  console.info("[own-api] Meesho tool uses own API (browser) — not SupplierHub");
+  console.info("[own-api] Meesho Optimizer — local image API active");
 })();

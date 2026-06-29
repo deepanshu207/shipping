@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@jsquash/jpeg": "^1.6.0",
     "sharp": "^0.33.5"
   }
 }

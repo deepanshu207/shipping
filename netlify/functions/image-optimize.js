@@ -1,11 +1,11 @@
 import sharp from "sharp";
 
-/** SupplierDen-style tiers — fixed KB targets, native trimmed dimensions. */
+/** Meesho shipping tiers — fixed KB at native trimmed dimensions. */
 const TIERS = [
-  { targetKb: 30, label: "Lowest · upload to Meesho first", lowest: true },
-  { targetKb: 32, label: "Recommended · balanced", recommended: true },
-  { targetKb: 34, label: "Standard" },
-  { targetKb: 36, label: "High detail" },
+  { targetKb: 28, label: "Lowest · upload to Meesho first", lowest: true },
+  { targetKb: 30, label: "Recommended · balanced", recommended: true },
+  { targetKb: 32, label: "Standard" },
+  { targetKb: 34, label: "High detail" },
 ];
 
 export function kbFromBytes(bytes) {
@@ -21,6 +21,7 @@ function mozjpeg(buffer, quality) {
     optimizeScans: true,
     trellisQuantisation: true,
     overshootDeringing: true,
+    quantisationTable: 3,
   });
 }
 
