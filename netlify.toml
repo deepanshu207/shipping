@@ -1,14 +1,17 @@
 [functions]
   node_bundler = "esbuild"
   external_node_modules = ["sharp"]
-  included_files = ["supplierhub.in/data/**"]
+  included_files = ["supplierhub.in/data/meesho-categories.json"]
 
 [build]
   publish = "supplierhub.in"
   functions = "netlify/functions"
   command = "npm install"
 
-# All API + auth served by our own Netlify Function (no SupplierHub proxy)
+[build.environment]
+  NODE_VERSION = "20"
+
+# Own API via Netlify Function (browser own-api.js is fallback)
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/generate-api/api/:splat"
@@ -19,7 +22,6 @@
   to = "/.netlify/functions/generate-api/auth/:splat"
   status = 200
 
-# SPA fallback
 [[redirects]]
   from = "/*"
   to = "/index.html"

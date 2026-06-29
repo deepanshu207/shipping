@@ -1,11 +1,10 @@
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { randomBytes } from "crypto";
 import { generateAllVariants } from "./image-optimize.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const CATEGORIES_PATH = join(__dirname, "../../supplierhub.in/data/meesho-categories.json");
 
 const GUEST_USER = {
   id: "guest-local",
@@ -16,13 +15,32 @@ const GUEST_USER = {
   picture: null,
 };
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Credentials": "true",
+};
+
 let categoriesCache = null;
 
-function getCategories() {
-  if (!categoriesCache) {
-    categoriesCache = JSON.parse(readFileSync(CATEGORIES_PATH, "utf8"));
+function loadCategories() {
+  if (categoriesCache) return categoriesCache;
+
+  const candidates = [
+    join(__dirname, "supplierhub.in/data/meesho-categories.json"),
+    join(__dirname, "../../supplierhub.in/data/meesho-categories.json"),
+    join(process.cwd(), "supplierhub.in/data/meesho-categories.json"),
+  ];
+
+  for (const path of candidates) {
+    if (existsSync(path)) {
+      categoriesCache = JSON.parse(readFileSync(path, "utf8"));
+      return categoriesCache;
+    }
   }
-  return categoriesCache;
+
+  throw new Error("meesho-categories.json not found in function bundle");
 }
 
 function getStore() {
@@ -33,7 +51,28 @@ function getStore() {
 }
 
 function json(data, status = 200) {
-  return Response.json(data, { status });
+  return Response.json(data, { status, headers: CORS_HEADERS });
+}
+
+function resolveRoute(request) {
+  const url = new URL(request.url);
+  let route = url.pathname;
+
+  const fnPrefix = "/.netlify/functions/generate-api";
+  if (route.startsWith(fnPrefix)) {
+    route = route.slice(fnPrefix.length) || "/";
+    if (!route.startsWith("/")) route = `/${route}`;
+    return route;
+  }
+
+  for (const header of ["x-nf-rewrite-path", "x-forwarded-uri", "x-original-url"]) {
+    const value = request.headers.get(header);
+    if (!value) continue;
+    const path = value.split("?")[0];
+    if (path.startsWith("/api/") || path.startsWith("/auth/")) return path;
+  }
+
+  return route;
 }
 
 async function processRequest(requestId) {
@@ -54,30 +93,31 @@ async function processRequest(requestId) {
   }
 }
 
-function resolveRoute(request) {
-  const url = new URL(request.url);
-  const fnPrefix = "/.netlify/functions/generate-api";
-
-  if (url.pathname.startsWith(fnPrefix)) {
-    const rest = url.pathname.slice(fnPrefix.length) || "/";
-    return rest.startsWith("/") ? rest : `/${rest}`;
-  }
-
-  for (const header of ["x-nf-rewrite-path", "x-forwarded-uri", "x-original-url"]) {
-    const value = request.headers.get(header);
-    if (value) {
-      const path = value.split("?")[0];
-      if (path.startsWith("/api/") || path.startsWith("/auth/")) return path;
-    }
-  }
-
-  return url.pathname;
-}
-
 export default async (request, context) => {
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
+  }
+
   try {
     const route = resolveRoute(request);
     const method = request.method;
+
+    if (route === "/api/health" && method === "GET") {
+      return json({
+        ok: true,
+        api: "own",
+        service: "generate-api",
+        endpoints: [
+          "GET /auth/me",
+          "POST /auth/logout",
+          "GET /api/meesho/fetchCategoryTreeOrder",
+          "POST /api/meesho/getLowestShippingCharge",
+          "GET /api/meesho/fetchAllRequestId",
+          "GET /api/meesho/request/:id",
+          "GET /api/meesho/request-status/:id",
+        ],
+      });
+    }
 
     if (route === "/auth/me" && method === "GET") {
       return json(GUEST_USER);
@@ -88,7 +128,7 @@ export default async (request, context) => {
     }
 
     if (route === "/api/meesho/fetchCategoryTreeOrder" && method === "GET") {
-      return json(getCategories());
+      return json(loadCategories());
     }
 
     const store = getStore();
