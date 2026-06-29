@@ -2,12 +2,28 @@
  * Own API for Meesho Image Generator — runs entirely in the browser.
  */
 (function () {
-  const VARIANTS = [
-    { canvas: 1000, coverage: 0.58, quality: 0.72, label: "Tier 1" },
-    { canvas: 1000, coverage: 0.62, quality: 0.68, label: "Tier 2" },
-    { canvas: 1200, coverage: 0.62, quality: 0.65, label: "Tier 3" },
-    { canvas: 2000, coverage: 0.65, quality: 0.62, label: "Tier 4" },
+  const TIER_SPECS = [
+    { ratio: 0.7, capKb: 38, label: "Lowest · upload this first", lowest: true },
+    { ratio: 0.78, capKb: 45, label: "Recommended · balanced", recommended: true },
+    { ratio: 0.86, capKb: 50, label: "Standard" },
+    { ratio: 0.92, capKb: 55, label: "High detail" },
   ];
+
+  function tierTarget(inputBytes, spec) {
+    const fromRatio = Math.floor(inputBytes * spec.ratio);
+    const fromCap = spec.capKb * 1024;
+    return Math.max(12 * 1024, Math.min(fromRatio, fromCap));
+  }
+
+  function pickCanvas(imgW, imgH, inputBytes) {
+    const maxSide = Math.max(imgW, imgH);
+    let canvas = Math.min(2000, Math.ceil(maxSide / 50) * 50);
+    if (canvas < maxSide) canvas = maxSide;
+    if (inputBytes <= 80 * 1024 && maxSide <= 1400) {
+      canvas = Math.min(canvas, Math.max(1000, Math.ceil(maxSide / 100) * 100));
+    }
+    return canvas;
+  }
 
   const GUEST_USER = {
     id: "guest-local",
@@ -67,42 +83,72 @@
     });
   }
 
-  async function renderVariant(img, variant) {
-    const canvas = document.createElement("canvas");
-    canvas.width = variant.canvas;
-    canvas.height = variant.canvas;
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  async function blobAtQuality(canvas, quality) {
+    return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+  }
 
-    const maxSide = Math.round(variant.canvas * variant.coverage);
-    const scale = Math.min(maxSide / img.width, maxSide / img.height);
+  /** Binary search: best quality that fits under targetBytes (same pixel dimensions). */
+  async function compressCanvas(canvas, targetBytes, startQ, minQ) {
+    let lo = minQ;
+    let hi = startQ;
+    let best = await blobAtQuality(canvas, minQ);
+
+    while (hi - lo > 0.008) {
+      const mid = (lo + hi) / 2;
+      const blob = await blobAtQuality(canvas, mid);
+      if (blob.size <= targetBytes) {
+        best = blob;
+        lo = mid;
+      } else {
+        hi = mid;
+      }
+    }
+
+    const top = await blobAtQuality(canvas, startQ);
+    if (top.size <= targetBytes) return top;
+    return best;
+  }
+
+  async function renderVariant(img, canvas, targetBytes, spec, inputBytes) {
+    const out = document.createElement("canvas");
+    out.width = canvas;
+    out.height = canvas;
+    const ctx = out.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas, canvas);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+
+    const maxSide = Math.round(canvas * 0.96);
+    const scale = Math.min(maxSide / img.width, maxSide / img.height, 1);
     const w = Math.round(img.width * scale);
     const h = Math.round(img.height * scale);
-    ctx.drawImage(img, Math.round((canvas.width - w) / 2), Math.round((canvas.height - h) / 2), w, h);
+    ctx.drawImage(img, Math.round((canvas - w) / 2), Math.round((canvas - h) / 2), w, h);
 
-    let quality = variant.quality;
-    let blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", quality));
-    while (blob.size > 180 * 1024 && quality > 0.45) {
-      quality -= 0.05;
-      blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", quality));
+    let blob = await compressCanvas(out, targetBytes, 0.84, 0.52);
+
+    if (inputBytes && blob.size > inputBytes) {
+      blob = await compressCanvas(out, Math.floor(inputBytes * 0.88), 0.78, 0.45);
     }
-    return { blob, bytes: blob.size, label: variant.label };
+
+    return {
+      blob,
+      bytes: blob.size,
+      label: `${spec.label} · ${canvas}px`,
+      recommended: !!spec.recommended,
+      lowest: !!spec.lowest,
+    };
   }
 
   async function optimizeToVariants(source) {
+    const inputBytes = source instanceof File ? source.size : 52000;
     const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
+    const canvas = pickCanvas(img.width, img.height, inputBytes);
     const built = [];
-    for (const variant of VARIANTS) built.push(await renderVariant(img, variant));
-    built.sort((a, b) => a.bytes - b.bytes);
+    for (const spec of TIER_SPECS) {
+      built.push(await renderVariant(img, canvas, tierTarget(inputBytes, spec), spec, inputBytes));
+    }
     return built;
-  }
-
-  async function optimizeFile(file) {
-    const variants = await optimizeToVariants(file);
-    const best = variants[0];
-    const name = (file.name || "product").replace(/\.\w+$/i, "") + `-${best.bytes}b.jpg`;
-    return new File([best.blob], name, { type: "image/jpeg", lastModified: Date.now() });
   }
 
   function blobToDataUrl(blob) {
@@ -115,9 +161,9 @@
   }
 
   async function variantsToResults(variants, tagName) {
+    const minBytes = Math.min(...variants.map((v) => v.bytes));
     const out = [];
-    for (let i = 0; i < variants.length; i++) {
-      const v = variants[i];
+    for (const v of variants) {
       const imageUrl = await blobToDataUrl(v.blob);
       const fileSizeKb = kb(v.bytes);
       out.push({
@@ -126,7 +172,8 @@
         fileSizeBytes: v.bytes,
         fileSizeKb,
         shippingCharge: String(fileSizeKb),
-        lowest: i === 0,
+        lowest: v.bytes === minBytes,
+        recommended: v.recommended,
         [OPT_FLAG]: true,
         categoryName: tagName,
       });
@@ -307,28 +354,6 @@
   }
   OwnXHR.prototype = NativeXHR.prototype;
   window.XMLHttpRequest = OwnXHR;
-
-  document.addEventListener(
-    "change",
-    (e) => {
-      const input = e.target;
-      if (!input || input.type !== "file" || input[OPT_FLAG]) return;
-      const file = input.files?.[0];
-      if (!file || !file.type.startsWith("image/")) return;
-      e.stopImmediatePropagation();
-      e.preventDefault();
-      input[OPT_FLAG] = true;
-      optimizeFile(file)
-        .then((optimized) => {
-          const dt = new DataTransfer();
-          dt.items.add(optimized);
-          input.files = dt.files;
-          input.dispatchEvent(new Event("change", { bubbles: true }));
-        })
-        .catch((err) => console.warn("[own-api] upload optimize failed:", err));
-    },
-    true
-  );
 
   window.__MEESHO_OWN_API__ = true;
   console.info("[own-api] Meesho tool uses own API (browser) — not SupplierHub");
