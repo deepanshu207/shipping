@@ -2,29 +2,30 @@
  * Own API for Meesho Image Generator — runs entirely in the browser.
  */
 (function () {
-  /** Meesho shipping tiers — smallest KB at exact pixel dimensions. */
+  /** Tiers matched to min quality — clean white, no blocky artifacts. */
   const TIERS = [
-    { targetKb: 24, label: "Lowest · upload to Meesho first", lowest: true },
-    { targetKb: 26, label: "Recommended · balanced", recommended: true },
-    { targetKb: 28, label: "Standard" },
-    { targetKb: 30, label: "High detail" },
+    { targetKb: 28, label: "Lowest · upload to Meesho first", lowest: true },
+    { targetKb: 30, label: "Recommended · balanced", recommended: true },
+    { targetKb: 32, label: "Standard" },
+    { targetKb: 34, label: "High detail" },
   ];
 
-  const WHITE_SNAP = 24;
+  const WHITE_TOL = 42;
+  const ABS_MIN_Q = 28;
   const MAX_SIDE = 2000;
-  const MOZJPEG_URL = "/vendor/mozjpeg.mjs";
+  const MOZJPEG_URL = () => new URL("/vendor/mozjpeg.mjs", location.origin).href;
   const MOZ_BASE = {
     baseline: false,
     progressive: true,
     optimize_coding: true,
-    quant_table: 3,
+    quant_table: 2,
     auto_subsample: true,
     chroma_subsample: 2,
     trellis_multipass: true,
     trellis_opt_zero: true,
     trellis_opt_table: true,
-    trellis_loops: 4,
-    separate_chroma_quality: true,
+    trellis_loops: 2,
+    separate_chroma_quality: false,
   };
 
   const GUEST_USER = {
@@ -54,11 +55,11 @@
   }
 
   function isOwnRoute(path) {
+    /* Guest auth + categories only — image compress goes to server (Sharp/mozjpeg). */
     return (
       path === "/auth/me" ||
       path === "/auth/logout" ||
-      path === "/api/health" ||
-      path.startsWith("/api/meesho/")
+      path === "/api/meesho/fetchCategoryTreeOrder"
     );
   }
 
@@ -88,62 +89,140 @@
   let mozEncodeFn = null;
   let mozLoadPromise = null;
 
-  /** Load mozjpeg WASM bundled locally — best JPEG size at same pixels. */
+  /** Wait for mozjpeg WASM — required for real compression (canvas JPEG ~2× larger). */
   function loadMozjpeg() {
+    if (mozEncodeFn) return Promise.resolve(mozEncodeFn);
+    if (window.__mozEncodeReady) {
+      mozEncodeFn = window.__mozEncodeReady;
+      return Promise.resolve(mozEncodeFn);
+    }
     if (mozLoadPromise) return mozLoadPromise;
-    mozLoadPromise = import(/* webpackIgnore: true */ MOZJPEG_URL)
-      .then((mod) => {
-        mozEncodeFn = mod.encodeImageData;
-        return mozEncodeFn;
-      })
-      .catch((err) => {
-        console.warn("[own-api] mozjpeg unavailable, falling back to canvas JPEG:", err);
-        mozLoadPromise = null;
-        return null;
-      });
+
+    mozLoadPromise = new Promise((resolve, reject) => {
+      const done = (fn) => {
+        mozEncodeFn = fn;
+        resolve(fn);
+      };
+      const timeout = setTimeout(() => reject(new Error("mozjpeg load timeout")), 15000);
+
+      window.addEventListener(
+        "mozjpeg-ready",
+        () => {
+          clearTimeout(timeout);
+          if (window.__mozEncodeReady) done(window.__mozEncodeReady);
+          else reject(new Error("mozjpeg loader empty"));
+        },
+        { once: true }
+      );
+
+      import(/* webpackIgnore: true */ MOZJPEG_URL())
+        .then((mod) => {
+          clearTimeout(timeout);
+          done(mod.encodeImageData);
+        })
+        .catch((err) => {
+          clearTimeout(timeout);
+          mozLoadPromise = null;
+          reject(err);
+        });
+    });
+
     return mozLoadPromise;
   }
-  loadMozjpeg();
 
   function canvasImageData(canvas) {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     return ctx.getImageData(0, 0, canvas.width, canvas.height);
   }
 
-  async function encodeAtQuality(canvas, quality, extra) {
-    const q = Math.max(1, Math.min(100, Math.round(quality)));
-    const encode = mozEncodeFn || (await loadMozjpeg());
-    if (encode) {
-      const chromaQ = Math.max(1, Math.round(q * 0.5));
-      return encode(canvasImageData(canvas), {
-        ...MOZ_BASE,
-        quality: q,
-        chroma_quality: chromaQ,
-        ...extra,
-      });
-    }
-    return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", q / 100));
+  async function encodeAtQuality(canvas, quality, floor) {
+    const minQ = floor ?? ABS_MIN_Q;
+    const q = Math.max(minQ, Math.min(100, Math.round(quality)));
+    const encode = await loadMozjpeg();
+    return encode(canvasImageData(canvas), { ...MOZ_BASE, quality: q });
   }
 
-  /** Merge near-white and light greys → pure white (same pixel grid). */
-  function snapWhite(canvas) {
+  function measureWhiteRatio(canvas) {
+    const { data } = canvas.getContext("2d", { willReadFrequently: true }).getImageData(
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+    let white = 0;
+    const total = canvas.width * canvas.height;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i] === 255 && data[i + 1] === 255 && data[i + 2] === 255) white++;
+    }
+    return white / total;
+  }
+
+  /** White-bg photos tolerate lower q without grey blocks on background. */
+  function adaptiveMinQ(whiteRatio) {
+    if (whiteRatio >= 0.62) return 32;
+    if (whiteRatio >= 0.48) return 36;
+    if (whiteRatio >= 0.35) return 40;
+    return 42;
+  }
+
+  function nearWhiteAt(d, i) {
+    return 255 - d[i] <= WHITE_TOL && 255 - d[i + 1] <= WHITE_TOL && 255 - d[i + 2] <= WHITE_TOL;
+  }
+
+  /** Flood-fill edge-connected background to pure #FFF — product pixels untouched. */
+  function flattenBackgroundWhite(canvas) {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const { width, height } = canvas;
+    const img = ctx.getImageData(0, 0, width, height);
     const d = img.data;
-    for (let i = 0; i < d.length; i += 4) {
-      const r = d[i];
-      const g = d[i + 1];
-      const b = d[i + 2];
-      if (255 - r <= WHITE_SNAP && 255 - g <= WHITE_SNAP && 255 - b <= WHITE_SNAP) {
-        d[i] = 255;
-        d[i + 1] = 255;
-        d[i + 2] = 255;
-      } else if (Math.max(r, g, b) - Math.min(r, g, b) < 8 && r > 230) {
-        d[i] = 255;
-        d[i + 1] = 255;
-        d[i + 2] = 255;
+    const total = width * height;
+    const seen = new Uint8Array(total);
+    const queue = new Int32Array(total);
+    let head = 0;
+    let tail = 0;
+
+    function push(idx) {
+      if (seen[idx] || !nearWhiteAt(d, idx * 4)) return;
+      seen[idx] = 1;
+      queue[tail++] = idx;
+    }
+
+    for (let x = 0; x < width; x++) {
+      push(x);
+      push((height - 1) * width + x);
+    }
+    for (let y = 0; y < height; y++) {
+      push(y * width);
+      push(y * width + width - 1);
+    }
+
+    while (head < tail) {
+      const idx = queue[head++];
+      const o = idx * 4;
+      d[o] = 255;
+      d[o + 1] = 255;
+      d[o + 2] = 255;
+      const x = idx % width;
+      const y = (idx / width) | 0;
+      if (x > 0) push(idx - 1);
+      if (x < width - 1) push(idx + 1);
+      if (y > 0) push(idx - width);
+      if (y < height - 1) push(idx + width);
+    }
+
+    for (let idx = 0; idx < total; idx++) {
+      const o = idx * 4;
+      if (seen[idx]) continue;
+      const r = d[o];
+      const g = d[o + 1];
+      const b = d[o + 2];
+      if (r >= 248 && g >= 248 && b >= 248 && Math.max(r, g, b) - Math.min(r, g, b) < 10) {
+        d[o] = 255;
+        d[o + 1] = 255;
+        d[o + 2] = 255;
       }
     }
+
     ctx.putImageData(img, 0, 0);
   }
 
@@ -167,62 +246,49 @@
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(img, 0, 0, w, h);
-    snapWhite(c);
+    flattenBackgroundWhite(c);
     return c;
   }
 
-  function blurCanvas(src, px) {
-    const c = document.createElement("canvas");
-    c.width = src.width;
-    c.height = src.height;
-    const ctx = c.getContext("2d");
-    ctx.filter = `blur(${px}px)`;
-    ctx.drawImage(src, 0, 0);
-    ctx.filter = "none";
-    return c;
-  }
+  /** Hit target KB — adaptive min q keeps white clean on product photos. */
+  async function compressCanvas(canvas, targetBytes, minQ) {
+    let lo = minQ;
+    let hi = 92;
+    let best = await encodeAtQuality(canvas, minQ, minQ);
 
-  /** Binary search: highest mozjpeg quality ≤ targetBytes. */
-  async function binarySearch(canvas, targetBytes, lo, hi) {
-    let best = await encodeAtQuality(canvas, lo);
-    if (best.size > targetBytes) return best;
-
-    while (hi - lo > 1) {
-      const mid = Math.floor((lo + hi) / 2);
-      const blob = await encodeAtQuality(canvas, mid);
-      if (blob.size <= targetBytes) {
-        best = blob;
-        lo = mid;
-      } else {
-        hi = mid;
+    if (best.size <= targetBytes) {
+      while (hi - lo > 1) {
+        const mid = Math.floor((lo + hi) / 2);
+        const blob = await encodeAtQuality(canvas, mid, minQ);
+        if (blob.size <= targetBytes) {
+          best = blob;
+          lo = mid;
+        } else {
+          hi = mid;
+        }
       }
+      const top = await encodeAtQuality(canvas, lo, minQ);
+      if (top.size <= targetBytes) return top;
     }
-    const top = await encodeAtQuality(canvas, lo);
-    return top.size <= targetBytes ? top : best;
-  }
 
-  /** Max compression at same width×height — mozjpeg + fallback passes. */
-  async function compressCanvas(canvas, targetBytes) {
-    let blob = await binarySearch(canvas, targetBytes, 1, 90);
-    if (blob.size <= targetBytes) return blob;
+    for (let q = minQ - 1; q >= ABS_MIN_Q && best.size > targetBytes; q--) {
+      const blob = await encodeAtQuality(canvas, q, ABS_MIN_Q);
+      if (blob.size <= targetBytes) return blob;
+      if (blob.size < best.size) best = blob;
+    }
 
-    blob = await encodeAtQuality(canvas, 1, { chroma_quality: 1, trellis_loops: 6 });
-    if (blob.size <= targetBytes) return blob;
-
-    const soft = blurCanvas(canvas, 0.35);
-    blob = await binarySearch(soft, targetBytes, 1, 75);
-    if (blob.size <= targetBytes) return blob;
-
-    return encodeAtQuality(soft, 1, { chroma_quality: 1, trellis_loops: 6 });
+    return best;
   }
 
   async function optimizeToVariants(source) {
+    await loadMozjpeg();
     const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
     const canvas = prepareCanvas(img);
+    const minQ = adaptiveMinQ(measureWhiteRatio(canvas));
     const built = [];
     for (const tier of TIERS) {
       const targetBytes = tier.targetKb * 1024;
-      const blob = await compressCanvas(canvas, targetBytes);
+      const blob = await compressCanvas(canvas, targetBytes, minQ);
       built.push({
         blob,
         bytes: blob.size,
@@ -306,10 +372,6 @@
   }
 
   async function handleRoute(method, path, body) {
-    if (path === "/api/health" && method === "GET") {
-      return { status: 200, body: { ok: true, api: "own", service: "own-api.js" } };
-    }
-
     if (path === "/auth/me" && method === "GET") {
       return { status: 200, body: GUEST_USER };
     }
@@ -320,49 +382,6 @@
 
     if (path === "/api/meesho/fetchCategoryTreeOrder" && method === "GET") {
       return { status: 200, body: await loadCategories() };
-    }
-
-    if (path === "/api/meesho/fetchAllRequestId" && method === "GET") {
-      const history = [...STORE.requests.entries()]
-        .map(([id, req]) => ({
-          requestId: id,
-          status: req.status,
-          tagName: req.tagName,
-          createdAt: req.createdAt,
-          results: req.status === "completed" ? req.results : [],
-        }))
-        .sort((a, b) => b.createdAt - a.createdAt);
-      return { status: 200, body: { data: history, credits: GUEST_USER.credits } };
-    }
-
-    if (path === "/api/meesho/getLowestShippingCharge" && method === "POST") {
-      const image = getImageFromBody(body);
-      const tagName = getFieldFromBody(body, "tagName") || "Product";
-      if (!image) {
-        return { status: 400, body: { message: "Image is required" } };
-      }
-
-      const id = newRequestId();
-      STORE.requests.set(id, {
-        createdAt: Date.now(),
-        tagName,
-        status: "processing",
-        results: [],
-      });
-      processImage(id, image, tagName);
-      return { status: 200, body: { requestId: id } };
-    }
-
-    const poll = path.match(/^\/api\/meesho\/request(?:-status)?\/([^/]+)$/);
-    if (poll && method === "GET") {
-      const id = poll[1];
-      const req = STORE.requests.get(id);
-      if (!req) return { status: 404, body: { message: "Request not found" } };
-      if (req.status === "failed") return { status: 200, body: { status: "failed", results: [] } };
-      if (Date.now() - req.createdAt < 2500 || req.status !== "completed") {
-        return { status: 200, body: { status: "processing", results: [] } };
-      }
-      return { status: 200, body: { status: "completed", results: req.results } };
     }
 
     return { status: 404, body: { message: "Not found", route: path } };
@@ -439,5 +458,5 @@
   window.XMLHttpRequest = OwnXHR;
 
   window.__MEESHO_OWN_API__ = true;
-  console.info("[own-api] Meesho Optimizer — local image API active");
+  console.info("[own-api] guest auth + categories local; image compress via server Sharp");
 })();
