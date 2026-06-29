@@ -1,0 +1,146 @@
+/**
+ * Meesho Optimizer — fresh emerald/cyan theme (replaces legacy violet branding).
+ */
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap");
+
+:root {
+  --mo-emerald: #059669;
+  --mo-teal: #0d9488;
+  --mo-cyan: #0891b2;
+  --mo-emerald-light: #34d399;
+  --mo-emerald-dark: #047857;
+}
+
+html {
+  font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif !important;
+}
+
+/* ── Violet → Emerald remap ─────────────────────────────────── */
+.text-violet-600 { color: var(--mo-emerald) !important; }
+.text-violet-700 { color: var(--mo-emerald-dark) !important; }
+.text-violet-400 { color: var(--mo-emerald-light) !important; }
+.text-violet-300 { color: #6ee7b7 !important; }
+.text-violet-500 { color: var(--mo-teal) !important; }
+
+.dark .text-violet-600 { color: var(--mo-emerald-light) !important; }
+.dark .text-violet-400 { color: #5eead4 !important; }
+.dark .text-violet-300 { color: #99f6e4 !important; }
+.dark .text-violet-700 { color: #a7f3d0 !important; }
+
+.bg-violet-600 { background-color: var(--mo-emerald) !important; }
+.bg-violet-500 { background-color: var(--mo-teal) !important; }
+.bg-violet-50 { background-color: #ecfdf5 !important; }
+.bg-violet-100 { background-color: #d1fae5 !important; }
+.bg-violet-900\/20,
+.bg-violet-900\/40 { background-color: rgb(6 78 59 / 0.25) !important; }
+
+.dark .bg-violet-900\/20 { background-color: rgb(6 78 59 / 0.35) !important; }
+.dark .bg-violet-900\/40 { background-color: rgb(6 78 59 / 0.45) !important; }
+
+.border-violet-100 { border-color: #a7f3d0 !important; }
+.border-violet-200 { border-color: #6ee7b7 !important; }
+.border-violet-500 { border-color: var(--mo-emerald) !important; }
+.border-violet-800\/30 { border-color: rgb(6 95 70 / 0.35) !important; }
+
+.dark .border-violet-800\/30 { border-color: rgb(45 212 191 / 0.2) !important; }
+
+.from-violet-600 { --tw-gradient-from: var(--mo-emerald) !important; }
+.from-violet-500 { --tw-gradient-from: var(--mo-teal) !important; }
+.from-violet-950 { --tw-gradient-from: #022c22 !important; }
+.from-violet-900 { --tw-gradient-from: #064e3b !important; }
+.to-purple-600 { --tw-gradient-to: var(--mo-cyan) !important; }
+.to-purple-700 { --tw-gradient-to: #0e7490 !important; }
+.to-violet-600 { --tw-gradient-to: var(--mo-teal) !important; }
+.via-violet-900 { --tw-gradient-via: #065f46 !important; }
+
+.hover\:bg-violet-700:hover { background-color: var(--mo-emerald-dark) !important; }
+.hover\:bg-violet-900\/20:hover { background-color: rgb(6 78 59 / 0.2) !important; }
+.hover\:text-violet-600:hover { color: var(--mo-emerald) !important; }
+.hover\:text-violet-400:hover { color: var(--mo-emerald-light) !important; }
+.hover\:border-violet-500:hover { border-color: var(--mo-emerald) !important; }
+
+.shadow-violet-500\/30,
+.shadow-violet-500\/20 { --tw-shadow-color: rgb(5 150 105 / 0.28) !important; }
+
+.ring-violet-500 { --tw-ring-color: var(--mo-emerald) !important; }
+.focus\:ring-violet-500:focus { --tw-ring-color: var(--mo-emerald) !important; }
+
+/* Purple accents → teal */
+.text-purple-600 { color: var(--mo-cyan) !important; }
+.from-purple-600 { --tw-gradient-from: var(--mo-teal) !important; }
+
+/* ── Custom logo injection ──────────────────────────────────── */
+.mo-logo-box {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 2.25rem !important;
+  height: 2.25rem !important;
+  border-radius: 0.75rem !important;
+  background: linear-gradient(135deg, #10b981, #0891b2) !important;
+  box-shadow: 0 8px 20px rgb(5 150 105 / 0.35) !important;
+  flex-shrink: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.mo-logo-box img,
+.mo-logo-mark {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
+.mo-brand-link {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.625rem !important;
+  text-decoration: none !important;
+}
+
+.mo-brand-name {
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+  background: linear-gradient(135deg, #059669, #0891b2) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: transparent !important;
+}
+
+.dark .mo-brand-name {
+  background: linear-gradient(135deg, #34d399, #67e8f9) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+}
+
+/* Hide legacy truck SVG icons inside logo slots */
+.mo-logo-box svg,
+[data-mo-logo="1"] > svg {
+  display: none !important;
+}
+
+/* Primary buttons — fresh gradient */
+button.bg-violet-600,
+a.bg-violet-600,
+.bg-gradient-to-r.from-violet-600 {
+  background-image: linear-gradient(135deg, #059669, #0891b2) !important;
+}
+
+/* Hide third-party creator social links */
+a[href*="github.com/Piyush"],
+a[href*="wa.me/919099224998"],
+a[href*="twitter.com"] {
+  display: none !important;
+}
+
+/* Subtle page refresh — softer background on generator */
+.dark .dark\:bg-\[\#09090b\] {
+  background-color: #0a0f0d !important;
+}
+
+/* Avatar fallback color */
+img[src*="ui-avatars"][src*="7c3bed"] {
+  filter: hue-rotate(100deg) saturate(1.1);
+}
