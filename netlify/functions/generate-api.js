@@ -4,7 +4,8 @@ import { fileURLToPath } from "url";
 import { randomBytes } from "crypto";
 import { generateAllVariants } from "./image-optimize.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+// Netlify's esbuild bundler injects __dirname — use a distinct name to avoid redeclaration.
+const FUNCTION_DIR = dirname(fileURLToPath(import.meta.url));
 
 const GUEST_USER = {
   id: "guest-local",
@@ -28,8 +29,8 @@ function loadCategories() {
   if (categoriesCache) return categoriesCache;
 
   const candidates = [
-    join(__dirname, "supplierhub.in/data/meesho-categories.json"),
-    join(__dirname, "../../supplierhub.in/data/meesho-categories.json"),
+    join(FUNCTION_DIR, "supplierhub.in/data/meesho-categories.json"),
+    join(FUNCTION_DIR, "../../supplierhub.in/data/meesho-categories.json"),
     join(process.cwd(), "supplierhub.in/data/meesho-categories.json"),
   ];
 

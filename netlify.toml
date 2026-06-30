@@ -3,6 +3,9 @@
   external_node_modules = ["sharp"]
   included_files = ["supplierhub.in/data/meesho-categories.json"]
 
+[functions."generate-api"]
+  timeout = 60
+
 [build]
   publish = "supplierhub.in"
   functions = "netlify/functions"
