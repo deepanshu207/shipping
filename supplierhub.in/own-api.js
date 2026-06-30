@@ -12,7 +12,10 @@
 
   const WHITE_TOL = 42;
   const ABS_MIN_Q = 28;
-  const MAX_SIDE = 2000;
+  const MAX_SIDE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 1200 : 2000;
+  const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
+  const STALE_PROCESSING_MS = 120000;
+  const PROCESS_TIMEOUT_MS = 180000;
   const MOZJPEG_URL = () => new URL("/vendor/mozjpeg.mjs", location.origin).href;
   const MOZ_BASE = {
     baseline: false,
@@ -116,18 +119,30 @@
     }
   }
 
-  function loadRequest(id) {
-    const cached = STORE.requests.get(id);
-    if (cached) return cached;
+  function loadRequest(id, fresh) {
+    if (!fresh) {
+      const cached = STORE.requests.get(id);
+      if (cached) return cached;
+    }
     try {
       const raw = localStorage.getItem(REQ_PREFIX + id);
-      if (!raw) return null;
+      if (!raw) {
+        STORE.requests.delete(id);
+        return null;
+      }
       const req = JSON.parse(raw);
       STORE.requests.set(id, req);
       return req;
     } catch {
       return null;
     }
+  }
+
+  function markStaleProcessingFailed(id, req) {
+    req.status = "failed";
+    req.error = "Processing timed out";
+    STORE.requests.set(id, req);
+    persistRequest(id, req);
   }
 
   function loadImageFromFile(file) {
@@ -170,7 +185,7 @@
         mozEncodeFn = fn;
         resolve(fn);
       };
-      const timeout = setTimeout(() => reject(new Error("mozjpeg load timeout")), 15000);
+      const timeout = setTimeout(() => reject(new Error("mozjpeg load timeout")), MOZJPEG_TIMEOUT_MS);
 
       window.addEventListener(
         "mozjpeg-ready",
@@ -412,9 +427,17 @@
   async function processImage(id, imageFile, tagName) {
     const req = STORE.requests.get(id);
     if (!req) return;
-    try {
+    const work = (async () => {
       req.results = await optimizeToVariants(imageFile).then((v) => variantsToResults(v, tagName));
       req.status = "completed";
+    })();
+    try {
+      await Promise.race([
+        work,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Image processing timeout")), PROCESS_TIMEOUT_MS)
+        ),
+      ]);
     } catch (e) {
       req.status = "failed";
       req.error = String(e);
@@ -487,20 +510,24 @@
       };
       STORE.requests.set(id, req);
       persistRequest(id, req);
-      processImage(id, image, tagName);
+      await processImage(id, image, tagName);
       return { status: 200, body: { requestId: id } };
     }
 
     const poll = path.match(/^\/api\/meesho\/request(?:-status)?\/([^/]+)$/);
     if (poll && method === "GET") {
       const id = poll[1];
-      const req = loadRequest(id);
+      const req = loadRequest(id, true);
       if (!req) return { status: 404, body: { message: "Request not found" } };
-      if (req.status === "failed") return { status: 200, body: { status: "failed", results: [] } };
-      if (Date.now() - req.createdAt < 2500 || req.status !== "completed") {
-        return { status: 200, body: { status: "processing", results: [] } };
+      if (req.status === "completed") {
+        return { status: 200, body: { status: "completed", results: req.results || [] } };
       }
-      return { status: 200, body: { status: "completed", results: req.results } };
+      if (req.status === "failed") return { status: 200, body: { status: "failed", results: [] } };
+      if (Date.now() - req.createdAt > STALE_PROCESSING_MS) {
+        markStaleProcessingFailed(id, req);
+        return { status: 200, body: { status: "failed", results: [] } };
+      }
+      return { status: 200, body: { status: "processing", results: [] } };
     }
 
     return { status: 404, body: { message: "Not found", route: path } };
