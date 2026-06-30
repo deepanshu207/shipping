@@ -59,15 +59,21 @@ async function run() {
       if (!postBody.requestId) return { ok: false, step: "post", postBody, postMs };
 
       const id = postBody.requestId;
-      const pollRes = await fetch(`/api/meesho/request/${id}`);
-      const pollBody = await pollRes.json();
+
+      let pollBody = null;
+      for (let i = 0; i < 40; i++) {
+        const pollRes = await fetch(`/api/meesho/request/${id}`);
+        pollBody = await pollRes.json();
+        if (pollBody.status === "completed" || pollBody.status === "failed") break;
+        await new Promise((r) => setTimeout(r, 1000));
+      }
 
       return {
-        ok: pollBody.status === "completed" && pollBody.results?.length > 0,
+        ok: pollBody?.status === "completed" && pollBody.results?.length > 0,
         postMs,
-        pollStatus: pollBody.status,
-        resultCount: pollBody.results?.length || 0,
-        smallestKb: pollBody.results?.[0]?.fileSizeKb,
+        pollStatus: pollBody?.status,
+        resultCount: pollBody?.results?.length || 0,
+        smallestKb: pollBody?.results?.[0]?.fileSizeKb,
         id,
       };
     });
