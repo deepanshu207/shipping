@@ -1,4 +1,4 @@
-import { init, encode } from "./jsquash/encode.js";
+import encode, { init } from "./jsquash/encode.js";
 
 const ready = init(null, {
   locateFile: (path) => new URL(`./jsquash/codec/enc/${path}`, import.meta.url).href,
