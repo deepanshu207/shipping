@@ -62,6 +62,7 @@
 
   function isOwnRoute(path) {
     return (
+      path === "/api/health" ||
       path === "/auth/me" ||
       path === "/auth/logout" ||
       path === "/api/meesho/fetchCategoryTreeOrder" ||
@@ -464,6 +465,13 @@
   }
 
   async function handleRoute(method, path, body) {
+    if (path === "/api/health" && method === "GET") {
+      return {
+        status: 200,
+        body: { ok: true, api: "own", service: "own-api.js", platform: "cloudflare-static" },
+      };
+    }
+
     if (path === "/auth/me" && method === "GET") {
       return { status: 200, body: GUEST_USER };
     }
@@ -604,5 +612,5 @@
   window.XMLHttpRequest = OwnXHR;
 
   window.__MEESHO_OWN_API__ = true;
-  console.info("[own-api] browser API with local persistence; image compress via client mozjpeg");
+  console.info("[own-api] browser API with local persistence; deploy via Cloudflare");
 })();

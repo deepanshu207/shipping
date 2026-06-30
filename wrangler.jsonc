@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "myshippings",
+  "compatibility_date": "2026-05-03",
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "./supplierhub.in",
+    "not_found_handling": "single-page-application"
+  },
+  "compatibility_flags": ["nodejs_compat"]
+}
