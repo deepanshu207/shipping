@@ -40,6 +40,9 @@
   const STORE = { requests: new Map(), categories: null };
   const OPT_FLAG = "__meeshoOptimized";
   const SHIM_URL = "http://127.0.0.1/__meesho_own_api__";
+  const REQ_PREFIX = "meesho:req:";
+  const REQ_INDEX = "meesho:req-index";
+  const REQ_LIMIT = 20;
   const origFetch = window.fetch.bind(window);
 
   function kb(bytes) {
@@ -55,12 +58,76 @@
   }
 
   function isOwnRoute(path) {
-    /* Guest auth + categories only — image compress goes to server (Sharp/mozjpeg). */
     return (
       path === "/auth/me" ||
       path === "/auth/logout" ||
-      path === "/api/meesho/fetchCategoryTreeOrder"
+      path === "/api/meesho/fetchCategoryTreeOrder" ||
+      path === "/api/meesho/fetchAllRequestId" ||
+      path === "/api/meesho/getLowestShippingCharge" ||
+      /^\/api\/meesho\/request(?:-status)?\/[^/]+$/.test(path)
     );
+  }
+
+  function readIndex() {
+    try {
+      return JSON.parse(localStorage.getItem(REQ_INDEX) || "[]");
+    } catch {
+      return [];
+    }
+  }
+
+  function writeIndex(ids) {
+    try {
+      localStorage.setItem(REQ_INDEX, JSON.stringify(ids.slice(0, REQ_LIMIT)));
+    } catch (e) {
+      console.warn("[own-api] index save failed:", e);
+    }
+  }
+
+  function persistRequest(id, req) {
+    const payload = {
+      createdAt: req.createdAt,
+      tagName: req.tagName,
+      status: req.status,
+      results: req.results || [],
+      error: req.error || null,
+    };
+    try {
+      localStorage.setItem(REQ_PREFIX + id, JSON.stringify(payload));
+      const index = readIndex().filter((entry) => entry !== id);
+      index.unshift(id);
+      writeIndex(index);
+    } catch (e) {
+      console.warn("[own-api] request save failed:", e);
+      try {
+        const index = readIndex();
+        while (index.length) {
+          localStorage.removeItem(REQ_PREFIX + index.pop());
+          writeIndex(index);
+          localStorage.setItem(REQ_PREFIX + id, JSON.stringify(payload));
+          const next = readIndex().filter((entry) => entry !== id);
+          next.unshift(id);
+          writeIndex(next);
+          break;
+        }
+      } catch {
+        /* quota still exceeded */
+      }
+    }
+  }
+
+  function loadRequest(id) {
+    const cached = STORE.requests.get(id);
+    if (cached) return cached;
+    try {
+      const raw = localStorage.getItem(REQ_PREFIX + id);
+      if (!raw) return null;
+      const req = JSON.parse(raw);
+      STORE.requests.set(id, req);
+      return req;
+    } catch {
+      return null;
+    }
   }
 
   function loadImageFromFile(file) {
@@ -352,6 +419,8 @@
       req.status = "failed";
       req.error = String(e);
       console.error("[own-api] processImage failed:", e);
+    } finally {
+      persistRequest(id, req);
     }
   }
 
@@ -382,6 +451,56 @@
 
     if (path === "/api/meesho/fetchCategoryTreeOrder" && method === "GET") {
       return { status: 200, body: await loadCategories() };
+    }
+
+    if (path === "/api/meesho/fetchAllRequestId" && method === "GET") {
+      const history = readIndex()
+        .map((id) => {
+          const req = loadRequest(id);
+          if (!req) return null;
+          return {
+            requestId: id,
+            status: req.status,
+            tagName: req.tagName,
+            createdAt: req.createdAt,
+            results: req.status === "completed" ? req.results : [],
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.createdAt - a.createdAt);
+      return { status: 200, body: { data: history, credits: GUEST_USER.credits } };
+    }
+
+    if (path === "/api/meesho/getLowestShippingCharge" && method === "POST") {
+      const image = getImageFromBody(body);
+      const tagName = getFieldFromBody(body, "tagName") || "Product";
+      if (!image) {
+        return { status: 400, body: { message: "Image is required" } };
+      }
+
+      const id = newRequestId();
+      const req = {
+        createdAt: Date.now(),
+        tagName,
+        status: "processing",
+        results: [],
+      };
+      STORE.requests.set(id, req);
+      persistRequest(id, req);
+      processImage(id, image, tagName);
+      return { status: 200, body: { requestId: id } };
+    }
+
+    const poll = path.match(/^\/api\/meesho\/request(?:-status)?\/([^/]+)$/);
+    if (poll && method === "GET") {
+      const id = poll[1];
+      const req = loadRequest(id);
+      if (!req) return { status: 404, body: { message: "Request not found" } };
+      if (req.status === "failed") return { status: 200, body: { status: "failed", results: [] } };
+      if (Date.now() - req.createdAt < 2500 || req.status !== "completed") {
+        return { status: 200, body: { status: "processing", results: [] } };
+      }
+      return { status: 200, body: { status: "completed", results: req.results } };
     }
 
     return { status: 404, body: { message: "Not found", route: path } };
@@ -458,5 +577,5 @@
   window.XMLHttpRequest = OwnXHR;
 
   window.__MEESHO_OWN_API__ = true;
-  console.info("[own-api] guest auth + categories local; image compress via server Sharp");
+  console.info("[own-api] browser API with local persistence; image compress via client mozjpeg");
 })();
