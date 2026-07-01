@@ -1,34 +1,48 @@
 import sharp from "sharp";
 
-const TIERS = [
-  { targetKb: 28, label: "Lowest · upload to Meesho first", lowest: true },
-  { targetKb: 30, label: "Recommended · balanced", recommended: true },
-  { targetKb: 32, label: "Standard" },
-  { targetKb: 34, label: "High detail" },
+const TIERS_DEFAULT = [
+  { targetKb: 24, label: "Lowest · upload to Meesho first", lowest: true },
+  { targetKb: 26, label: "Recommended · balanced", recommended: true },
+  { targetKb: 28, label: "Standard" },
+  { targetKb: 30, label: "High detail" },
+];
+
+const TIERS_WHITE_BG = [
+  { targetKb: 20, label: "Lowest · upload to Meesho first", lowest: true },
+  { targetKb: 22, label: "Recommended · balanced", recommended: true },
+  { targetKb: 24, label: "Standard" },
+  { targetKb: 26, label: "High detail" },
 ];
 
 const WHITE_TOL = 42;
-const ABS_MIN_Q = 28;
+const WHITE_BG_THRESHOLD = 0.62;
+const ABS_MIN_Q = 22;
+
+function tiersForWhite(whiteRatio) {
+  return whiteRatio >= WHITE_BG_THRESHOLD ? TIERS_WHITE_BG : TIERS_DEFAULT;
+}
 
 export function kbFromBytes(bytes) {
   return Math.max(1, Math.ceil(bytes / 1024));
 }
 
-function mozjpeg(buffer, quality) {
+function mozjpeg(buffer, quality, whiteRatio = 0) {
+  const q = Math.max(ABS_MIN_Q, quality);
   return sharp(buffer).jpeg({
-    quality: Math.max(ABS_MIN_Q, quality),
+    quality: q,
     mozjpeg: true,
     chromaSubsampling: "4:2:0",
     progressive: true,
     optimizeScans: true,
     trellisQuantisation: true,
     overshootDeringing: true,
-    quantisationTable: 2,
+    quantisationTable: whiteRatio >= WHITE_BG_THRESHOLD ? 3 : 2,
   });
 }
 
-async function encodeAtQuality(buffer, quality, floor) {
-  return mozjpeg(buffer, Math.max(floor ?? ABS_MIN_Q, quality)).toBuffer();
+async function encodeAtQuality(buffer, quality, floor, whiteRatio = 0) {
+  const minQ = floor ?? adaptiveMinQ(whiteRatio);
+  return mozjpeg(buffer, Math.max(minQ, quality), whiteRatio).toBuffer();
 }
 
 function floodFillWhiteRaw(data, width, height, channels) {
@@ -95,10 +109,17 @@ function floodFillWhiteRaw(data, width, height, channels) {
 }
 
 function adaptiveMinQ(whiteRatio) {
-  if (whiteRatio >= 0.62) return 32;
-  if (whiteRatio >= 0.48) return 36;
-  if (whiteRatio >= 0.35) return 40;
-  return 42;
+  if (whiteRatio >= 0.78) return 24;
+  if (whiteRatio >= 0.68) return 26;
+  if (whiteRatio >= 0.55) return 30;
+  if (whiteRatio >= 0.40) return 34;
+  return 38;
+}
+
+function adaptiveAbsMinQ(whiteRatio) {
+  if (whiteRatio >= 0.72) return 20;
+  if (whiteRatio >= 0.58) return 24;
+  return ABS_MIN_Q;
 }
 
 async function flattenBackgroundWhite(buffer) {
@@ -108,15 +129,16 @@ async function flattenBackgroundWhite(buffer) {
   return { buffer: out, whiteRatio };
 }
 
-async function compressToTarget(buffer, targetBytes, minQ) {
+async function compressToTarget(buffer, targetBytes, minQ, whiteRatio) {
+  const absMin = adaptiveAbsMinQ(whiteRatio);
   let lo = minQ;
   let hi = 92;
-  let best = await encodeAtQuality(buffer, minQ, minQ);
+  let best = await encodeAtQuality(buffer, minQ, minQ, whiteRatio);
 
   if (best.length <= targetBytes) {
     while (hi - lo > 1) {
       const mid = Math.floor((lo + hi) / 2);
-      const out = await encodeAtQuality(buffer, mid, minQ);
+      const out = await encodeAtQuality(buffer, mid, minQ, whiteRatio);
       if (out.length <= targetBytes) {
         best = out;
         lo = mid;
@@ -124,12 +146,12 @@ async function compressToTarget(buffer, targetBytes, minQ) {
         hi = mid;
       }
     }
-    const top = await encodeAtQuality(buffer, lo, minQ);
+    const top = await encodeAtQuality(buffer, lo, minQ, whiteRatio);
     if (top.length <= targetBytes) return top;
   }
 
-  for (let q = minQ - 1; q >= ABS_MIN_Q && best.length > targetBytes; q--) {
-    const out = await encodeAtQuality(buffer, q, ABS_MIN_Q);
+  for (let q = minQ - 1; q >= absMin && best.length > targetBytes; q--) {
+    const out = await encodeAtQuality(buffer, q, absMin, whiteRatio);
     if (out.length <= targetBytes) return out;
     if (out.length < best.length) best = out;
   }
@@ -166,7 +188,7 @@ export async function prepareInput(imageBuffer) {
 
 async function buildVariant(prepared, tier) {
   const targetBytes = tier.targetKb * 1024;
-  const jpeg = await compressToTarget(prepared.buffer, targetBytes, prepared.minQ);
+  const jpeg = await compressToTarget(prepared.buffer, targetBytes, prepared.minQ, prepared.whiteRatio);
 
   return {
     buffer: jpeg,
@@ -182,9 +204,10 @@ async function buildVariant(prepared, tier) {
 
 export async function generateAllVariants(imageBuffer, categoryName) {
   const prepared = await prepareInput(imageBuffer);
+  const tiers = tiersForWhite(prepared.whiteRatio);
   const built = [];
 
-  for (const tier of TIERS) {
+  for (const tier of tiers) {
     built.push(await buildVariant(prepared, tier));
   }
 

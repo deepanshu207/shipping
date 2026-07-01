@@ -2,16 +2,23 @@
  * Own API for Meesho Image Generator — runs entirely in the browser.
  */
 (function () {
-  /** Tiers matched to min quality — clean white, no blocky artifacts. */
-  const TIERS = [
-    { targetKb: 28, label: "Lowest · upload to Meesho first", lowest: true },
-    { targetKb: 30, label: "Recommended · balanced", recommended: true },
-    { targetKb: 32, label: "Standard" },
-    { targetKb: 34, label: "High detail" },
+  /** KB targets — lower when background is mostly white (compresses cleanly). */
+  const TIERS_DEFAULT = [
+    { targetKb: 24, label: "Lowest · upload to Meesho first", lowest: true },
+    { targetKb: 26, label: "Recommended · balanced", recommended: true },
+    { targetKb: 28, label: "Standard" },
+    { targetKb: 30, label: "High detail" },
+  ];
+  const TIERS_WHITE_BG = [
+    { targetKb: 20, label: "Lowest · upload to Meesho first", lowest: true },
+    { targetKb: 22, label: "Recommended · balanced", recommended: true },
+    { targetKb: 24, label: "Standard" },
+    { targetKb: 26, label: "High detail" },
   ];
 
   const WHITE_TOL = 42;
-  const ABS_MIN_Q = 28;
+  const WHITE_BG_THRESHOLD = 0.62;
+  const ABS_MIN_Q = 22;
   const MAX_SIDE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 1200 : 2000;
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
   const STALE_PROCESSING_MS = 120000;
@@ -27,9 +34,13 @@
     trellis_multipass: true,
     trellis_opt_zero: true,
     trellis_opt_table: true,
-    trellis_loops: 2,
-    separate_chroma_quality: false,
+    trellis_loops: 3,
+    separate_chroma_quality: true,
   };
+
+  function tiersForWhite(whiteRatio) {
+    return whiteRatio >= WHITE_BG_THRESHOLD ? TIERS_WHITE_BG : TIERS_DEFAULT;
+  }
 
   const GUEST_USER = {
     id: "guest-local",
@@ -218,11 +229,17 @@
     return ctx.getImageData(0, 0, canvas.width, canvas.height);
   }
 
-  async function encodeAtQuality(canvas, quality, floor) {
-    const minQ = floor ?? ABS_MIN_Q;
+  async function encodeAtQuality(canvas, quality, floor, whiteRatio) {
+    const minQ = floor ?? adaptiveMinQ(whiteRatio ?? 0);
     const q = Math.max(minQ, Math.min(100, Math.round(quality)));
     const encode = await loadMozjpeg();
-    return encode(canvasImageData(canvas), { ...MOZ_BASE, quality: q });
+    const opts = {
+      ...MOZ_BASE,
+      quality: q,
+      quant_table: (whiteRatio ?? 0) >= WHITE_BG_THRESHOLD ? 3 : 2,
+      chroma_quality: Math.max(20, Math.round(q * ((whiteRatio ?? 0) >= WHITE_BG_THRESHOLD ? 0.5 : 0.65))),
+    };
+    return encode(canvasImageData(canvas), opts);
   }
 
   function measureWhiteRatio(canvas) {
@@ -240,12 +257,19 @@
     return white / total;
   }
 
-  /** White-bg photos tolerate lower q without grey blocks on background. */
+  /** White-bg photos tolerate lower q — background stays pure white. */
   function adaptiveMinQ(whiteRatio) {
-    if (whiteRatio >= 0.62) return 32;
-    if (whiteRatio >= 0.48) return 36;
-    if (whiteRatio >= 0.35) return 40;
-    return 42;
+    if (whiteRatio >= 0.78) return 24;
+    if (whiteRatio >= 0.68) return 26;
+    if (whiteRatio >= 0.55) return 30;
+    if (whiteRatio >= 0.40) return 34;
+    return 38;
+  }
+
+  function adaptiveAbsMinQ(whiteRatio) {
+    if (whiteRatio >= 0.72) return 20;
+    if (whiteRatio >= 0.58) return 24;
+    return ABS_MIN_Q;
   }
 
   function nearWhiteAt(d, i) {
@@ -333,16 +357,17 @@
     return c;
   }
 
-  /** Hit target KB — adaptive min q keeps white clean on product photos. */
-  async function compressCanvas(canvas, targetBytes, minQ) {
+  /** Hit target KB — maximize quality up to the byte cap. */
+  async function compressCanvas(canvas, targetBytes, minQ, whiteRatio) {
+    const absMin = adaptiveAbsMinQ(whiteRatio);
     let lo = minQ;
     let hi = 92;
-    let best = await encodeAtQuality(canvas, minQ, minQ);
+    let best = await encodeAtQuality(canvas, minQ, minQ, whiteRatio);
 
     if (best.size <= targetBytes) {
       while (hi - lo > 1) {
         const mid = Math.floor((lo + hi) / 2);
-        const blob = await encodeAtQuality(canvas, mid, minQ);
+        const blob = await encodeAtQuality(canvas, mid, minQ, whiteRatio);
         if (blob.size <= targetBytes) {
           best = blob;
           lo = mid;
@@ -350,12 +375,12 @@
           hi = mid;
         }
       }
-      const top = await encodeAtQuality(canvas, lo, minQ);
+      const top = await encodeAtQuality(canvas, lo, minQ, whiteRatio);
       if (top.size <= targetBytes) return top;
     }
 
-    for (let q = minQ - 1; q >= ABS_MIN_Q && best.size > targetBytes; q--) {
-      const blob = await encodeAtQuality(canvas, q, ABS_MIN_Q);
+    for (let q = minQ - 1; q >= absMin && best.size > targetBytes; q--) {
+      const blob = await encodeAtQuality(canvas, q, absMin, whiteRatio);
       if (blob.size <= targetBytes) return blob;
       if (blob.size < best.size) best = blob;
     }
@@ -367,11 +392,13 @@
     await loadMozjpeg();
     const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
     const canvas = prepareCanvas(img);
-    const minQ = adaptiveMinQ(measureWhiteRatio(canvas));
+    const whiteRatio = measureWhiteRatio(canvas);
+    const minQ = adaptiveMinQ(whiteRatio);
+    const tiers = tiersForWhite(whiteRatio);
     const built = [];
-    for (const tier of TIERS) {
+    for (const tier of tiers) {
       const targetBytes = tier.targetKb * 1024;
-      const blob = await compressCanvas(canvas, targetBytes, minQ);
+      const blob = await compressCanvas(canvas, targetBytes, minQ, whiteRatio);
       built.push({
         blob,
         bytes: blob.size,
