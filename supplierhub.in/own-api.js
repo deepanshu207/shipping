@@ -3,11 +3,11 @@
  */
 (function () {
   /** KB targets — lower when background is mostly white (compresses cleanly). */
-  const TIERS_DEFAULT = [
-    { targetKb: 24, label: "Lowest · upload to Meesho first", lowest: true },
-    { targetKb: 26, label: "Recommended · balanced", recommended: true },
-    { targetKb: 28, label: "Standard" },
-    { targetKb: 30, label: "High detail" },
+  const TIERS_BUSY_BG = [
+    { targetKb: 88, label: "Lowest · upload to Meesho first", lowest: true },
+    { targetKb: 90, label: "Recommended · balanced", recommended: true },
+    { targetKb: 92, label: "Standard" },
+    { targetKb: 93, label: "High detail" },
   ];
   const TIERS_WHITE_BG = [
     { targetKb: 20, label: "Lowest · upload to Meesho first", lowest: true },
@@ -18,8 +18,7 @@
 
   const WHITE_TOL = 42;
   const WHITE_BG_THRESHOLD = 0.62;
-const BUSY_BG_THRESHOLD = 0.55;
-const ABS_MIN_Q = 22;
+  const ABS_MIN_Q = 18;
   const MAX_SIDE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 1200 : 2000;
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
   const STALE_PROCESSING_MS = 120000;
@@ -40,7 +39,7 @@ const ABS_MIN_Q = 22;
   };
 
   function tiersForWhite(whiteRatio) {
-    return whiteRatio >= WHITE_BG_THRESHOLD ? TIERS_WHITE_BG : TIERS_DEFAULT;
+    return whiteRatio >= WHITE_BG_THRESHOLD ? TIERS_WHITE_BG : TIERS_BUSY_BG;
   }
 
   const GUEST_USER = {
@@ -238,7 +237,13 @@ const ABS_MIN_Q = 22;
       ...MOZ_BASE,
       quality: q,
       quant_table: (whiteRatio ?? 0) >= WHITE_BG_THRESHOLD ? 3 : 2,
-      chroma_quality: Math.max(20, Math.round(q * ((whiteRatio ?? 0) >= WHITE_BG_THRESHOLD ? 0.5 : 0.65))),
+      chroma_quality: Math.max(
+        18,
+        Math.round(
+          q *
+            ((whiteRatio ?? 0) >= WHITE_BG_THRESHOLD ? 0.5 : (whiteRatio ?? 0) >= 0.4 ? 0.55 : 0.62)
+        )
+      ),
     };
     return encode(canvasImageData(canvas), opts);
   }
@@ -263,13 +268,13 @@ const ABS_MIN_Q = 22;
     if (whiteRatio >= 0.78) return 24;
     if (whiteRatio >= 0.68) return 26;
     if (whiteRatio >= 0.55) return 30;
-    if (whiteRatio >= 0.40) return 34;
-    return 38;
+    if (whiteRatio >= 0.40) return 28;
+    return 26;
   }
 
   function adaptiveAbsMinQ(whiteRatio) {
     if (whiteRatio >= 0.72) return 20;
-    if (whiteRatio >= 0.58) return 24;
+    if (whiteRatio >= 0.58) return 22;
     return ABS_MIN_Q;
   }
 
@@ -277,132 +282,7 @@ const ABS_MIN_Q = 22;
     return 255 - d[i] <= WHITE_TOL && 255 - d[i + 1] <= WHITE_TOL && 255 - d[i + 2] <= WHITE_TOL;
   }
 
-  function colorCloseAt(d, o, r, g, b, tol) {
-    return (
-      Math.abs(d[o] - r) <= tol &&
-      Math.abs(d[o + 1] - g) <= tol &&
-      Math.abs(d[o + 2] - b) <= tol
-    );
-  }
-
-  /** Flood-fill from one image edge — keeps other edges from over-spreading. */
-  function floodEdgeSideToWhite(d, width, height, tolerance, seen, side) {
-    const total = width * height;
-    const queue = new Int32Array(total);
-    const qR = new Int32Array(total);
-    const qG = new Int32Array(total);
-    const qB = new Int32Array(total);
-    let head = 0;
-    let tail = 0;
-
-    function trySeed(idx) {
-      if (seen[idx]) return;
-      const o = idx * 4;
-      if (d[o] === 255 && d[o + 1] === 255 && d[o + 2] === 255) {
-        seen[idx] = 1;
-        return;
-      }
-      seen[idx] = 1;
-      queue[tail] = idx;
-      qR[tail] = d[o];
-      qG[tail] = d[o + 1];
-      qB[tail] = d[o + 2];
-      tail++;
-    }
-
-    if (side === "bottom") {
-      for (let x = 0; x < width; x++) trySeed((height - 1) * width + x);
-    } else if (side === "top") {
-      for (let x = 0; x < width; x++) trySeed(x);
-    } else if (side === "left") {
-      for (let y = 0; y < height; y++) trySeed(y * width);
-    } else {
-      for (let y = 0; y < height; y++) trySeed(y * width + width - 1);
-    }
-
-    while (head < tail) {
-      const idx = queue[head];
-      const sr = qR[head];
-      const sg = qG[head];
-      const sb = qB[head];
-      head++;
-      const o = idx * 4;
-      d[o] = 255;
-      d[o + 1] = 255;
-      d[o + 2] = 255;
-      const x = idx % width;
-      const y = (idx / width) | 0;
-      if (x > 0) {
-        const nidx = idx - 1;
-        if (!seen[nidx] && colorCloseAt(d, nidx * 4, sr, sg, sb, tolerance)) {
-          seen[nidx] = 1;
-          queue[tail] = nidx;
-          qR[tail] = sr;
-          qG[tail] = sg;
-          qB[tail] = sb;
-          tail++;
-        }
-      }
-      if (x < width - 1) {
-        const nidx = idx + 1;
-        if (!seen[nidx] && colorCloseAt(d, nidx * 4, sr, sg, sb, tolerance)) {
-          seen[nidx] = 1;
-          queue[tail] = nidx;
-          qR[tail] = sr;
-          qG[tail] = sg;
-          qB[tail] = sb;
-          tail++;
-        }
-      }
-      if (y > 0) {
-        const nidx = idx - width;
-        if (!seen[nidx] && colorCloseAt(d, nidx * 4, sr, sg, sb, tolerance)) {
-          seen[nidx] = 1;
-          queue[tail] = nidx;
-          qR[tail] = sr;
-          qG[tail] = sg;
-          qB[tail] = sb;
-          tail++;
-        }
-      }
-      if (y < height - 1) {
-        const nidx = idx + width;
-        if (!seen[nidx] && colorCloseAt(d, nidx * 4, sr, sg, sb, tolerance)) {
-          seen[nidx] = 1;
-          queue[tail] = nidx;
-          qR[tail] = sr;
-          qG[tail] = sg;
-          qB[tail] = sb;
-          tail++;
-        }
-      }
-    }
-  }
-
-  /** Scrub indoor/busy backgrounds (marble floors, walls) while keeping the product. */
-  function scrubBusyBackground(canvas) {
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    const { width, height } = canvas;
-    const img = ctx.getImageData(0, 0, width, height);
-    const d = img.data;
-    const total = width * height;
-    const seen = new Uint8Array(total);
-    for (let idx = 0; idx < total; idx++) {
-      const o = idx * 4;
-      if (d[o] === 255 && d[o + 1] === 255 && d[o + 2] === 255) seen[idx] = 1;
-    }
-    for (const tol of [42, 58]) {
-      floodEdgeSideToWhite(d, width, height, tol, seen, "top");
-      floodEdgeSideToWhite(d, width, height, tol, seen, "left");
-      floodEdgeSideToWhite(d, width, height, tol, seen, "right");
-    }
-    for (const tol of [55, 80, 110]) {
-      floodEdgeSideToWhite(d, width, height, tol, seen, "bottom");
-    }
-    ctx.putImageData(img, 0, 0);
-  }
-
-  /** Flood-fill edge-connected background to pure #FFF — product pixels untouched. */
+  /** Flood-fill edge-connected near-white background to pure #FFF — product pixels untouched. */
   function flattenBackgroundWhite(canvas) {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     const { width, height } = canvas;
@@ -536,17 +416,8 @@ const ABS_MIN_Q = 22;
     await loadMozjpeg();
     const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
     const canvas = prepareCanvas(img);
-    let whiteRatio = measureWhiteRatio(canvas);
-    let built = await buildVariants(canvas, whiteRatio);
-
-    const lowestBytes = Math.min(...built.map((v) => v.bytes));
-    if (lowestBytes > 93 * 1024) {
-      scrubBusyBackground(canvas);
-      whiteRatio = measureWhiteRatio(canvas);
-      built = await buildVariants(canvas, whiteRatio);
-    }
-
-    return built;
+    const whiteRatio = measureWhiteRatio(canvas);
+    return buildVariants(canvas, whiteRatio);
   }
 
   function blobToDataUrl(blob) {
