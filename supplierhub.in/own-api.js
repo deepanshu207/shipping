@@ -28,6 +28,12 @@
   const SUPPLIERDEN_ORANGE = "#FF7900";
   const SUPPLIERDEN_BORDER_RATIO = 0.048;
   const SUPPLIERDEN_MIN_BORDER = 34;
+  /** Meesho may tier on max framed side — SupplierDen outputs often cap near 1280px. */
+  const MEESHO_FRAMED_MAX_SIDE = 1280;
+
+  const STUDIO_CATEGORY_RE =
+    /\b(bra|bras|lingerie|panty|panties|underwear|bikini|sports bra|feeding bra|shapewear|camisole|nighty|nightwear|blouse|petticoat)\b/i;
+  const INDOOR_CATEGORY_RE = /\b(raincoat|rain coat|rainwear|men raincoat)\b/i;
 
   const MOZ_BASE = {
     baseline: false,
@@ -369,7 +375,7 @@
     ctx.putImageData(img, 0, 0);
   }
 
-  /** Studio photos have near-white edges on all sides; indoor shots have a dark floor at bottom edge. */
+  /** Studio photos: white edges / high white fill. Indoor shots have dark floor at bottom. */
   function isStudioWhiteBackground(img) {
     const maxProbe = 320;
     const scale = Math.min(1, maxProbe / Math.max(img.width, img.height));
@@ -382,31 +388,49 @@
     ctx.drawImage(img, 0, 0, w, h);
     const { data } = ctx.getImageData(0, 0, w, h);
 
-    function edgeNearWhiteRatio() {
+    function sideNearWhiteRatio(y0, y1, x0, x1) {
       let near = 0;
       let total = 0;
-      for (let x = 0; x < w; x++) {
-        for (const y of [0, h - 1]) {
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
           const i = (y * w + x) * 4;
           total++;
           if (nearWhiteAt(data, i)) near++;
         }
       }
-      for (let y = 1; y < h - 1; y++) {
-        for (const x of [0, w - 1]) {
-          const i = (y * w + x) * 4;
-          total++;
-          if (nearWhiteAt(data, i)) near++;
-        }
-      }
-      return near / total;
+      return total ? near / total : 0;
     }
 
-    return edgeNearWhiteRatio() >= 0.72 && measureNearWhiteRatio(c) >= 0.5;
+    const top = sideNearWhiteRatio(0, 1, 0, w);
+    const bottom = sideNearWhiteRatio(h - 1, h, 0, w);
+    const left = sideNearWhiteRatio(0, h, 0, 1);
+    const right = sideNearWhiteRatio(0, h, w - 1, w);
+    const allEdges = (top + bottom + left + right) / 4;
+    const topLeftRight = (top + left + right) / 3;
+    const full = measureNearWhiteRatio(c);
+
+    if (allEdges >= 0.72 && full >= 0.5) return true;
+    if (topLeftRight >= 0.8 && full >= 0.55) return true;
+    if (full >= 0.7) return true;
+    return false;
+  }
+
+  /** Category + vision — bra/lingerie never get SupplierDen orange frame. */
+  function resolveStudioMode(img, tagName) {
+    const tag = String(tagName || "").toLowerCase();
+    if (INDOOR_CATEGORY_RE.test(tag)) return false;
+    if (STUDIO_CATEGORY_RE.test(tag)) return true;
+    return isStudioWhiteBackground(img);
   }
 
   function supplierDenBorderPx(w, h) {
-    return Math.max(SUPPLIERDEN_MIN_BORDER, Math.round(Math.min(w, h) * SUPPLIERDEN_BORDER_RATIO));
+    let border = Math.max(SUPPLIERDEN_MIN_BORDER, Math.round(Math.min(w, h) * SUPPLIERDEN_BORDER_RATIO));
+    const maxSide = Math.max(w, h);
+    if (maxSide + border * 2 > MEESHO_FRAMED_MAX_SIDE) {
+      const capped = Math.floor((MEESHO_FRAMED_MAX_SIDE - maxSide) / 2);
+      if (capped >= 28) border = capped;
+    }
+    return border;
   }
 
   function roundRectPath(ctx, x, y, width, height, radius) {
@@ -600,7 +624,7 @@
 
   async function buildVariants(canvas, whiteRatio, studio) {
     const minQ = adaptiveMinQ(whiteRatio);
-    const tiers = tiersForWhite(whiteRatio);
+    const tiers = studio ? TIERS_WHITE_BG : TIERS_BUSY_BG;
     const processingPath = studio ? "studio" : "supplierden";
     const built = [];
     for (const tier of tiers) {
@@ -621,10 +645,10 @@
     return built;
   }
 
-  async function optimizeToVariants(source) {
+  async function optimizeToVariants(source, tagName) {
     await loadMozjpeg();
     const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
-    const studio = isStudioWhiteBackground(img);
+    const studio = resolveStudioMode(img, tagName);
     const canvas = prepareCanvas(img, studio);
     const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
     return buildVariants(canvas, whiteRatio, studio);
@@ -681,7 +705,7 @@
     const req = STORE.requests.get(id);
     if (!req) return;
     const work = (async () => {
-      req.results = await optimizeToVariants(imageFile).then((v) => variantsToResults(v, tagName));
+      req.results = await optimizeToVariants(imageFile, tagName).then((v) => variantsToResults(v, tagName));
       req.status = "completed";
     })();
     try {
@@ -720,7 +744,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 27, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 28, platform: "cloudflare-static" },
       };
     }
 

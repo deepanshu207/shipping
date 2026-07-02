@@ -21,9 +21,20 @@ const BUSY_MIN_Q = 15;
 const SUPPLIERDEN_ORANGE = { r: 255, g: 121, b: 0 };
 const SUPPLIERDEN_BORDER_RATIO = 0.048;
 const SUPPLIERDEN_MIN_BORDER = 34;
+const MEESHO_FRAMED_MAX_SIDE = 1280;
+
+const STUDIO_CATEGORY_RE =
+  /\b(bra|bras|lingerie|panty|panties|underwear|bikini|sports bra|feeding bra|shapewear|camisole|nighty|nightwear|blouse|petticoat)\b/i;
+const INDOOR_CATEGORY_RE = /\b(raincoat|rain coat|rainwear|men raincoat)\b/i;
 
 function supplierDenBorderPx(w, h) {
-  return Math.max(SUPPLIERDEN_MIN_BORDER, Math.round(Math.min(w, h) * SUPPLIERDEN_BORDER_RATIO));
+  let border = Math.max(SUPPLIERDEN_MIN_BORDER, Math.round(Math.min(w, h) * SUPPLIERDEN_BORDER_RATIO));
+  const maxSide = Math.max(w, h);
+  if (maxSide + border * 2 > MEESHO_FRAMED_MAX_SIDE) {
+    const capped = Math.floor((MEESHO_FRAMED_MAX_SIDE - maxSide) / 2);
+    if (capped >= 28) border = capped;
+  }
+  return border;
 }
 
 function specialOfferSvg(x, y, scale) {
@@ -247,15 +258,50 @@ function edgeNearWhiteRatioRaw(data, width, height, channels) {
   return near / total;
 }
 
+function sideNearWhiteRatioRaw(data, width, height, channels, y0, y1, x0, x1) {
+  let near = 0;
+  let total = 0;
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      const o = (y * width + x) * channels;
+      total++;
+      if (
+        255 - data[o] <= WHITE_TOL &&
+        255 - data[o + 1] <= WHITE_TOL &&
+        255 - data[o + 2] <= WHITE_TOL
+      ) {
+        near++;
+      }
+    }
+  }
+  return total ? near / total : 0;
+}
+
 async function isStudioWhiteBackground(buffer) {
   const { data, info } = await sharp(buffer)
     .resize(320, 320, { fit: "inside", withoutEnlargement: true })
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
-  const edgeRatio = edgeNearWhiteRatioRaw(data, info.width, info.height, info.channels);
-  const fullRatio = measureNearWhiteRatioRaw(data, info.width, info.height, info.channels);
-  return edgeRatio >= 0.72 && fullRatio >= 0.5;
+  const { width, height, channels } = info;
+  const top = sideNearWhiteRatioRaw(data, width, height, channels, 0, 1, 0, width);
+  const bottom = sideNearWhiteRatioRaw(data, width, height, channels, height - 1, height, 0, width);
+  const left = sideNearWhiteRatioRaw(data, width, height, channels, 0, height, 0, 1);
+  const right = sideNearWhiteRatioRaw(data, width, height, channels, 0, height, width - 1, width);
+  const allEdges = (top + bottom + left + right) / 4;
+  const topLeftRight = (top + left + right) / 3;
+  const fullRatio = measureNearWhiteRatioRaw(data, width, height, channels);
+  if (allEdges >= 0.72 && fullRatio >= 0.5) return true;
+  if (topLeftRight >= 0.8 && fullRatio >= 0.55) return true;
+  if (fullRatio >= 0.7) return true;
+  return false;
+}
+
+function resolveStudioMode(buffer, categoryName) {
+  const tag = String(categoryName || "").toLowerCase();
+  if (INDOOR_CATEGORY_RE.test(tag)) return false;
+  if (STUDIO_CATEGORY_RE.test(tag)) return true;
+  return isStudioWhiteBackground(buffer);
 }
 
 function adaptiveMinQ(whiteRatio) {
@@ -396,9 +442,9 @@ async function buildVariant(prepared, tier) {
 
 export async function generateAllVariants(imageBuffer, categoryName) {
   const rotated = await sharp(imageBuffer).rotate().flatten({ background: { r: 255, g: 255, b: 255 } }).toBuffer();
-  const studio = await isStudioWhiteBackground(rotated);
+  const studio = await resolveStudioMode(rotated, categoryName);
   const prepared = await prepareInput(imageBuffer, studio);
-  const tiers = tiersForWhite(prepared.whiteRatio);
+  const tiers = studio ? TIERS_WHITE_BG : TIERS_BUSY_BG;
   const built = [];
 
   for (const tier of tiers) {
