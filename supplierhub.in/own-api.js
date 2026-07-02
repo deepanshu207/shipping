@@ -433,6 +433,42 @@
     return border;
   }
 
+  function supplierDenFramedMaxSide(w, h) {
+    return Math.max(w, h) + supplierDenBorderPx(w, h) * 2;
+  }
+
+  /** Proportional downscale only — keeps aspect ratio, no crop; Meesho tiers on framed max side (~1280). */
+  function fitSupplierDenPhotoDims(w, h) {
+    let nw = w;
+    let nh = h;
+    const max0 = Math.max(nw, nh);
+    if (max0 > MAX_SIDE) {
+      const scale = MAX_SIDE / max0;
+      nw = Math.round(nw * scale);
+      nh = Math.round(nh * scale);
+    }
+    for (let i = 0; i < 12 && supplierDenFramedMaxSide(nw, nh) > MEESHO_FRAMED_MAX_SIDE; i++) {
+      const framed = supplierDenFramedMaxSide(nw, nh);
+      const scale = (MEESHO_FRAMED_MAX_SIDE - 1) / framed;
+      nw = Math.max(1, Math.round(nw * scale));
+      nh = Math.max(1, Math.round(nh * scale));
+    }
+    return { w: nw, h: nh };
+  }
+
+  function scaleCanvas(canvas, factor) {
+    const w = Math.max(1, Math.round(canvas.width * factor));
+    const h = Math.max(1, Math.round(canvas.height * factor));
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(canvas, 0, 0, w, h);
+    return c;
+  }
+
   function roundRectPath(ctx, x, y, width, height, radius) {
     const r = Math.min(radius, width / 2, height / 2);
     ctx.beginPath();
@@ -513,16 +549,11 @@
     drawHotSaleBurst(ctx, border + photoW * 0.16, border + photoH * 0.72, scale * 1.05);
   }
 
-  /** SupplierDen-style orange frame + sale stickers — photo stays full size inside border. */
+  /** SupplierDen-style orange frame + sale stickers — photo scaled to Meesho framed cap. */
   function prepareSupplierDenCanvas(img) {
-    let w = img.width;
-    let h = img.height;
-    const max = Math.max(w, h);
-    if (max > MAX_SIDE) {
-      const scale = MAX_SIDE / max;
-      w = Math.round(w * scale);
-      h = Math.round(h * scale);
-    }
+    const fitted = fitSupplierDenPhotoDims(img.width, img.height);
+    const w = fitted.w;
+    const h = fitted.h;
 
     const border = supplierDenBorderPx(w, h);
     const fw = w + border * 2;
@@ -565,8 +596,8 @@
     return c;
   }
 
-  /** Highest-quality standard JPEG at or under slab KB — never upscale. */
-  async function compressBusyToSlab(canvas, slabKb) {
+  /** Highest-quality standard JPEG at or under slab KB — downscale if q floor still exceeds slab. */
+  async function compressBusyToSlabOnce(canvas, slabKb) {
     const targetBytes = slabKb * 1024;
     const busyMin = BUSY_MIN_Q;
     let best = null;
@@ -584,6 +615,18 @@
     }
     if (best) return best;
     return blobAtCanvasQuality(canvas, busyMin / 100, busyMin / 100);
+  }
+
+  async function compressBusyToSlab(canvas, slabKb) {
+    const targetBytes = slabKb * 1024;
+    let work = canvas;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const blob = await compressBusyToSlabOnce(work, slabKb);
+      if (blob.size <= targetBytes) return blob;
+      if (Math.max(work.width, work.height) <= 480) return blob;
+      work = scaleCanvas(work, 0.92);
+    }
+    return compressBusyToSlabOnce(work, slabKb);
   }
 
   /** Hit byte target for studio white-bg photos (mozjpeg). */
@@ -743,7 +786,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 33, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 34, platform: "cloudflare-static" },
       };
     }
 

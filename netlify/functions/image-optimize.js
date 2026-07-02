@@ -37,6 +37,29 @@ function supplierDenBorderPx(w, h) {
   return border;
 }
 
+function supplierDenFramedMaxSide(w, h) {
+  return Math.max(w, h) + supplierDenBorderPx(w, h) * 2;
+}
+
+/** Proportional downscale — framed max side ≤ 1280 (Meesho shipping tier). */
+function fitSupplierDenPhotoDims(w, h) {
+  let nw = w;
+  let nh = h;
+  const max0 = Math.max(nw, nh);
+  if (max0 > 2000) {
+    const scale = 2000 / max0;
+    nw = Math.round(nw * scale);
+    nh = Math.round(nh * scale);
+  }
+  for (let i = 0; i < 12 && supplierDenFramedMaxSide(nw, nh) > MEESHO_FRAMED_MAX_SIDE; i++) {
+    const framed = supplierDenFramedMaxSide(nw, nh);
+    const scale = (MEESHO_FRAMED_MAX_SIDE - 1) / framed;
+    nw = Math.max(1, Math.round(nw * scale));
+    nh = Math.max(1, Math.round(nh * scale));
+  }
+  return { w: nw, h: nh };
+}
+
 function specialOfferSvg(x, y, scale) {
   const w = 92 * scale;
   const h = 54 * scale;
@@ -325,7 +348,7 @@ async function flattenBackgroundWhite(buffer) {
   return { buffer: out, whiteRatio };
 }
 
-async function compressBusyToSlab(buffer, slabKb) {
+async function compressBusyToSlabOnce(buffer, slabKb) {
   const targetBytes = slabKb * 1024;
   const busyMin = BUSY_MIN_Q;
   let best = null;
@@ -343,6 +366,22 @@ async function compressBusyToSlab(buffer, slabKb) {
   }
   if (best) return best;
   return standardJpeg(buffer, busyMin, busyMin).toBuffer();
+}
+
+async function compressBusyToSlab(buffer, slabKb) {
+  const targetBytes = slabKb * 1024;
+  let work = buffer;
+  let w = (await sharp(work).metadata()).width || 0;
+  let h = (await sharp(work).metadata()).height || 0;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const out = await compressBusyToSlabOnce(work, slabKb);
+    if (out.length <= targetBytes) return out;
+    if (Math.max(w, h) <= 480) return out;
+    w = Math.max(1, Math.round(w * 0.92));
+    h = Math.max(1, Math.round(h * 0.92));
+    work = await sharp(work).resize(w, h, { fit: "fill" }).png().toBuffer();
+  }
+  return compressBusyToSlabOnce(work, slabKb);
 }
 
 async function compressToTarget(buffer, targetBytes, minQ, whiteRatio, studio) {
@@ -407,6 +446,14 @@ export async function prepareInput(imageBuffer, studio) {
     );
   } else {
     buffer = await sharp(buffer).flatten({ background: { r: 255, g: 255, b: 255 } }).toBuffer();
+    const fitted = fitSupplierDenPhotoDims(w, h);
+    if (fitted.w !== w || fitted.h !== h) {
+      buffer = await sharp(buffer)
+        .resize(fitted.w, fitted.h, { fit: "fill" })
+        .toBuffer();
+      w = fitted.w;
+      h = fitted.h;
+    }
     const framed = await prepareSupplierDenBuffer(buffer, w, h);
     buffer = framed.buffer;
     w = framed.width;
