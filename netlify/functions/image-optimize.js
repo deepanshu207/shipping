@@ -22,6 +22,7 @@ const SUPPLIERDEN_ORANGE = { r: 255, g: 121, b: 0 };
 const SUPPLIERDEN_BORDER_RATIO = 0.048;
 const SUPPLIERDEN_MIN_BORDER = 34;
 const MEESHO_FRAMED_MAX_SIDE = 1280;
+const OVERLAY_SUPERSAMPLE = 2;
 
 const STUDIO_CATEGORY_RE =
   /\b(bra|bras|lingerie|panty|panties|underwear|bikini|sports bra|feeding bra|shapewear|camisole|nighty|nightwear|blouse|petticoat)\b/i;
@@ -60,22 +61,27 @@ function fitSupplierDenPhotoDims(w, h) {
   return { w: nw, h: nh };
 }
 
-function specialOfferSvg(x, y, scale) {
+function specialOfferSvg(scale) {
   const w = 92 * scale;
   const h = 54 * scale;
-  const font = 12 * scale;
-  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(w + 20)}" height="${Math.ceil(h + 20)}">
-    <g transform="translate(10,10) rotate(-8 ${w / 2} ${h / 2})">
-      <rect x="0" y="0" width="${w}" height="${h}" rx="${7 * scale}" fill="#D32F2F" stroke="#FFD600" stroke-width="${2.8 * scale}"/>
-      <text x="${w / 2}" y="${h * 0.34}" fill="#FFD600" font-family="Arial,sans-serif" font-size="${font}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SPECIAL</text>
-      <text x="${w / 2}" y="${h * 0.72}" fill="#FFD600" font-family="Arial,sans-serif" font-size="${font}" font-weight="900" text-anchor="middle" dominant-baseline="middle">OFFER</text>
+  const pad = 8 * scale;
+  const bw = w + pad * 2;
+  const bh = h + pad * 2;
+  const font = 12.5 * scale;
+  const ss = OVERLAY_SUPERSAMPLE;
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(bw * ss)}" height="${Math.ceil(bh * ss)}" viewBox="0 0 ${Math.ceil(bw)} ${Math.ceil(bh)}">
+    <g transform="translate(${pad},${pad}) rotate(-8 ${w / 2} ${h / 2})">
+      <rect x="0" y="0" width="${w}" height="${h}" rx="${7 * scale}" fill="#D32F2F" stroke="#FFD600" stroke-width="${3 * scale}"/>
+      <text x="${w / 2}" y="${h * 0.34}" fill="#FFD600" stroke="#B71C1C" stroke-width="${0.55 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${font}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SPECIAL</text>
+      <text x="${w / 2}" y="${h * 0.72}" fill="#FFD600" stroke="#B71C1C" stroke-width="${0.55 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${font}" font-weight="900" text-anchor="middle" dominant-baseline="middle">OFFER</text>
     </g>
   </svg>`);
 }
 
-function hotSaleSvg(cx, cy, scale) {
+function hotSaleSvg(scale) {
   const outer = 78 * scale;
-  const size = Math.ceil(outer * 2 + 24);
+  const pad = 14 * scale;
+  const size = outer * 2 + pad * 2;
   const center = size / 2;
   const spikes = 14;
   let points = "";
@@ -86,8 +92,9 @@ function hotSaleSvg(cx, cy, scale) {
     const py = center + Math.sin(angle) * radius;
     points += `${px},${py} `;
   }
-  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
-    <polygon points="${points.trim()}" fill="url(#burst)" stroke="#B71C1C" stroke-width="${2.2 * scale}"/>
+  const ss = OVERLAY_SUPERSAMPLE;
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(size * ss)}" height="${Math.ceil(size * ss)}" viewBox="0 0 ${Math.ceil(size)} ${Math.ceil(size)}">
+    <polygon points="${points.trim()}" fill="url(#burst)" stroke="#B71C1C" stroke-width="${2.4 * scale}"/>
     <defs>
       <radialGradient id="burst">
         <stop offset="0%" stop-color="#FFEB3B"/>
@@ -95,9 +102,9 @@ function hotSaleSvg(cx, cy, scale) {
         <stop offset="100%" stop-color="#E53935"/>
       </radialGradient>
     </defs>
-    <text x="${center}" y="${center - 14 * scale}" fill="#FFFFFF" stroke="#7F0000" stroke-width="${1.1 * scale}" font-family="Arial,sans-serif" font-size="${15 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">HOT</text>
-    <text x="${center}" y="${center + 4 * scale}" fill="#FFFFFF" stroke="#7F0000" stroke-width="${1.1 * scale}" font-family="Arial,sans-serif" font-size="${13 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SALE</text>
-    <text x="${center}" y="${center + 22 * scale}" fill="#FFFFFF" stroke="#7F0000" stroke-width="${1.1 * scale}" font-family="Arial,sans-serif" font-size="${11 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">BIG SALE</text>
+    <text x="${center}" y="${center - 14 * scale}" fill="#FFFFFF" stroke="#7F0000" stroke-width="${1.5 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${15 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">HOT</text>
+    <text x="${center}" y="${center + 4 * scale}" fill="#FFFFFF" stroke="#7F0000" stroke-width="${1.45 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${13 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SALE</text>
+    <text x="${center}" y="${center + 22 * scale}" fill="#FFFFFF" stroke="#7F0000" stroke-width="${1.6 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${12 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">BIG SALE</text>
   </svg>`);
 }
 
@@ -105,23 +112,23 @@ async function prepareSupplierDenBuffer(buffer, width, height) {
   const border = supplierDenBorderPx(width, height);
   const fw = width + border * 2;
   const fh = height + border * 2;
-  const scale = Math.max(0.72, Math.min(1.35, Math.min(width, height) / 900));
-  const burstSize = Math.ceil(78 * scale * 1.05 * 2 + 24);
-  const offerW = Math.ceil(92 * scale + 20);
-  const offerH = Math.ceil(54 * scale + 20);
+  const scale = Math.max(0.78, Math.min(1.35, Math.min(width, height) / 900));
+  const burstScale = scale * 1.05;
+  const badge = { w: 92 * scale + 16 * scale, h: 54 * scale + 16 * scale };
+  const burst = { size: 78 * burstScale * 2 + 28 * burstScale };
 
   const offerLeft = Math.round(border + width * 0.66);
   const offerTop = Math.round(border + height * 0.05);
-  const burstLeft = Math.round(border + width * 0.16 - burstSize / 2);
-  const burstTop = Math.round(border + height * 0.72 - burstSize / 2);
+  const burstLeft = Math.round(border + width * 0.16 - burst.size / 2);
+  const burstTop = Math.round(border + height * 0.72 - burst.size / 2);
 
   const framed = await sharp({
     create: { width: fw, height: fh, channels: 3, background: SUPPLIERDEN_ORANGE },
   })
     .composite([
       { input: buffer, left: border, top: border },
-      { input: specialOfferSvg(offerLeft, offerTop, scale), left: offerLeft, top: offerTop },
-      { input: hotSaleSvg(0, 0, scale * 1.05), left: burstLeft, top: burstTop },
+      { input: specialOfferSvg(scale), left: offerLeft, top: offerTop },
+      { input: hotSaleSvg(burstScale), left: burstLeft, top: burstTop },
     ])
     .png()
     .toBuffer();
