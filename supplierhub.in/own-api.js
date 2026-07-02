@@ -2,16 +2,16 @@
  * Own API for Meesho Image Generator — runs entirely in the browser.
  */
 (function () {
-  /** KB targets — lower when background is mostly white (compresses cleanly). */
+  /** Busy/indoor: SupplierDen format, then compress to Meesho slab sizes (empirical, not guaranteed ₹). */
   const TIERS_BUSY_BG = [
-    { targetKb: 91, label: "Lowest · upload to Meesho first", lowest: true },
-    { targetKb: 92, label: "Recommended · balanced", recommended: true },
-    { targetKb: 93, label: "Standard" },
-    { targetKb: 93, label: "High detail" },
+    { slabKb: 91, label: "Lowest · may beat ₹93 on Meesho", lowest: true },
+    { slabKb: 92, label: "Balanced" },
+    { slabKb: 93, label: "Recommended · SupplierDen ₹93 match", recommended: true },
+    { slabKb: 94, label: "High detail backup" },
   ];
   const TIERS_WHITE_BG = [
-    { targetKb: 20, label: "Lowest · upload to Meesho first", lowest: true },
-    { targetKb: 22, label: "Recommended · balanced", recommended: true },
+    { targetKb: 20, label: "Smallest file · verify ₹ on Meesho", lowest: true },
+    { targetKb: 22, label: "Recommended · white studio", recommended: true },
     { targetKb: 24, label: "Standard" },
     { targetKb: 26, label: "High detail" },
   ];
@@ -28,6 +28,12 @@
   const SUPPLIERDEN_ORANGE = "#FF7900";
   const SUPPLIERDEN_BORDER_RATIO = 0.048;
   const SUPPLIERDEN_MIN_BORDER = 34;
+  /** Meesho may tier on max framed side — SupplierDen outputs often cap near 1280px. */
+  const MEESHO_FRAMED_MAX_SIDE = 1280;
+
+  const STUDIO_CATEGORY_RE =
+    /\b(bra|bras|lingerie|panty|panties|underwear|bikini|sports bra|feeding bra|shapewear|camisole|nighty|nightwear|blouse|petticoat)\b/i;
+  const INDOOR_CATEGORY_RE = /\b(raincoat|rain coat|rainwear|men raincoat)\b/i;
 
   const MOZ_BASE = {
     baseline: false,
@@ -369,7 +375,7 @@
     ctx.putImageData(img, 0, 0);
   }
 
-  /** Studio photos have near-white edges on all sides; indoor shots have a dark floor at bottom edge. */
+  /** Studio photos: white edges / high white fill. Indoor shots have dark floor at bottom. */
   function isStudioWhiteBackground(img) {
     const maxProbe = 320;
     const scale = Math.min(1, maxProbe / Math.max(img.width, img.height));
@@ -382,31 +388,49 @@
     ctx.drawImage(img, 0, 0, w, h);
     const { data } = ctx.getImageData(0, 0, w, h);
 
-    function edgeNearWhiteRatio() {
+    function sideNearWhiteRatio(y0, y1, x0, x1) {
       let near = 0;
       let total = 0;
-      for (let x = 0; x < w; x++) {
-        for (const y of [0, h - 1]) {
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
           const i = (y * w + x) * 4;
           total++;
           if (nearWhiteAt(data, i)) near++;
         }
       }
-      for (let y = 1; y < h - 1; y++) {
-        for (const x of [0, w - 1]) {
-          const i = (y * w + x) * 4;
-          total++;
-          if (nearWhiteAt(data, i)) near++;
-        }
-      }
-      return near / total;
+      return total ? near / total : 0;
     }
 
-    return edgeNearWhiteRatio() >= 0.72 && measureNearWhiteRatio(c) >= 0.5;
+    const top = sideNearWhiteRatio(0, 1, 0, w);
+    const bottom = sideNearWhiteRatio(h - 1, h, 0, w);
+    const left = sideNearWhiteRatio(0, h, 0, 1);
+    const right = sideNearWhiteRatio(0, h, w - 1, w);
+    const allEdges = (top + bottom + left + right) / 4;
+    const topLeftRight = (top + left + right) / 3;
+    const full = measureNearWhiteRatio(c);
+
+    if (allEdges >= 0.72 && full >= 0.5) return true;
+    if (topLeftRight >= 0.8 && full >= 0.55) return true;
+    if (full >= 0.7) return true;
+    return false;
+  }
+
+  /** Category + vision — bra/lingerie never get SupplierDen orange frame. */
+  function resolveStudioMode(img, tagName) {
+    const tag = String(tagName || "").toLowerCase();
+    if (INDOOR_CATEGORY_RE.test(tag)) return false;
+    if (STUDIO_CATEGORY_RE.test(tag)) return true;
+    return isStudioWhiteBackground(img);
   }
 
   function supplierDenBorderPx(w, h) {
-    return Math.max(SUPPLIERDEN_MIN_BORDER, Math.round(Math.min(w, h) * SUPPLIERDEN_BORDER_RATIO));
+    let border = Math.max(SUPPLIERDEN_MIN_BORDER, Math.round(Math.min(w, h) * SUPPLIERDEN_BORDER_RATIO));
+    const maxSide = Math.max(w, h);
+    if (maxSide + border * 2 > MEESHO_FRAMED_MAX_SIDE) {
+      const capped = Math.floor((MEESHO_FRAMED_MAX_SIDE - maxSide) / 2);
+      if (capped >= 28) border = capped;
+    }
+    return border;
   }
 
   function roundRectPath(ctx, x, y, width, height, radius) {
@@ -542,99 +566,31 @@
     return c;
   }
 
-  /** Scale canvas up when flat orange border compresses below Meesho target KB. */
-  function scaleCanvas(canvas, factor) {
-    const w = Math.max(1, Math.round(canvas.width * factor));
-    const h = Math.max(1, Math.round(canvas.height * factor));
-    const c = document.createElement("canvas");
-    c.width = w;
-    c.height = h;
-    const ctx = c.getContext("2d");
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(canvas, 0, 0, w, h);
-    return c;
-  }
-
-  async function maxBytesUnderTarget(canvas, targetBytes) {
-    const busyMin = BUSY_MIN_Q / 100;
-    let best = 0;
-    for (let q = 98; q >= BUSY_MIN_Q; q--) {
-      const size = (await blobAtCanvasQuality(canvas, q / 100, busyMin)).size;
-      if (size <= targetBytes && size > best) best = size;
-    }
-    return best;
-  }
-
-  async function busyCanvasForTarget(canvas, targetBytes) {
-    let current = canvas;
-    const minReach = targetBytes - 2048;
-    if ((await maxBytesUnderTarget(current, targetBytes)) >= minReach) return current;
-
-    let lo = 1;
-    let hi = 1.85;
-    while (hi - lo > 0.02) {
-      const mid = (lo + hi) / 2;
-      const scaled = scaleCanvas(canvas, mid);
-      if ((await maxBytesUnderTarget(scaled, targetBytes)) < minReach) lo = mid;
-      else {
-        current = scaled;
-        hi = mid;
+  /** Highest-quality standard JPEG at or under slab KB — never upscale. */
+  async function compressBusyToSlab(canvas, slabKb) {
+    const targetBytes = slabKb * 1024;
+    const busyMin = BUSY_MIN_Q;
+    let best = null;
+    let lo = busyMin;
+    let hi = 98;
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      const blob = await blobAtCanvasQuality(canvas, mid / 100, busyMin / 100);
+      if (blob.size <= targetBytes) {
+        best = blob;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
       }
     }
-    return current;
+    if (best) return best;
+    return blobAtCanvasQuality(canvas, busyMin / 100, busyMin / 100);
   }
 
-  /** Hit target KB — busy photos use standard JPEG (Meesho-compatible), studio uses mozjpeg. */
+  /** Hit byte target for studio white-bg photos (mozjpeg). */
   async function compressCanvas(canvas, targetBytes, minQ, whiteRatio, studio) {
     if (!studio) {
-      const busyMin = BUSY_MIN_Q;
-      let best = await blobAtCanvasQuality(canvas, 0.98, busyMin / 100);
-      let lo = busyMin;
-      let hi = 98;
-      if (best.size > targetBytes) {
-        for (let q = hi; q >= lo; q -= 1) {
-          const blob = await blobAtCanvasQuality(canvas, q / 100, busyMin / 100);
-          if (blob.size < best.size) best = blob;
-          if (blob.size <= targetBytes) {
-            best = blob;
-            break;
-          }
-        }
-      }
-      if (best.size <= targetBytes) {
-        while (hi - lo > 1) {
-          const mid = Math.floor((lo + hi) / 2);
-          const blob = await blobAtCanvasQuality(canvas, mid / 100, busyMin / 100);
-          if (blob.size <= targetBytes) {
-            best = blob;
-            lo = mid;
-          } else {
-            hi = mid;
-          }
-        }
-        const top = await blobAtCanvasQuality(canvas, lo / 100, busyMin / 100);
-        if (top.size <= targetBytes) return top;
-      }
-      if (best.size <= targetBytes) return best;
-
-      let mLo = ABS_MIN_Q;
-      let mHi = 85;
-      let mBest = await encodeMozjpeg(canvas, mLo, whiteRatio, true);
-      for (let q = mLo; q <= mHi && mBest.size > targetBytes; q++) {
-        const blob = await encodeMozjpeg(canvas, q, whiteRatio, true);
-        if (blob.size <= targetBytes) return blob;
-        if (blob.size < mBest.size) mBest = blob;
-      }
-      while (mHi - mLo > 1 && mBest.size > targetBytes) {
-        const mid = Math.floor((mLo + mHi) / 2);
-        const blob = await encodeMozjpeg(canvas, mid, whiteRatio, true);
-        if (blob.size <= targetBytes) return blob;
-        if (blob.size < mBest.size) mBest = blob;
-        if (blob.size <= targetBytes) mLo = mid;
-        else mHi = mid;
-      }
-      return mBest.size < best.size ? mBest : best;
+      throw new Error("compressCanvas is studio-only; use compressBusyAtQuality for busy photos");
     }
 
     const absMin = adaptiveAbsMinQ(whiteRatio);
@@ -668,31 +624,31 @@
 
   async function buildVariants(canvas, whiteRatio, studio) {
     const minQ = adaptiveMinQ(whiteRatio);
-    const tiers = tiersForWhite(whiteRatio);
-    let workCanvas = canvas;
-    if (!studio) {
-      const maxTarget = Math.max(...tiers.map((tier) => tier.targetKb)) * 1024;
-      workCanvas = await busyCanvasForTarget(canvas, maxTarget);
-    }
+    const tiers = studio ? TIERS_WHITE_BG : TIERS_BUSY_BG;
+    const processingPath = studio ? "studio" : "supplierden";
     const built = [];
     for (const tier of tiers) {
-      const targetBytes = tier.targetKb * 1024;
-      const blob = await compressCanvas(workCanvas, targetBytes, minQ, whiteRatio, studio);
+      const blob = studio
+        ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true)
+        : await compressBusyToSlab(canvas, tier.slabKb);
       built.push({
         blob,
         bytes: blob.size,
-        label: `${tier.label} · ${workCanvas.width}×${workCanvas.height}`,
+        label: `${tier.label} · ${canvas.width}×${canvas.height}`,
         recommended: !!tier.recommended,
         lowest: !!tier.lowest,
+        processingPath,
+        width: canvas.width,
+        height: canvas.height,
       });
     }
     return built;
   }
 
-  async function optimizeToVariants(source) {
+  async function optimizeToVariants(source, tagName) {
     await loadMozjpeg();
     const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
-    const studio = isStudioWhiteBackground(img);
+    const studio = resolveStudioMode(img, tagName);
     const canvas = prepareCanvas(img, studio);
     const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
     return buildVariants(canvas, whiteRatio, studio);
@@ -719,6 +675,11 @@
         fileSizeBytes: v.bytes,
         fileSizeKb,
         shippingCharge: String(fileSizeKb),
+        estimatedShippingInr: fileSizeKb,
+        shippingEstimate: true,
+        processingPath: v.processingPath,
+        width: v.width,
+        height: v.height,
         lowest: v.bytes === minBytes,
         recommended: v.recommended,
         [OPT_FLAG]: true,
@@ -744,7 +705,7 @@
     const req = STORE.requests.get(id);
     if (!req) return;
     const work = (async () => {
-      req.results = await optimizeToVariants(imageFile).then((v) => variantsToResults(v, tagName));
+      req.results = await optimizeToVariants(imageFile, tagName).then((v) => variantsToResults(v, tagName));
       req.status = "completed";
     })();
     try {
@@ -783,7 +744,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 25, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 28, platform: "cloudflare-static" },
       };
     }
 

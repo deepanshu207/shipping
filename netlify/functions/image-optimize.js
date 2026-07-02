@@ -1,15 +1,15 @@
 import sharp from "sharp";
 
 const TIERS_BUSY_BG = [
-  { targetKb: 91, label: "Lowest · upload to Meesho first", lowest: true },
-  { targetKb: 92, label: "Recommended · balanced", recommended: true },
-  { targetKb: 93, label: "Standard" },
-  { targetKb: 93, label: "High detail" },
+  { slabKb: 91, label: "Lowest · may beat ₹93 on Meesho", lowest: true },
+  { slabKb: 92, label: "Balanced" },
+  { slabKb: 93, label: "Recommended · SupplierDen ₹93 match", recommended: true },
+  { slabKb: 94, label: "High detail backup" },
 ];
 
 const TIERS_WHITE_BG = [
-  { targetKb: 20, label: "Lowest · upload to Meesho first", lowest: true },
-  { targetKb: 22, label: "Recommended · balanced", recommended: true },
+  { targetKb: 20, label: "Smallest file · verify ₹ on Meesho", lowest: true },
+  { targetKb: 22, label: "Recommended · white studio", recommended: true },
   { targetKb: 24, label: "Standard" },
   { targetKb: 26, label: "High detail" },
 ];
@@ -21,9 +21,20 @@ const BUSY_MIN_Q = 15;
 const SUPPLIERDEN_ORANGE = { r: 255, g: 121, b: 0 };
 const SUPPLIERDEN_BORDER_RATIO = 0.048;
 const SUPPLIERDEN_MIN_BORDER = 34;
+const MEESHO_FRAMED_MAX_SIDE = 1280;
+
+const STUDIO_CATEGORY_RE =
+  /\b(bra|bras|lingerie|panty|panties|underwear|bikini|sports bra|feeding bra|shapewear|camisole|nighty|nightwear|blouse|petticoat)\b/i;
+const INDOOR_CATEGORY_RE = /\b(raincoat|rain coat|rainwear|men raincoat)\b/i;
 
 function supplierDenBorderPx(w, h) {
-  return Math.max(SUPPLIERDEN_MIN_BORDER, Math.round(Math.min(w, h) * SUPPLIERDEN_BORDER_RATIO));
+  let border = Math.max(SUPPLIERDEN_MIN_BORDER, Math.round(Math.min(w, h) * SUPPLIERDEN_BORDER_RATIO));
+  const maxSide = Math.max(w, h);
+  if (maxSide + border * 2 > MEESHO_FRAMED_MAX_SIDE) {
+    const capped = Math.floor((MEESHO_FRAMED_MAX_SIDE - maxSide) / 2);
+    if (capped >= 28) border = capped;
+  }
+  return border;
 }
 
 function specialOfferSvg(x, y, scale) {
@@ -247,15 +258,50 @@ function edgeNearWhiteRatioRaw(data, width, height, channels) {
   return near / total;
 }
 
+function sideNearWhiteRatioRaw(data, width, height, channels, y0, y1, x0, x1) {
+  let near = 0;
+  let total = 0;
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      const o = (y * width + x) * channels;
+      total++;
+      if (
+        255 - data[o] <= WHITE_TOL &&
+        255 - data[o + 1] <= WHITE_TOL &&
+        255 - data[o + 2] <= WHITE_TOL
+      ) {
+        near++;
+      }
+    }
+  }
+  return total ? near / total : 0;
+}
+
 async function isStudioWhiteBackground(buffer) {
   const { data, info } = await sharp(buffer)
     .resize(320, 320, { fit: "inside", withoutEnlargement: true })
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
-  const edgeRatio = edgeNearWhiteRatioRaw(data, info.width, info.height, info.channels);
-  const fullRatio = measureNearWhiteRatioRaw(data, info.width, info.height, info.channels);
-  return edgeRatio >= 0.72 && fullRatio >= 0.5;
+  const { width, height, channels } = info;
+  const top = sideNearWhiteRatioRaw(data, width, height, channels, 0, 1, 0, width);
+  const bottom = sideNearWhiteRatioRaw(data, width, height, channels, height - 1, height, 0, width);
+  const left = sideNearWhiteRatioRaw(data, width, height, channels, 0, height, 0, 1);
+  const right = sideNearWhiteRatioRaw(data, width, height, channels, 0, height, width - 1, width);
+  const allEdges = (top + bottom + left + right) / 4;
+  const topLeftRight = (top + left + right) / 3;
+  const fullRatio = measureNearWhiteRatioRaw(data, width, height, channels);
+  if (allEdges >= 0.72 && fullRatio >= 0.5) return true;
+  if (topLeftRight >= 0.8 && fullRatio >= 0.55) return true;
+  if (fullRatio >= 0.7) return true;
+  return false;
+}
+
+function resolveStudioMode(buffer, categoryName) {
+  const tag = String(categoryName || "").toLowerCase();
+  if (INDOOR_CATEGORY_RE.test(tag)) return false;
+  if (STUDIO_CATEGORY_RE.test(tag)) return true;
+  return isStudioWhiteBackground(buffer);
 }
 
 function adaptiveMinQ(whiteRatio) {
@@ -279,81 +325,34 @@ async function flattenBackgroundWhite(buffer) {
   return { buffer: out, whiteRatio };
 }
 
-async function maxBytesUnderTarget(buffer, targetBytes) {
-  let best = 0;
-  for (let q = 98; q >= BUSY_MIN_Q; q--) {
-    const len = (await standardJpeg(buffer, q, BUSY_MIN_Q).toBuffer()).length;
-    if (len <= targetBytes && len > best) best = len;
-  }
-  return best;
-}
-
-async function busyBufferForTarget(buffer, targetBytes) {
-  let current = buffer;
-  const meta = await sharp(buffer).metadata();
-  const minReach = targetBytes - 2048;
-  if ((await maxBytesUnderTarget(current, targetBytes)) >= minReach) return current;
-
-  let lo = 1;
-  let hi = 1.85;
-  while (hi - lo > 0.02) {
-    const mid = (lo + hi) / 2;
-    const w = Math.max(1, Math.round((meta.width || 1) * mid));
-    const h = Math.max(1, Math.round((meta.height || 1) * mid));
-    const scaled = await sharp(buffer).resize(w, h, { kernel: sharp.kernel.lanczos3 }).toBuffer();
-    if ((await maxBytesUnderTarget(scaled, targetBytes)) < minReach) lo = mid;
-    else {
-      current = scaled;
-      hi = mid;
+async function compressBusyToSlab(buffer, slabKb) {
+  const targetBytes = slabKb * 1024;
+  const busyMin = BUSY_MIN_Q;
+  let best = null;
+  let lo = busyMin;
+  let hi = 98;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const out = await standardJpeg(buffer, mid, busyMin).toBuffer();
+    if (out.length <= targetBytes) {
+      best = out;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
     }
   }
-  return current;
+  if (best) return best;
+  return standardJpeg(buffer, busyMin, busyMin).toBuffer();
 }
 
 async function compressToTarget(buffer, targetBytes, minQ, whiteRatio, studio) {
   if (!studio) {
-    const busyMin = BUSY_MIN_Q;
-    let best = await standardJpeg(buffer, 98, busyMin).toBuffer();
-    let lo = busyMin;
-    let hi = 98;
-    if (best.length > targetBytes) {
-      for (let q = hi; q >= lo; q -= 1) {
-        const out = await standardJpeg(buffer, q, busyMin).toBuffer();
-        if (out.length < best.length) best = out;
-        if (out.length <= targetBytes) {
-          best = out;
-          break;
-        }
-      }
-    }
-    if (best.length <= targetBytes) {
-      while (hi - lo > 1) {
-        const mid = Math.floor((lo + hi) / 2);
-        const out = await standardJpeg(buffer, mid, busyMin).toBuffer();
-        if (out.length <= targetBytes) {
-          best = out;
-          lo = mid;
-        } else {
-          hi = mid;
-        }
-      }
-      const top = await standardJpeg(buffer, lo, busyMin).toBuffer();
-      if (top.length <= targetBytes) return top;
-    }
-    if (best.length <= targetBytes) return best;
-
-    let mBest = await mozjpeg(buffer, ABS_MIN_Q, whiteRatio).toBuffer();
-    for (let q = ABS_MIN_Q; q <= 85; q++) {
-      const out = await mozjpeg(buffer, q, whiteRatio).toBuffer();
-      if (out.length <= targetBytes) return out;
-      if (out.length < mBest.length) mBest = out;
-    }
-    return mBest.length < best.length ? mBest : best;
+    throw new Error("compressToTarget is studio-only; use compressBusyToSlab for busy photos");
   }
 
   const absMin = adaptiveAbsMinQ(whiteRatio);
-  let lo = studio ? minQ : absMin;
-  let hi = studio ? 92 : 98;
+  let lo = minQ;
+  let hi = 92;
   let best = await encodeAtQuality(buffer, lo, lo, whiteRatio, studio);
 
   if (best.length <= targetBytes) {
@@ -423,14 +422,10 @@ export async function prepareInput(imageBuffer, studio) {
 }
 
 async function buildVariant(prepared, tier) {
-  const targetBytes = tier.targetKb * 1024;
-  const jpeg = await compressToTarget(
-    prepared.buffer,
-    targetBytes,
-    prepared.minQ,
-    prepared.whiteRatio,
-    prepared.studio
-  );
+  const processingPath = prepared.studio ? "studio" : "supplierden";
+  const jpeg = prepared.studio
+    ? await compressToTarget(prepared.buffer, tier.targetKb * 1024, prepared.minQ, prepared.whiteRatio, true)
+    : await compressBusyToSlab(prepared.buffer, tier.slabKb);
 
   return {
     buffer: jpeg,
@@ -441,29 +436,15 @@ async function buildVariant(prepared, tier) {
     lowest: !!tier.lowest,
     width: prepared.width,
     height: prepared.height,
+    processingPath,
   };
 }
 
 export async function generateAllVariants(imageBuffer, categoryName) {
   const rotated = await sharp(imageBuffer).rotate().flatten({ background: { r: 255, g: 255, b: 255 } }).toBuffer();
-  const studio = await isStudioWhiteBackground(rotated);
-  let prepared = await prepareInput(imageBuffer, studio);
-  const tiers = tiersForWhite(prepared.whiteRatio);
-
-  if (!prepared.studio) {
-    const maxTarget = Math.max(...tiers.map((tier) => tier.targetKb)) * 1024;
-    const scaled = await busyBufferForTarget(prepared.buffer, maxTarget);
-    if (scaled !== prepared.buffer) {
-      const meta = await sharp(scaled).metadata();
-      prepared = {
-        ...prepared,
-        buffer: scaled,
-        width: meta.width || prepared.width,
-        height: meta.height || prepared.height,
-      };
-    }
-  }
-
+  const studio = await resolveStudioMode(rotated, categoryName);
+  const prepared = await prepareInput(imageBuffer, studio);
+  const tiers = studio ? TIERS_WHITE_BG : TIERS_BUSY_BG;
   const built = [];
 
   for (const tier of tiers) {
@@ -478,6 +459,11 @@ export async function generateAllVariants(imageBuffer, categoryName) {
     fileSizeBytes: item.fileSizeBytes,
     fileSizeKb: item.fileSizeKb,
     shippingCharge: String(item.fileSizeKb),
+    estimatedShippingInr: item.fileSizeKb,
+    shippingEstimate: true,
+    processingPath: item.processingPath,
+    width: item.width,
+    height: item.height,
     lowest: item.fileSizeBytes === minBytes,
     recommended: item.recommended,
     categoryName,
