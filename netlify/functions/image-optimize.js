@@ -61,6 +61,24 @@ function fitSupplierDenPhotoDims(w, h) {
   return { w: nw, h: nh };
 }
 
+function fitStudioPhotoDims(w, h) {
+  let nw = w;
+  let nh = h;
+  const max0 = Math.max(nw, nh);
+  if (max0 > 2000) {
+    const scale = 2000 / max0;
+    nw = Math.round(nw * scale);
+    nh = Math.round(nh * scale);
+  }
+  const max1 = Math.max(nw, nh);
+  if (max1 > MEESHO_FRAMED_MAX_SIDE) {
+    const scale = MEESHO_FRAMED_MAX_SIDE / max1;
+    nw = Math.max(1, Math.round(nw * scale));
+    nh = Math.max(1, Math.round(nh * scale));
+  }
+  return { w: nw, h: nh };
+}
+
 function specialOfferSvg(scale) {
   const w = 92 * scale;
   const h = 54 * scale;
@@ -171,10 +189,7 @@ function standardJpeg(buffer, quality, minQ = BUSY_MIN_Q) {
 async function encodeAtQuality(buffer, quality, floor, whiteRatio = 0, studio = false) {
   const minQ = floor ?? adaptiveMinQ(whiteRatio);
   const q = Math.max(minQ, quality);
-  if (studio) {
-    return mozjpeg(buffer, q, whiteRatio).toBuffer();
-  }
-  return standardJpeg(buffer, q).toBuffer();
+  return mozjpeg(buffer, q, whiteRatio).toBuffer();
 }
 
 function floodFillWhiteRaw(data, width, height, channels) {
@@ -355,7 +370,7 @@ async function flattenBackgroundWhite(buffer) {
   return { buffer: out, whiteRatio };
 }
 
-async function compressBusyToSlabOnce(buffer, slabKb) {
+async function compressBusyToSlabOnce(buffer, slabKb, whiteRatio = 0) {
   const targetBytes = slabKb * 1024;
   const busyMin = BUSY_MIN_Q;
   let best = null;
@@ -363,7 +378,7 @@ async function compressBusyToSlabOnce(buffer, slabKb) {
   let hi = 98;
   while (lo <= hi) {
     const mid = Math.floor((lo + hi) / 2);
-    const out = await standardJpeg(buffer, mid, busyMin).toBuffer();
+    const out = await mozjpeg(buffer, mid, whiteRatio).toBuffer();
     if (out.length <= targetBytes) {
       best = out;
       lo = mid + 1;
@@ -372,23 +387,23 @@ async function compressBusyToSlabOnce(buffer, slabKb) {
     }
   }
   if (best) return best;
-  return standardJpeg(buffer, busyMin, busyMin).toBuffer();
+  return mozjpeg(buffer, busyMin, whiteRatio).toBuffer();
 }
 
-async function compressBusyToSlab(buffer, slabKb) {
+async function compressBusyToSlab(buffer, slabKb, whiteRatio = 0) {
   const targetBytes = slabKb * 1024;
   let work = buffer;
   let w = (await sharp(work).metadata()).width || 0;
   let h = (await sharp(work).metadata()).height || 0;
   for (let attempt = 0; attempt < 10; attempt++) {
-    const out = await compressBusyToSlabOnce(work, slabKb);
+    const out = await compressBusyToSlabOnce(work, slabKb, whiteRatio);
     if (out.length <= targetBytes) return out;
     if (Math.max(w, h) <= 480) return out;
     w = Math.max(1, Math.round(w * 0.92));
     h = Math.max(1, Math.round(h * 0.92));
     work = await sharp(work).resize(w, h, { fit: "fill" }).png().toBuffer();
   }
-  return compressBusyToSlabOnce(work, slabKb);
+  return compressBusyToSlabOnce(work, slabKb, whiteRatio);
 }
 
 async function compressToTarget(buffer, targetBytes, minQ, whiteRatio, studio) {
@@ -444,6 +459,14 @@ export async function prepareInput(imageBuffer, studio) {
 
   let whiteRatio = 0;
   if (studio) {
+    const fitted = fitStudioPhotoDims(w, h);
+    if (fitted.w !== w || fitted.h !== h) {
+      buffer = await sharp(buffer)
+        .resize(fitted.w, fitted.h, { fit: "fill" })
+        .toBuffer();
+      w = fitted.w;
+      h = fitted.h;
+    }
     const rawCheck = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     whiteRatio = measureNearWhiteRatioRaw(
       rawCheck.data,
@@ -481,7 +504,7 @@ async function buildVariant(prepared, tier) {
   const processingPath = prepared.studio ? "studio" : "supplierden";
   const jpeg = prepared.studio
     ? await compressToTarget(prepared.buffer, tier.targetKb * 1024, prepared.minQ, prepared.whiteRatio, true)
-    : await compressBusyToSlab(prepared.buffer, tier.slabKb);
+    : await compressBusyToSlab(prepared.buffer, tier.slabKb, prepared.whiteRatio);
 
   return {
     buffer: jpeg,
