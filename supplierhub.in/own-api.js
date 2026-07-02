@@ -19,11 +19,16 @@
   const WHITE_TOL = 42;
   const WHITE_BG_THRESHOLD = 0.62;
   const ABS_MIN_Q = 18;
+  const BUSY_MIN_Q = 15;
   const MAX_SIDE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 1200 : 2000;
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
   const STALE_PROCESSING_MS = 120000;
   const PROCESS_TIMEOUT_MS = 180000;
   const MOZJPEG_URL = () => new URL("/vendor/mozjpeg.mjs", location.origin).href;
+  const SUPPLIERDEN_ORANGE = "#FF7900";
+  const SUPPLIERDEN_BORDER_RATIO = 0.048;
+  const SUPPLIERDEN_MIN_BORDER = 34;
+
   const MOZ_BASE = {
     baseline: false,
     progressive: true,
@@ -253,8 +258,8 @@
     return encodeMozjpeg(canvas, q, whiteRatio, false);
   }
 
-  function blobAtCanvasQuality(canvas, quality) {
-    const q = Math.max(0.28, Math.min(0.98, quality));
+  function blobAtCanvasQuality(canvas, quality, minQuality = 0.28) {
+    const q = Math.max(minQuality, Math.min(0.98, quality));
     return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob || new Blob()), "image/jpeg", q));
   }
 
@@ -400,8 +405,121 @@
     return edgeNearWhiteRatio() >= 0.72 && measureNearWhiteRatio(c) >= 0.5;
   }
 
+  function supplierDenBorderPx(w, h) {
+    return Math.max(SUPPLIERDEN_MIN_BORDER, Math.round(Math.min(w, h) * SUPPLIERDEN_BORDER_RATIO));
+  }
+
+  function roundRectPath(ctx, x, y, width, height, radius) {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + width, y, x + width, y + height, r);
+    ctx.arcTo(x + width, y + height, x, y + height, r);
+    ctx.arcTo(x, y + height, x, y, r);
+    ctx.arcTo(x, y, x + width, y, r);
+    ctx.closePath();
+  }
+
+  function drawSpecialOfferBadge(ctx, x, y, scale) {
+    const w = 92 * scale;
+    const h = 54 * scale;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-0.14);
+    roundRectPath(ctx, 0, 0, w, h, 7 * scale);
+    ctx.fillStyle = "#D32F2F";
+    ctx.fill();
+    ctx.strokeStyle = "#FFD600";
+    ctx.lineWidth = 2.8 * scale;
+    ctx.stroke();
+    ctx.fillStyle = "#FFD600";
+    ctx.font = `900 ${12 * scale}px Arial,sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("SPECIAL", w / 2, h * 0.34);
+    ctx.fillText("OFFER", w / 2, h * 0.72);
+    ctx.restore();
+  }
+
+  function drawHotSaleBurst(ctx, cx, cy, scale) {
+    const spikes = 14;
+    const outer = 78 * scale;
+    const inner = 34 * scale;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.beginPath();
+    for (let i = 0; i < spikes * 2; i++) {
+      const angle = (Math.PI * i) / spikes - Math.PI / 2;
+      const radius = i % 2 === 0 ? outer : inner;
+      const px = Math.cos(angle) * radius;
+      const py = Math.sin(angle) * radius;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    const grad = ctx.createRadialGradient(0, 0, inner * 0.2, 0, 0, outer);
+    grad.addColorStop(0, "#FFEB3B");
+    grad.addColorStop(0.55, "#FF9800");
+    grad.addColorStop(1, "#E53935");
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = "#B71C1C";
+    ctx.lineWidth = 2.2 * scale;
+    ctx.stroke();
+    ctx.fillStyle = "#FFFFFF";
+    ctx.strokeStyle = "#7F0000";
+    ctx.lineWidth = 1.1 * scale;
+    ctx.font = `900 ${15 * scale}px Arial,sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.strokeText("HOT", 0, -14 * scale);
+    ctx.fillText("HOT", 0, -14 * scale);
+    ctx.font = `900 ${13 * scale}px Arial,sans-serif`;
+    ctx.strokeText("SALE", 0, 4 * scale);
+    ctx.fillText("SALE", 0, 4 * scale);
+    ctx.font = `900 ${11 * scale}px Arial,sans-serif`;
+    ctx.strokeText("BIG SALE", 0, 22 * scale);
+    ctx.fillText("BIG SALE", 0, 22 * scale);
+    ctx.restore();
+  }
+
+  function drawSupplierDenOverlays(ctx, border, photoW, photoH) {
+    const scale = Math.max(0.72, Math.min(1.35, Math.min(photoW, photoH) / 900));
+    drawSpecialOfferBadge(ctx, border + photoW * 0.66, border + photoH * 0.05, scale);
+    drawHotSaleBurst(ctx, border + photoW * 0.16, border + photoH * 0.72, scale * 1.05);
+  }
+
+  /** SupplierDen-style orange frame + sale stickers — photo stays full size inside border. */
+  function prepareSupplierDenCanvas(img) {
+    let w = img.width;
+    let h = img.height;
+    const max = Math.max(w, h);
+    if (max > MAX_SIDE) {
+      const scale = MAX_SIDE / max;
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+    }
+
+    const border = supplierDenBorderPx(w, h);
+    const fw = w + border * 2;
+    const fh = h + border * 2;
+    const c = document.createElement("canvas");
+    c.width = fw;
+    c.height = fh;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = SUPPLIERDEN_ORANGE;
+    ctx.fillRect(0, 0, fw, fh);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, img.width, img.height, border, border, w, h);
+    drawSupplierDenOverlays(ctx, border, w, h);
+    return c;
+  }
+
   /** Exact upload dimensions — never upscale; cap max side at 2000 only. */
   function prepareCanvas(img, studio) {
+    if (!studio) return prepareSupplierDenCanvas(img);
+
     let w = img.width;
     let h = img.height;
     const max = Math.max(w, h);
@@ -424,15 +542,59 @@
     return c;
   }
 
+  /** Scale canvas up when flat orange border compresses below Meesho target KB. */
+  function scaleCanvas(canvas, factor) {
+    const w = Math.max(1, Math.round(canvas.width * factor));
+    const h = Math.max(1, Math.round(canvas.height * factor));
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(canvas, 0, 0, w, h);
+    return c;
+  }
+
+  async function maxBytesUnderTarget(canvas, targetBytes) {
+    const busyMin = BUSY_MIN_Q / 100;
+    let best = 0;
+    for (let q = 98; q >= BUSY_MIN_Q; q--) {
+      const size = (await blobAtCanvasQuality(canvas, q / 100, busyMin)).size;
+      if (size <= targetBytes && size > best) best = size;
+    }
+    return best;
+  }
+
+  async function busyCanvasForTarget(canvas, targetBytes) {
+    let current = canvas;
+    const minReach = targetBytes - 2048;
+    if ((await maxBytesUnderTarget(current, targetBytes)) >= minReach) return current;
+
+    let lo = 1;
+    let hi = 1.85;
+    while (hi - lo > 0.02) {
+      const mid = (lo + hi) / 2;
+      const scaled = scaleCanvas(canvas, mid);
+      if ((await maxBytesUnderTarget(scaled, targetBytes)) < minReach) lo = mid;
+      else {
+        current = scaled;
+        hi = mid;
+      }
+    }
+    return current;
+  }
+
   /** Hit target KB — busy photos use standard JPEG (Meesho-compatible), studio uses mozjpeg. */
   async function compressCanvas(canvas, targetBytes, minQ, whiteRatio, studio) {
     if (!studio) {
-      let best = await blobAtCanvasQuality(canvas, 0.98);
-      let lo = 28;
+      const busyMin = BUSY_MIN_Q;
+      let best = await blobAtCanvasQuality(canvas, 0.98, busyMin / 100);
+      let lo = busyMin;
       let hi = 98;
       if (best.size > targetBytes) {
-        for (let q = hi; q >= lo; q -= 2) {
-          const blob = await blobAtCanvasQuality(canvas, q / 100);
+        for (let q = hi; q >= lo; q -= 1) {
+          const blob = await blobAtCanvasQuality(canvas, q / 100, busyMin / 100);
           if (blob.size < best.size) best = blob;
           if (blob.size <= targetBytes) {
             best = blob;
@@ -441,9 +603,9 @@
         }
       }
       if (best.size <= targetBytes) {
-        while (hi - lo > 2) {
+        while (hi - lo > 1) {
           const mid = Math.floor((lo + hi) / 2);
-          const blob = await blobAtCanvasQuality(canvas, mid / 100);
+          const blob = await blobAtCanvasQuality(canvas, mid / 100, busyMin / 100);
           if (blob.size <= targetBytes) {
             best = blob;
             lo = mid;
@@ -451,7 +613,7 @@
             hi = mid;
           }
         }
-        const top = await blobAtCanvasQuality(canvas, lo / 100);
+        const top = await blobAtCanvasQuality(canvas, lo / 100, busyMin / 100);
         if (top.size <= targetBytes) return top;
       }
       if (best.size <= targetBytes) return best;
@@ -507,14 +669,19 @@
   async function buildVariants(canvas, whiteRatio, studio) {
     const minQ = adaptiveMinQ(whiteRatio);
     const tiers = tiersForWhite(whiteRatio);
+    let workCanvas = canvas;
+    if (!studio) {
+      const maxTarget = Math.max(...tiers.map((tier) => tier.targetKb)) * 1024;
+      workCanvas = await busyCanvasForTarget(canvas, maxTarget);
+    }
     const built = [];
     for (const tier of tiers) {
       const targetBytes = tier.targetKb * 1024;
-      const blob = await compressCanvas(canvas, targetBytes, minQ, whiteRatio, studio);
+      const blob = await compressCanvas(workCanvas, targetBytes, minQ, whiteRatio, studio);
       built.push({
         blob,
         bytes: blob.size,
-        label: `${tier.label} · ${canvas.width}×${canvas.height}`,
+        label: `${tier.label} · ${workCanvas.width}×${workCanvas.height}`,
         recommended: !!tier.recommended,
         lowest: !!tier.lowest,
       });
@@ -616,7 +783,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 24, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 25, platform: "cloudflare-static" },
       };
     }
 
