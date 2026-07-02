@@ -1,17 +1,10 @@
 import sharp from "sharp";
 
 const TIERS_BUSY_BG = [
-  { targetKb: 88, label: "Lowest · upload to Meesho first", lowest: true },
-  { targetKb: 90, label: "Recommended · balanced", recommended: true },
-  { targetKb: 92, label: "Standard" },
+  { targetKb: 91, label: "Lowest · upload to Meesho first", lowest: true },
+  { targetKb: 92, label: "Recommended · balanced", recommended: true },
+  { targetKb: 93, label: "Standard" },
   { targetKb: 93, label: "High detail" },
-];
-
-const SQUARE_VARIANTS_BUSY = [
-  { canvas: 1000, coverage: 0.62, targetKb: 88, label: "Lowest · upload to Meesho first", lowest: true },
-  { canvas: 1000, coverage: 0.65, targetKb: 90, label: "Recommended · balanced", recommended: true },
-  { canvas: 1000, coverage: 0.58, targetKb: 92, label: "Standard" },
-  { canvas: 1000, coverage: 0.62, targetKb: 93, label: "High detail" },
 ];
 
 const TIERS_WHITE_BG = [
@@ -47,9 +40,23 @@ function mozjpeg(buffer, quality, whiteRatio = 0) {
   });
 }
 
-async function encodeAtQuality(buffer, quality, floor, whiteRatio = 0) {
+function standardJpeg(buffer, quality) {
+  const q = Math.max(28, Math.min(98, quality));
+  return sharp(buffer).jpeg({
+    quality: q,
+    mozjpeg: false,
+    progressive: false,
+    chromaSubsampling: "4:2:0",
+  });
+}
+
+async function encodeAtQuality(buffer, quality, floor, whiteRatio = 0, studio = false) {
   const minQ = floor ?? adaptiveMinQ(whiteRatio);
-  return mozjpeg(buffer, Math.max(minQ, quality), whiteRatio).toBuffer();
+  const q = Math.max(minQ, quality);
+  if (studio) {
+    return mozjpeg(buffer, q, whiteRatio).toBuffer();
+  }
+  return standardJpeg(buffer, q).toBuffer();
 }
 
 function floodFillWhiteRaw(data, width, height, channels) {
@@ -131,66 +138,6 @@ function measureNearWhiteRatioRaw(data, width, height, channels) {
   return near / total;
 }
 
-function adaptiveMinQ(whiteRatio) {
-  if (whiteRatio >= 0.78) return 24;
-  if (whiteRatio >= 0.68) return 26;
-  if (whiteRatio >= 0.55) return 30;
-  if (whiteRatio >= 0.40) return 28;
-  return 26;
-}
-
-function adaptiveAbsMinQ(whiteRatio) {
-  if (whiteRatio >= 0.72) return 20;
-  if (whiteRatio >= 0.58) return 22;
-  return ABS_MIN_Q;
-}
-
-async function flattenBackgroundWhite(buffer) {
-  const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const whiteRatio = floodFillWhiteRaw(data, info.width, info.height, info.channels);
-  const out = await sharp(data, { raw: info }).removeAlpha().jpeg({ quality: 95, mozjpeg: true }).toBuffer();
-  return { buffer: out, whiteRatio };
-}
-
-async function compressToTarget(buffer, targetBytes, minQ, whiteRatio) {
-  const absMin = adaptiveAbsMinQ(whiteRatio);
-  let lo = minQ;
-  let hi = 92;
-  let best = await encodeAtQuality(buffer, minQ, minQ, whiteRatio);
-
-  if (best.length <= targetBytes) {
-    while (hi - lo > 1) {
-      const mid = Math.floor((lo + hi) / 2);
-      const out = await encodeAtQuality(buffer, mid, minQ, whiteRatio);
-      if (out.length <= targetBytes) {
-        best = out;
-        lo = mid;
-      } else {
-        hi = mid;
-      }
-    }
-    const top = await encodeAtQuality(buffer, lo, minQ, whiteRatio);
-    if (top.length <= targetBytes) return top;
-  }
-
-  for (let q = minQ - 1; q >= absMin && best.length > targetBytes; q--) {
-    const out = await encodeAtQuality(buffer, q, absMin, whiteRatio);
-    if (out.length <= targetBytes) return out;
-    if (out.length < best.length) best = out;
-  }
-
-  return best;
-}
-
-async function probeNearWhiteRatio(buffer) {
-  const { data, info } = await sharp(buffer)
-    .resize(320, 320, { fit: "inside", withoutEnlargement: true })
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  return measureNearWhiteRatioRaw(data, info.width, info.height, info.channels);
-}
-
 function edgeNearWhiteRatioRaw(data, width, height, channels) {
   let near = 0;
   let total = 0;
@@ -234,26 +181,81 @@ async function isStudioWhiteBackground(buffer) {
   return edgeRatio >= 0.72 && fullRatio >= 0.5;
 }
 
-async function prepareSquareBuffer(buffer, size, coverage) {
-  const meta = await sharp(buffer).metadata();
-  const w = meta.width || 1;
-  const h = meta.height || 1;
-  const maxSide = Math.round(size * coverage);
-  const scale = Math.min(maxSide / w, maxSide / h);
-  const nw = Math.max(1, Math.round(w * scale));
-  const nh = Math.max(1, Math.round(h * scale));
-  const left = Math.round((size - nw) / 2);
-  const top = Math.round((size - nh) / 2);
-  const resized = await sharp(buffer).resize(nw, nh, { fit: "fill" }).toBuffer();
-  return sharp({
-    create: { width: size, height: size, channels: 3, background: { r: 255, g: 255, b: 255 } },
-  })
-    .composite([{ input: resized, left, top }])
-    .jpeg({ quality: 95, mozjpeg: true })
-    .toBuffer();
+function adaptiveMinQ(whiteRatio) {
+  if (whiteRatio >= 0.78) return 24;
+  if (whiteRatio >= 0.68) return 26;
+  if (whiteRatio >= 0.55) return 30;
+  if (whiteRatio >= 0.40) return 28;
+  return 26;
 }
 
-export async function prepareInput(imageBuffer) {
+function adaptiveAbsMinQ(whiteRatio) {
+  if (whiteRatio >= 0.72) return 20;
+  if (whiteRatio >= 0.58) return 22;
+  return ABS_MIN_Q;
+}
+
+async function flattenBackgroundWhite(buffer) {
+  const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const whiteRatio = floodFillWhiteRaw(data, info.width, info.height, info.channels);
+  const out = await sharp(data, { raw: info }).removeAlpha().jpeg({ quality: 95, mozjpeg: true }).toBuffer();
+  return { buffer: out, whiteRatio };
+}
+
+async function compressToTarget(buffer, targetBytes, minQ, whiteRatio, studio) {
+  if (!studio) {
+    let best = await standardJpeg(buffer, 98).toBuffer();
+    if (best.length > targetBytes) {
+      for (let q = 98; q >= 28; q -= 2) {
+        const out = await standardJpeg(buffer, q).toBuffer();
+        if (out.length < best.length) best = out;
+        if (out.length <= targetBytes) {
+          best = out;
+          break;
+        }
+      }
+    }
+    if (best.length <= targetBytes) return best;
+
+    let mBest = await mozjpeg(buffer, ABS_MIN_Q, whiteRatio).toBuffer();
+    for (let q = ABS_MIN_Q; q <= 85; q++) {
+      const out = await mozjpeg(buffer, q, whiteRatio).toBuffer();
+      if (out.length <= targetBytes) return out;
+      if (out.length < mBest.length) mBest = out;
+    }
+    return mBest.length < best.length ? mBest : best;
+  }
+
+  const absMin = adaptiveAbsMinQ(whiteRatio);
+  let lo = studio ? minQ : absMin;
+  let hi = studio ? 92 : 98;
+  let best = await encodeAtQuality(buffer, lo, lo, whiteRatio, studio);
+
+  if (best.length <= targetBytes) {
+    while (hi - lo > 1) {
+      const mid = Math.floor((lo + hi) / 2);
+      const out = await encodeAtQuality(buffer, mid, lo, whiteRatio, studio);
+      if (out.length <= targetBytes) {
+        best = out;
+        lo = mid;
+      } else {
+        hi = mid;
+      }
+    }
+    const top = await encodeAtQuality(buffer, lo, lo, whiteRatio, studio);
+    if (top.length <= targetBytes) return top;
+  }
+
+  for (let q = lo - 1; q >= absMin && best.length > targetBytes; q--) {
+    const out = await encodeAtQuality(buffer, q, absMin, whiteRatio, studio);
+    if (out.length <= targetBytes) return out;
+    if (out.length < best.length) best = out;
+  }
+
+  return best;
+}
+
+export async function prepareInput(imageBuffer, studio) {
   const inputBytes = imageBuffer.length;
   let buffer = await sharp(imageBuffer)
     .rotate()
@@ -273,27 +275,33 @@ export async function prepareInput(imageBuffer) {
     h = meta.height || h;
   }
 
-  const rawCheck = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const nearWhite = measureNearWhiteRatioRaw(
-    rawCheck.data,
-    rawCheck.info.width,
-    rawCheck.info.height,
-    rawCheck.info.channels
-  );
-
-  let whiteRatio = nearWhite;
-  if (nearWhite >= WHITE_BG_THRESHOLD) {
+  let whiteRatio = 0;
+  if (studio) {
     const flat = await flattenBackgroundWhite(buffer);
     buffer = flat.buffer;
-    whiteRatio = Math.max(nearWhite, flat.whiteRatio);
+    whiteRatio = flat.whiteRatio;
+  } else {
+    const rawCheck = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    whiteRatio = measureNearWhiteRatioRaw(
+      rawCheck.data,
+      rawCheck.info.width,
+      rawCheck.info.height,
+      rawCheck.info.channels
+    );
   }
 
-  return { buffer, width: w, height: h, inputBytes, whiteRatio, minQ: adaptiveMinQ(whiteRatio) };
+  return { buffer, width: w, height: h, inputBytes, whiteRatio, minQ: adaptiveMinQ(whiteRatio), studio };
 }
 
 async function buildVariant(prepared, tier) {
   const targetBytes = tier.targetKb * 1024;
-  const jpeg = await compressToTarget(prepared.buffer, targetBytes, prepared.minQ, prepared.whiteRatio);
+  const jpeg = await compressToTarget(
+    prepared.buffer,
+    targetBytes,
+    prepared.minQ,
+    prepared.whiteRatio,
+    prepared.studio
+  );
 
   return {
     buffer: jpeg,
@@ -310,39 +318,7 @@ async function buildVariant(prepared, tier) {
 export async function generateAllVariants(imageBuffer, categoryName) {
   const rotated = await sharp(imageBuffer).rotate().flatten({ background: { r: 255, g: 255, b: 255 } }).toBuffer();
   const studio = await isStudioWhiteBackground(rotated);
-
-  if (!studio) {
-    const built = [];
-    for (const tier of SQUARE_VARIANTS_BUSY) {
-      const buffer = await prepareSquareBuffer(rotated, tier.canvas, tier.coverage);
-      const whiteRatio = 0.85;
-      const minQ = adaptiveMinQ(whiteRatio);
-      const jpeg = await compressToTarget(buffer, tier.targetKb * 1024, minQ, whiteRatio);
-      built.push({
-        buffer: jpeg,
-        fileSizeBytes: jpeg.length,
-        fileSizeKb: kbFromBytes(jpeg.length),
-        tagName: `${tier.label} · ${tier.canvas}×${tier.canvas}`,
-        recommended: !!tier.recommended,
-        lowest: !!tier.lowest,
-        width: tier.canvas,
-        height: tier.canvas,
-      });
-    }
-    const minBytes = Math.min(...built.map((b) => b.fileSizeBytes));
-    return built.map((item) => ({
-      imageUrl: `data:image/jpeg;base64,${item.buffer.toString("base64")}`,
-      tagName: `${item.tagName} · ${item.fileSizeKb} KB`,
-      fileSizeBytes: item.fileSizeBytes,
-      fileSizeKb: item.fileSizeKb,
-      shippingCharge: String(item.fileSizeKb),
-      lowest: item.fileSizeBytes === minBytes,
-      recommended: item.recommended,
-      categoryName,
-    }));
-  }
-
-  const prepared = await prepareInput(imageBuffer);
+  const prepared = await prepareInput(imageBuffer, studio);
   const tiers = tiersForWhite(prepared.whiteRatio);
   const built = [];
 

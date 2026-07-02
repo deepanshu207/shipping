@@ -4,17 +4,10 @@
 (function () {
   /** KB targets — lower when background is mostly white (compresses cleanly). */
   const TIERS_BUSY_BG = [
-    { targetKb: 88, label: "Lowest · upload to Meesho first", lowest: true },
-    { targetKb: 90, label: "Recommended · balanced", recommended: true },
-    { targetKb: 92, label: "Standard" },
+    { targetKb: 91, label: "Lowest · upload to Meesho first", lowest: true },
+    { targetKb: 92, label: "Recommended · balanced", recommended: true },
+    { targetKb: 93, label: "Standard" },
     { targetKb: 93, label: "High detail" },
-  ];
-  /** Meesho charges by square 1:1 images — SupplierDen reframes busy photos on white canvas. */
-  const SQUARE_VARIANTS_BUSY = [
-    { canvas: 1000, coverage: 0.62, targetKb: 88, label: "Lowest · upload to Meesho first", lowest: true },
-    { canvas: 1000, coverage: 0.65, targetKb: 90, label: "Recommended · balanced", recommended: true },
-    { canvas: 1000, coverage: 0.58, targetKb: 92, label: "Standard" },
-    { canvas: 1000, coverage: 0.62, targetKb: 93, label: "High detail" },
   ];
   const TIERS_WHITE_BG = [
     { targetKb: 20, label: "Lowest · upload to Meesho first", lowest: true },
@@ -236,23 +229,33 @@
     return ctx.getImageData(0, 0, canvas.width, canvas.height);
   }
 
-  async function encodeAtQuality(canvas, quality, floor, whiteRatio) {
+  async function encodeMozjpeg(canvas, quality, whiteRatio, baseline) {
+    const q = Math.max(ABS_MIN_Q, Math.min(100, Math.round(quality)));
+    const encode = await loadMozjpeg();
+    return encode(canvasImageData(canvas), {
+      ...MOZ_BASE,
+      baseline: !!baseline,
+      progressive: !baseline,
+      quality: q,
+      quant_table: 2,
+      trellis_multipass: !baseline,
+      separate_chroma_quality: !baseline,
+      chroma_quality: Math.max(18, Math.round(q * 0.62)),
+    });
+  }
+
+  async function encodeAtQuality(canvas, quality, floor, whiteRatio, studio) {
     const minQ = floor ?? adaptiveMinQ(whiteRatio ?? 0);
     const q = Math.max(minQ, Math.min(100, Math.round(quality)));
-    const encode = await loadMozjpeg();
-    const opts = {
-      ...MOZ_BASE,
-      quality: q,
-      quant_table: (whiteRatio ?? 0) >= WHITE_BG_THRESHOLD ? 3 : 2,
-      chroma_quality: Math.max(
-        18,
-        Math.round(
-          q *
-            ((whiteRatio ?? 0) >= WHITE_BG_THRESHOLD ? 0.5 : (whiteRatio ?? 0) >= 0.4 ? 0.55 : 0.62)
-        )
-      ),
-    };
-    return encode(canvasImageData(canvas), opts);
+    if (!studio) {
+      return blobAtCanvasQuality(canvas, q / 100);
+    }
+    return encodeMozjpeg(canvas, q, whiteRatio, false);
+  }
+
+  function blobAtCanvasQuality(canvas, quality) {
+    const q = Math.max(0.28, Math.min(0.98, quality));
+    return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob || new Blob()), "image/jpeg", q));
   }
 
   function measureNearWhiteRatio(canvas) {
@@ -361,7 +364,7 @@
     ctx.putImageData(img, 0, 0);
   }
 
-  /** Studio photos have near-white edges on all sides; indoor shots have dark floor at bottom edge. */
+  /** Studio photos have near-white edges on all sides; indoor shots have a dark floor at bottom edge. */
   function isStudioWhiteBackground(img) {
     const maxProbe = 320;
     const scale = Math.min(1, maxProbe / Math.max(img.width, img.height));
@@ -394,31 +397,11 @@
       return near / total;
     }
 
-    const edgeRatio = edgeNearWhiteRatio();
-    const fullRatio = measureNearWhiteRatio(c);
-    return edgeRatio >= 0.72 && fullRatio >= 0.5;
+    return edgeNearWhiteRatio() >= 0.72 && measureNearWhiteRatio(c) >= 0.5;
   }
 
-  /** SupplierDen / Meesho style: 1:1 square white canvas, product centered ~62% coverage. */
-  function prepareSquareCanvas(img, size, coverage) {
-    const c = document.createElement("canvas");
-    c.width = size;
-    c.height = size;
-    const ctx = c.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, size, size);
-    const maxSide = Math.round(size * coverage);
-    const scale = Math.min(maxSide / img.width, maxSide / img.height);
-    const w = Math.round(img.width * scale);
-    const h = Math.round(img.height * scale);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(img, Math.round((size - w) / 2), Math.round((size - h) / 2), w, h);
-    return c;
-  }
-
-  /** White studio: keep original dimensions. Busy indoor: square canvas for Meesho shipping slab. */
-  function prepareCanvas(img) {
+  /** Exact upload dimensions — never upscale; cap max side at 2000 only. */
+  function prepareCanvas(img, studio) {
     let w = img.width;
     let h = img.height;
     const max = Math.max(w, h);
@@ -437,23 +420,70 @@
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(img, 0, 0, w, h);
-    if (measureNearWhiteRatio(c) >= WHITE_BG_THRESHOLD) {
-      flattenBackgroundWhite(c);
-    }
+    if (studio) flattenBackgroundWhite(c);
     return c;
   }
 
-  /** Hit target KB — maximize quality up to the byte cap. */
-  async function compressCanvas(canvas, targetBytes, minQ, whiteRatio) {
+  /** Hit target KB — busy photos use standard JPEG (Meesho-compatible), studio uses mozjpeg. */
+  async function compressCanvas(canvas, targetBytes, minQ, whiteRatio, studio) {
+    if (!studio) {
+      let best = await blobAtCanvasQuality(canvas, 0.98);
+      let lo = 28;
+      let hi = 98;
+      if (best.size > targetBytes) {
+        for (let q = hi; q >= lo; q -= 2) {
+          const blob = await blobAtCanvasQuality(canvas, q / 100);
+          if (blob.size < best.size) best = blob;
+          if (blob.size <= targetBytes) {
+            best = blob;
+            break;
+          }
+        }
+      }
+      if (best.size <= targetBytes) {
+        while (hi - lo > 2) {
+          const mid = Math.floor((lo + hi) / 2);
+          const blob = await blobAtCanvasQuality(canvas, mid / 100);
+          if (blob.size <= targetBytes) {
+            best = blob;
+            lo = mid;
+          } else {
+            hi = mid;
+          }
+        }
+        const top = await blobAtCanvasQuality(canvas, lo / 100);
+        if (top.size <= targetBytes) return top;
+      }
+      if (best.size <= targetBytes) return best;
+
+      let mLo = ABS_MIN_Q;
+      let mHi = 85;
+      let mBest = await encodeMozjpeg(canvas, mLo, whiteRatio, true);
+      for (let q = mLo; q <= mHi && mBest.size > targetBytes; q++) {
+        const blob = await encodeMozjpeg(canvas, q, whiteRatio, true);
+        if (blob.size <= targetBytes) return blob;
+        if (blob.size < mBest.size) mBest = blob;
+      }
+      while (mHi - mLo > 1 && mBest.size > targetBytes) {
+        const mid = Math.floor((mLo + mHi) / 2);
+        const blob = await encodeMozjpeg(canvas, mid, whiteRatio, true);
+        if (blob.size <= targetBytes) return blob;
+        if (blob.size < mBest.size) mBest = blob;
+        if (blob.size <= targetBytes) mLo = mid;
+        else mHi = mid;
+      }
+      return mBest.size < best.size ? mBest : best;
+    }
+
     const absMin = adaptiveAbsMinQ(whiteRatio);
     let lo = minQ;
     let hi = 92;
-    let best = await encodeAtQuality(canvas, minQ, minQ, whiteRatio);
+    let best = await encodeMozjpeg(canvas, minQ, whiteRatio, false);
 
     if (best.size <= targetBytes) {
       while (hi - lo > 1) {
         const mid = Math.floor((lo + hi) / 2);
-        const blob = await encodeAtQuality(canvas, mid, minQ, whiteRatio);
+        const blob = await encodeMozjpeg(canvas, mid, whiteRatio, false);
         if (blob.size <= targetBytes) {
           best = blob;
           lo = mid;
@@ -461,12 +491,12 @@
           hi = mid;
         }
       }
-      const top = await encodeAtQuality(canvas, lo, minQ, whiteRatio);
+      const top = await encodeMozjpeg(canvas, lo, whiteRatio, false);
       if (top.size <= targetBytes) return top;
     }
 
     for (let q = minQ - 1; q >= absMin && best.size > targetBytes; q--) {
-      const blob = await encodeAtQuality(canvas, q, absMin, whiteRatio);
+      const blob = await encodeMozjpeg(canvas, q, whiteRatio, false);
       if (blob.size <= targetBytes) return blob;
       if (blob.size < best.size) best = blob;
     }
@@ -474,13 +504,13 @@
     return best;
   }
 
-  async function buildVariants(canvas, whiteRatio) {
+  async function buildVariants(canvas, whiteRatio, studio) {
     const minQ = adaptiveMinQ(whiteRatio);
     const tiers = tiersForWhite(whiteRatio);
     const built = [];
     for (const tier of tiers) {
       const targetBytes = tier.targetKb * 1024;
-      const blob = await compressCanvas(canvas, targetBytes, minQ, whiteRatio);
+      const blob = await compressCanvas(canvas, targetBytes, minQ, whiteRatio, studio);
       built.push({
         blob,
         bytes: blob.size,
@@ -492,34 +522,13 @@
     return built;
   }
 
-  async function buildSquareVariants(img) {
-    const built = [];
-    for (const tier of SQUARE_VARIANTS_BUSY) {
-      const canvas = prepareSquareCanvas(img, tier.canvas, tier.coverage);
-      const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
-      const minQ = adaptiveMinQ(whiteRatio);
-      const targetBytes = tier.targetKb * 1024;
-      const blob = await compressCanvas(canvas, targetBytes, minQ, whiteRatio);
-      built.push({
-        blob,
-        bytes: blob.size,
-        label: `${tier.label} · ${tier.canvas}×${tier.canvas}`,
-        recommended: !!tier.recommended,
-        lowest: !!tier.lowest,
-      });
-    }
-    return built;
-  }
-
   async function optimizeToVariants(source) {
     await loadMozjpeg();
     const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
-    if (!isStudioWhiteBackground(img)) {
-      return buildSquareVariants(img);
-    }
-    const canvas = prepareCanvas(img);
+    const studio = isStudioWhiteBackground(img);
+    const canvas = prepareCanvas(img, studio);
     const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
-    return buildVariants(canvas, whiteRatio);
+    return buildVariants(canvas, whiteRatio, studio);
   }
 
   function blobToDataUrl(blob) {
@@ -607,7 +616,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 23, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 24, platform: "cloudflare-static" },
       };
     }
 
