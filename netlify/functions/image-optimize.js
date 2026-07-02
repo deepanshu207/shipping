@@ -1,17 +1,17 @@
 import sharp from "sharp";
 
-/** Meesho size tiers from commit 125b98a — 2000×2000 white canvas + coverage. */
+/** Compression logic from commit 125b98a05351ae284077bc477af05dc44cc7602d */
 const MEESHO_CANVAS_SIZE = 2000;
 const MEESHO_MAX_BYTES = 300 * 1024;
 const MEESHO_VARIANTS = [
   { coverage: 0.62, quality: 82, label: "Tier 1 · Smallest frame (try first)" },
   { coverage: 0.65, quality: 78, label: "Tier 2 · Compact" },
-  { coverage: 0.68, quality: 74, label: "Tier 3 · Balanced", recommended: true },
+  { coverage: 0.68, quality: 74, label: "Tier 3 · Balanced" },
   { coverage: 0.7, quality: 70, label: "Tier 4 · Standard Meesho size" },
 ];
 
 export function kbFromBytes(bytes) {
-  return Math.max(1, Math.ceil(bytes / 1024));
+  return Math.max(1, Math.round(bytes / 1024));
 }
 
 async function compressToTarget(buffer, quality) {
@@ -50,8 +50,7 @@ async function buildVariant(imageBuffer, variant) {
     buffer: jpeg,
     fileSizeBytes: jpeg.length,
     fileSizeKb,
-    tagName: `${variant.label} · ${MEESHO_CANVAS_SIZE}×${MEESHO_CANVAS_SIZE}`,
-    recommended: !!variant.recommended,
+    tagName: `${variant.label} · ${fileSizeKb} KB`,
     width: MEESHO_CANVAS_SIZE,
     height: MEESHO_CANVAS_SIZE,
   };
@@ -63,21 +62,17 @@ export async function generateAllVariants(imageBuffer, categoryName) {
     built.push(await buildVariant(imageBuffer, variant));
   }
 
-  built.sort((a, b) => a.fileSizeBytes - b.fileSizeBytes);
-  const minBytes = built[0]?.fileSizeBytes ?? 0;
+  built.sort((a, b) => a.fileSizeKb - b.fileSizeKb);
 
-  return built.map((item) => ({
+  return built.map((item, index) => ({
     imageUrl: `data:image/jpeg;base64,${item.buffer.toString("base64")}`,
-    tagName: `${item.tagName} · ${item.fileSizeKb} KB`,
+    tagName: item.tagName || categoryName,
     fileSizeBytes: item.fileSizeBytes,
     fileSizeKb: item.fileSizeKb,
     shippingCharge: String(item.fileSizeKb),
-    estimatedShippingInr: item.fileSizeKb,
-    shippingEstimate: true,
     width: item.width,
     height: item.height,
-    lowest: item.fileSizeBytes === minBytes,
-    recommended: item.recommended,
+    lowest: index === 0,
     categoryName,
   }));
 }

@@ -2,13 +2,13 @@
  * Own API for Meesho Image Generator — runs entirely in the browser.
  */
 (function () {
-  /** Original Meesho size tiers from commit 125b98a — 2000×2000 white canvas + coverage. */
+  /** Compression logic from commit 125b98a05351ae284077bc477af05dc44cc7602d */
   const MEESHO_CANVAS_SIZE = 2000;
   const MEESHO_MAX_BYTES = 300 * 1024;
   const MEESHO_VARIANTS = [
-    { coverage: 0.62, quality: 82, label: "Tier 1 · Smallest frame (try first)", lowest: true },
+    { coverage: 0.62, quality: 82, label: "Tier 1 · Smallest frame (try first)" },
     { coverage: 0.65, quality: 78, label: "Tier 2 · Compact" },
-    { coverage: 0.68, quality: 74, label: "Tier 3 · Balanced", recommended: true },
+    { coverage: 0.68, quality: 74, label: "Tier 3 · Balanced" },
     { coverage: 0.7, quality: 70, label: "Tier 4 · Standard Meesho size" },
   ];
   const ABS_MIN_Q = 18;
@@ -49,7 +49,7 @@
   const origFetch = window.fetch.bind(window);
 
   function kb(bytes) {
-    return Math.max(1, Math.ceil(bytes / 1024));
+    return Math.max(1, Math.round(bytes / 1024));
   }
 
   function pathOf(url) {
@@ -271,10 +271,7 @@
       built.push({
         blob,
         bytes: blob.size,
-        label: `${variant.label} · ${MEESHO_CANVAS_SIZE}×${MEESHO_CANVAS_SIZE}`,
-        recommended: !!variant.recommended,
-        lowest: !!variant.lowest,
-        processingPath: "meesho",
+        label: variant.label,
         width: MEESHO_CANVAS_SIZE,
         height: MEESHO_CANVAS_SIZE,
       });
@@ -311,13 +308,9 @@
         fileSizeBytes: v.bytes,
         fileSizeKb,
         shippingCharge: String(fileSizeKb),
-        estimatedShippingInr: fileSizeKb,
-        shippingEstimate: true,
-        processingPath: v.processingPath,
         width: v.width,
         height: v.height,
         lowest: v.bytes === minBytes,
-        recommended: v.recommended,
         [OPT_FLAG]: true,
         categoryName: tagName,
       });
@@ -380,7 +373,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 30, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 32, platform: "cloudflare-static" },
       };
     }
 
