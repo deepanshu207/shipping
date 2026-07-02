@@ -1,10 +1,10 @@
 import sharp from "sharp";
 
-const TIERS_DEFAULT = [
-  { targetKb: 24, label: "Lowest · upload to Meesho first", lowest: true },
-  { targetKb: 26, label: "Recommended · balanced", recommended: true },
-  { targetKb: 28, label: "Standard" },
-  { targetKb: 30, label: "High detail" },
+const TIERS_BUSY_BG = [
+  { targetKb: 88, label: "Lowest · upload to Meesho first", lowest: true },
+  { targetKb: 90, label: "Recommended · balanced", recommended: true },
+  { targetKb: 92, label: "Standard" },
+  { targetKb: 93, label: "High detail" },
 ];
 
 const TIERS_WHITE_BG = [
@@ -16,11 +16,10 @@ const TIERS_WHITE_BG = [
 
 const WHITE_TOL = 42;
 const WHITE_BG_THRESHOLD = 0.62;
-const BUSY_BG_THRESHOLD = 0.55;
-const ABS_MIN_Q = 22;
+const ABS_MIN_Q = 18;
 
 function tiersForWhite(whiteRatio) {
-  return whiteRatio >= WHITE_BG_THRESHOLD ? TIERS_WHITE_BG : TIERS_DEFAULT;
+  return whiteRatio >= WHITE_BG_THRESHOLD ? TIERS_WHITE_BG : TIERS_BUSY_BG;
 }
 
 export function kbFromBytes(bytes) {
@@ -44,115 +43,6 @@ function mozjpeg(buffer, quality, whiteRatio = 0) {
 async function encodeAtQuality(buffer, quality, floor, whiteRatio = 0) {
   const minQ = floor ?? adaptiveMinQ(whiteRatio);
   return mozjpeg(buffer, Math.max(minQ, quality), whiteRatio).toBuffer();
-}
-
-function colorCloseAt(data, o, r, g, b, tol, channels) {
-  return (
-    Math.abs(data[o] - r) <= tol &&
-    Math.abs(data[o + 1] - g) <= tol &&
-    Math.abs(data[o + 2] - b) <= tol
-  );
-}
-
-function floodEdgeSideToWhite(data, width, height, channels, tolerance, seen, side) {
-  const queue = [];
-  const qR = [];
-  const qG = [];
-  const qB = [];
-
-  function trySeed(idx) {
-    if (seen[idx]) return;
-    const o = idx * channels;
-    if (data[o] === 255 && data[o + 1] === 255 && data[o + 2] === 255) {
-      seen[idx] = 1;
-      return;
-    }
-    seen[idx] = 1;
-    queue.push(idx);
-    qR.push(data[o]);
-    qG.push(data[o + 1]);
-    qB.push(data[o + 2]);
-  }
-
-  if (side === "bottom") {
-    for (let x = 0; x < width; x++) trySeed((height - 1) * width + x);
-  } else if (side === "top") {
-    for (let x = 0; x < width; x++) trySeed(x);
-  } else if (side === "left") {
-    for (let y = 0; y < height; y++) trySeed(y * width);
-  } else {
-    for (let y = 0; y < height; y++) trySeed(y * width + width - 1);
-  }
-
-  while (queue.length) {
-    const idx = queue.pop();
-    const sr = qR.pop();
-    const sg = qG.pop();
-    const sb = qB.pop();
-    const o = idx * channels;
-    data[o] = 255;
-    data[o + 1] = 255;
-    data[o + 2] = 255;
-    const x = idx % width;
-    const y = (idx / width) | 0;
-    if (x > 0) {
-      const nidx = idx - 1;
-      if (!seen[nidx] && colorCloseAt(data, nidx * channels, sr, sg, sb, tolerance, channels)) {
-        seen[nidx] = 1;
-        queue.push(nidx);
-        qR.push(sr);
-        qG.push(sg);
-        qB.push(sb);
-      }
-    }
-    if (x < width - 1) {
-      const nidx = idx + 1;
-      if (!seen[nidx] && colorCloseAt(data, nidx * channels, sr, sg, sb, tolerance, channels)) {
-        seen[nidx] = 1;
-        queue.push(nidx);
-        qR.push(sr);
-        qG.push(sg);
-        qB.push(sb);
-      }
-    }
-    if (y > 0) {
-      const nidx = idx - width;
-      if (!seen[nidx] && colorCloseAt(data, nidx * channels, sr, sg, sb, tolerance, channels)) {
-        seen[nidx] = 1;
-        queue.push(nidx);
-        qR.push(sr);
-        qG.push(sg);
-        qB.push(sb);
-      }
-    }
-    if (y < height - 1) {
-      const nidx = idx + width;
-      if (!seen[nidx] && colorCloseAt(data, nidx * channels, sr, sg, sb, tolerance, channels)) {
-        seen[nidx] = 1;
-        queue.push(nidx);
-        qR.push(sr);
-        qG.push(sg);
-        qB.push(sb);
-      }
-    }
-  }
-}
-
-function scrubBusyBackgroundRaw(data, width, height, channels) {
-  const total = width * height;
-  const seen = new Uint8Array(total);
-  for (let idx = 0; idx < total; idx++) {
-    const o = idx * channels;
-    if (data[o] === 255 && data[o + 1] === 255 && data[o + 2] === 255) seen[idx] = 1;
-  }
-  for (const tol of [42, 58]) {
-    floodEdgeSideToWhite(data, width, height, channels, tol, seen, "top");
-    floodEdgeSideToWhite(data, width, height, channels, tol, seen, "left");
-    floodEdgeSideToWhite(data, width, height, channels, tol, seen, "right");
-  }
-  for (const tol of [55, 80, 110]) {
-    floodEdgeSideToWhite(data, width, height, channels, tol, seen, "bottom");
-  }
 }
 
 function floodFillWhiteRaw(data, width, height, channels) {
@@ -218,27 +108,17 @@ function floodFillWhiteRaw(data, width, height, channels) {
   return white / total;
 }
 
-function measureWhiteRatioRaw(data, channels) {
-  let white = 0;
-  const total = data.length / channels;
-  for (let idx = 0; idx < total; idx++) {
-    const o = idx * channels;
-    if (data[o] === 255 && data[o + 1] === 255 && data[o + 2] === 255) white++;
-  }
-  return white / total;
-}
-
 function adaptiveMinQ(whiteRatio) {
   if (whiteRatio >= 0.78) return 24;
   if (whiteRatio >= 0.68) return 26;
   if (whiteRatio >= 0.55) return 30;
-  if (whiteRatio >= 0.40) return 34;
-  return 38;
+  if (whiteRatio >= 0.40) return 28;
+  return 26;
 }
 
 function adaptiveAbsMinQ(whiteRatio) {
   if (whiteRatio >= 0.72) return 20;
-  if (whiteRatio >= 0.58) return 24;
+  if (whiteRatio >= 0.58) return 22;
   return ABS_MIN_Q;
 }
 
@@ -323,32 +203,15 @@ async function buildVariant(prepared, tier) {
 }
 
 export async function generateAllVariants(imageBuffer, categoryName) {
-  let prepared = await prepareInput(imageBuffer);
-  let tiers = tiersForWhite(prepared.whiteRatio);
-  let built = [];
+  const prepared = await prepareInput(imageBuffer);
+  const tiers = tiersForWhite(prepared.whiteRatio);
+  const built = [];
 
   for (const tier of tiers) {
     built.push(await buildVariant(prepared, tier));
   }
 
   const minBytes = Math.min(...built.map((b) => b.fileSizeBytes));
-  if (minBytes > 93 * 1024) {
-    const { data, info } = await sharp(prepared.buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    scrubBusyBackgroundRaw(data, info.width, info.height, info.channels);
-    prepared = {
-      ...prepared,
-      buffer: await sharp(data, { raw: info }).removeAlpha().jpeg({ quality: 95, mozjpeg: true }).toBuffer(),
-      whiteRatio: measureWhiteRatioRaw(data, info.channels),
-    };
-    prepared.minQ = adaptiveMinQ(prepared.whiteRatio);
-    tiers = tiersForWhite(prepared.whiteRatio);
-    built = [];
-    for (const tier of tiers) {
-      built.push(await buildVariant(prepared, tier));
-    }
-  }
-
-  const finalMinBytes = Math.min(...built.map((b) => b.fileSizeBytes));
 
   return built.map((item) => ({
     imageUrl: `data:image/jpeg;base64,${item.buffer.toString("base64")}`,
@@ -356,7 +219,7 @@ export async function generateAllVariants(imageBuffer, categoryName) {
     fileSizeBytes: item.fileSizeBytes,
     fileSizeKb: item.fileSizeKb,
     shippingCharge: String(item.fileSizeKb),
-    lowest: item.fileSizeBytes === finalMinBytes,
+    lowest: item.fileSizeBytes === minBytes,
     recommended: item.recommended,
     categoryName,
   }));
