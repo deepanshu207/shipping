@@ -9,6 +9,13 @@
     { targetKb: 92, label: "Standard" },
     { targetKb: 93, label: "High detail" },
   ];
+  /** Meesho charges by square 1:1 images — SupplierDen reframes busy photos on white canvas. */
+  const SQUARE_VARIANTS_BUSY = [
+    { canvas: 1000, coverage: 0.62, targetKb: 88, label: "Lowest · upload to Meesho first", lowest: true },
+    { canvas: 1000, coverage: 0.65, targetKb: 90, label: "Recommended · balanced", recommended: true },
+    { canvas: 1000, coverage: 0.58, targetKb: 92, label: "Standard" },
+    { canvas: 1000, coverage: 0.62, targetKb: 93, label: "High detail" },
+  ];
   const TIERS_WHITE_BG = [
     { targetKb: 20, label: "Lowest · upload to Meesho first", lowest: true },
     { targetKb: 22, label: "Recommended · balanced", recommended: true },
@@ -354,7 +361,63 @@
     ctx.putImageData(img, 0, 0);
   }
 
-  /** Exact upload dimensions — never upscale; cap max side at 2000 only. */
+  /** Studio photos have near-white edges on all sides; indoor shots have dark floor at bottom edge. */
+  function isStudioWhiteBackground(img) {
+    const maxProbe = 320;
+    const scale = Math.min(1, maxProbe / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(img, 0, 0, w, h);
+    const { data } = ctx.getImageData(0, 0, w, h);
+
+    function edgeNearWhiteRatio() {
+      let near = 0;
+      let total = 0;
+      for (let x = 0; x < w; x++) {
+        for (const y of [0, h - 1]) {
+          const i = (y * w + x) * 4;
+          total++;
+          if (nearWhiteAt(data, i)) near++;
+        }
+      }
+      for (let y = 1; y < h - 1; y++) {
+        for (const x of [0, w - 1]) {
+          const i = (y * w + x) * 4;
+          total++;
+          if (nearWhiteAt(data, i)) near++;
+        }
+      }
+      return near / total;
+    }
+
+    const edgeRatio = edgeNearWhiteRatio();
+    const fullRatio = measureNearWhiteRatio(c);
+    return edgeRatio >= 0.72 && fullRatio >= 0.5;
+  }
+
+  /** SupplierDen / Meesho style: 1:1 square white canvas, product centered ~62% coverage. */
+  function prepareSquareCanvas(img, size, coverage) {
+    const c = document.createElement("canvas");
+    c.width = size;
+    c.height = size;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, size, size);
+    const maxSide = Math.round(size * coverage);
+    const scale = Math.min(maxSide / img.width, maxSide / img.height);
+    const w = Math.round(img.width * scale);
+    const h = Math.round(img.height * scale);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, Math.round((size - w) / 2), Math.round((size - h) / 2), w, h);
+    return c;
+  }
+
+  /** White studio: keep original dimensions. Busy indoor: square canvas for Meesho shipping slab. */
   function prepareCanvas(img) {
     let w = img.width;
     let h = img.height;
@@ -429,12 +492,33 @@
     return built;
   }
 
+  async function buildSquareVariants(img) {
+    const built = [];
+    for (const tier of SQUARE_VARIANTS_BUSY) {
+      const canvas = prepareSquareCanvas(img, tier.canvas, tier.coverage);
+      const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
+      const minQ = adaptiveMinQ(whiteRatio);
+      const targetBytes = tier.targetKb * 1024;
+      const blob = await compressCanvas(canvas, targetBytes, minQ, whiteRatio);
+      built.push({
+        blob,
+        bytes: blob.size,
+        label: `${tier.label} · ${tier.canvas}×${tier.canvas}`,
+        recommended: !!tier.recommended,
+        lowest: !!tier.lowest,
+      });
+    }
+    return built;
+  }
+
   async function optimizeToVariants(source) {
     await loadMozjpeg();
     const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
+    if (!isStudioWhiteBackground(img)) {
+      return buildSquareVariants(img);
+    }
     const canvas = prepareCanvas(img);
-    const nearWhite = measureNearWhiteRatio(canvas);
-    const whiteRatio = Math.max(nearWhite, measureWhiteRatio(canvas));
+    const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
     return buildVariants(canvas, whiteRatio);
   }
 
@@ -523,7 +607,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 22, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 23, platform: "cloudflare-static" },
       };
     }
 
