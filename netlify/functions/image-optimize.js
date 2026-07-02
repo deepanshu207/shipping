@@ -7,6 +7,13 @@ const TIERS_BUSY_BG = [
   { targetKb: 93, label: "High detail" },
 ];
 
+const SQUARE_VARIANTS_BUSY = [
+  { canvas: 1000, coverage: 0.62, targetKb: 88, label: "Lowest · upload to Meesho first", lowest: true },
+  { canvas: 1000, coverage: 0.65, targetKb: 90, label: "Recommended · balanced", recommended: true },
+  { canvas: 1000, coverage: 0.58, targetKb: 92, label: "Standard" },
+  { canvas: 1000, coverage: 0.62, targetKb: 93, label: "High detail" },
+];
+
 const TIERS_WHITE_BG = [
   { targetKb: 20, label: "Lowest · upload to Meesho first", lowest: true },
   { targetKb: 22, label: "Recommended · balanced", recommended: true },
@@ -175,6 +182,77 @@ async function compressToTarget(buffer, targetBytes, minQ, whiteRatio) {
   return best;
 }
 
+async function probeNearWhiteRatio(buffer) {
+  const { data, info } = await sharp(buffer)
+    .resize(320, 320, { fit: "inside", withoutEnlargement: true })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  return measureNearWhiteRatioRaw(data, info.width, info.height, info.channels);
+}
+
+function edgeNearWhiteRatioRaw(data, width, height, channels) {
+  let near = 0;
+  let total = 0;
+  for (let x = 0; x < width; x++) {
+    for (const y of [0, height - 1]) {
+      const o = (y * width + x) * channels;
+      total++;
+      if (
+        255 - data[o] <= WHITE_TOL &&
+        255 - data[o + 1] <= WHITE_TOL &&
+        255 - data[o + 2] <= WHITE_TOL
+      ) {
+        near++;
+      }
+    }
+  }
+  for (let y = 1; y < height - 1; y++) {
+    for (const x of [0, width - 1]) {
+      const o = (y * width + x) * channels;
+      total++;
+      if (
+        255 - data[o] <= WHITE_TOL &&
+        255 - data[o + 1] <= WHITE_TOL &&
+        255 - data[o + 2] <= WHITE_TOL
+      ) {
+        near++;
+      }
+    }
+  }
+  return near / total;
+}
+
+async function isStudioWhiteBackground(buffer) {
+  const { data, info } = await sharp(buffer)
+    .resize(320, 320, { fit: "inside", withoutEnlargement: true })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const edgeRatio = edgeNearWhiteRatioRaw(data, info.width, info.height, info.channels);
+  const fullRatio = measureNearWhiteRatioRaw(data, info.width, info.height, info.channels);
+  return edgeRatio >= 0.72 && fullRatio >= 0.5;
+}
+
+async function prepareSquareBuffer(buffer, size, coverage) {
+  const meta = await sharp(buffer).metadata();
+  const w = meta.width || 1;
+  const h = meta.height || 1;
+  const maxSide = Math.round(size * coverage);
+  const scale = Math.min(maxSide / w, maxSide / h);
+  const nw = Math.max(1, Math.round(w * scale));
+  const nh = Math.max(1, Math.round(h * scale));
+  const left = Math.round((size - nw) / 2);
+  const top = Math.round((size - nh) / 2);
+  const resized = await sharp(buffer).resize(nw, nh, { fit: "fill" }).toBuffer();
+  return sharp({
+    create: { width: size, height: size, channels: 3, background: { r: 255, g: 255, b: 255 } },
+  })
+    .composite([{ input: resized, left, top }])
+    .jpeg({ quality: 95, mozjpeg: true })
+    .toBuffer();
+}
+
 export async function prepareInput(imageBuffer) {
   const inputBytes = imageBuffer.length;
   let buffer = await sharp(imageBuffer)
@@ -230,6 +308,40 @@ async function buildVariant(prepared, tier) {
 }
 
 export async function generateAllVariants(imageBuffer, categoryName) {
+  const rotated = await sharp(imageBuffer).rotate().flatten({ background: { r: 255, g: 255, b: 255 } }).toBuffer();
+  const studio = await isStudioWhiteBackground(rotated);
+
+  if (!studio) {
+    const built = [];
+    for (const tier of SQUARE_VARIANTS_BUSY) {
+      const buffer = await prepareSquareBuffer(rotated, tier.canvas, tier.coverage);
+      const whiteRatio = 0.85;
+      const minQ = adaptiveMinQ(whiteRatio);
+      const jpeg = await compressToTarget(buffer, tier.targetKb * 1024, minQ, whiteRatio);
+      built.push({
+        buffer: jpeg,
+        fileSizeBytes: jpeg.length,
+        fileSizeKb: kbFromBytes(jpeg.length),
+        tagName: `${tier.label} · ${tier.canvas}×${tier.canvas}`,
+        recommended: !!tier.recommended,
+        lowest: !!tier.lowest,
+        width: tier.canvas,
+        height: tier.canvas,
+      });
+    }
+    const minBytes = Math.min(...built.map((b) => b.fileSizeBytes));
+    return built.map((item) => ({
+      imageUrl: `data:image/jpeg;base64,${item.buffer.toString("base64")}`,
+      tagName: `${item.tagName} · ${item.fileSizeKb} KB`,
+      fileSizeBytes: item.fileSizeBytes,
+      fileSizeKb: item.fileSizeKb,
+      shippingCharge: String(item.fileSizeKb),
+      lowest: item.fileSizeBytes === minBytes,
+      recommended: item.recommended,
+      categoryName,
+    }));
+  }
+
   const prepared = await prepareInput(imageBuffer);
   const tiers = tiersForWhite(prepared.whiteRatio);
   const built = [];
