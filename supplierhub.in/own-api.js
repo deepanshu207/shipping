@@ -248,6 +248,21 @@
     return encode(canvasImageData(canvas), opts);
   }
 
+  function measureNearWhiteRatio(canvas) {
+    const { data } = canvas.getContext("2d", { willReadFrequently: true }).getImageData(
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+    let near = 0;
+    const total = canvas.width * canvas.height;
+    for (let i = 0; i < data.length; i += 4) {
+      if (nearWhiteAt(data, i)) near++;
+    }
+    return near / total;
+  }
+
   function measureWhiteRatio(canvas) {
     const { data } = canvas.getContext("2d", { willReadFrequently: true }).getImageData(
       0,
@@ -359,7 +374,9 @@
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(img, 0, 0, w, h);
-    flattenBackgroundWhite(c);
+    if (measureNearWhiteRatio(c) >= WHITE_BG_THRESHOLD) {
+      flattenBackgroundWhite(c);
+    }
     return c;
   }
 
@@ -416,7 +433,8 @@
     await loadMozjpeg();
     const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
     const canvas = prepareCanvas(img);
-    const whiteRatio = measureWhiteRatio(canvas);
+    const nearWhite = measureNearWhiteRatio(canvas);
+    const whiteRatio = Math.max(nearWhite, measureWhiteRatio(canvas));
     return buildVariants(canvas, whiteRatio);
   }
 
@@ -505,7 +523,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 22, platform: "cloudflare-static" },
       };
     }
 

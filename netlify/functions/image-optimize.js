@@ -108,6 +108,22 @@ function floodFillWhiteRaw(data, width, height, channels) {
   return white / total;
 }
 
+function measureNearWhiteRatioRaw(data, width, height, channels) {
+  let near = 0;
+  const total = width * height;
+  for (let idx = 0; idx < total; idx++) {
+    const o = idx * channels;
+    if (
+      255 - data[o] <= WHITE_TOL &&
+      255 - data[o + 1] <= WHITE_TOL &&
+      255 - data[o + 2] <= WHITE_TOL
+    ) {
+      near++;
+    }
+  }
+  return near / total;
+}
+
 function adaptiveMinQ(whiteRatio) {
   if (whiteRatio >= 0.78) return 24;
   if (whiteRatio >= 0.68) return 26;
@@ -179,9 +195,20 @@ export async function prepareInput(imageBuffer) {
     h = meta.height || h;
   }
 
-  const flat = await flattenBackgroundWhite(buffer);
-  buffer = flat.buffer;
-  const whiteRatio = flat.whiteRatio;
+  const rawCheck = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const nearWhite = measureNearWhiteRatioRaw(
+    rawCheck.data,
+    rawCheck.info.width,
+    rawCheck.info.height,
+    rawCheck.info.channels
+  );
+
+  let whiteRatio = nearWhite;
+  if (nearWhite >= WHITE_BG_THRESHOLD) {
+    const flat = await flattenBackgroundWhite(buffer);
+    buffer = flat.buffer;
+    whiteRatio = Math.max(nearWhite, flat.whiteRatio);
+  }
 
   return { buffer, width: w, height: h, inputBytes, whiteRatio, minQ: adaptiveMinQ(whiteRatio) };
 }
