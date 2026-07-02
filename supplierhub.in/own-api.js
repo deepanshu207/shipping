@@ -2,12 +2,14 @@
  * Own API for Meesho Image Generator — runs entirely in the browser.
  */
 (function () {
-  /** Busy/indoor: SupplierDen format, then compress to Meesho slab sizes (empirical, not guaranteed ₹). */
-  const TIERS_BUSY_BG = [
-    { slabKb: 91, label: "Lowest · may beat ₹93 on Meesho", lowest: true },
-    { slabKb: 92, label: "Balanced" },
-    { slabKb: 93, label: "Recommended · SupplierDen ₹93 match", recommended: true },
-    { slabKb: 94, label: "High detail backup" },
+  /** Original Meesho size tiers from commit 125b98a — 2000×2000 white canvas + coverage. */
+  const MEESHO_CANVAS_SIZE = 2000;
+  const MEESHO_MAX_BYTES = 300 * 1024;
+  const MEESHO_VARIANTS = [
+    { coverage: 0.62, quality: 82, label: "Tier 1 · Smallest frame (try first)", lowest: true },
+    { coverage: 0.65, quality: 78, label: "Tier 2 · Compact" },
+    { coverage: 0.68, quality: 74, label: "Tier 3 · Balanced", recommended: true },
+    { coverage: 0.7, quality: 70, label: "Tier 4 · Standard Meesho size" },
   ];
   const TIERS_WHITE_BG = [
     { targetKb: 20, label: "Smallest file · verify ₹ on Meesho", lowest: true },
@@ -25,15 +27,9 @@
   const STALE_PROCESSING_MS = 120000;
   const PROCESS_TIMEOUT_MS = 180000;
   const MOZJPEG_URL = () => new URL("/vendor/mozjpeg.mjs", location.origin).href;
-  const SUPPLIERDEN_ORANGE = "#FF7900";
-  const SUPPLIERDEN_BORDER_RATIO = 0.048;
-  const SUPPLIERDEN_MIN_BORDER = 34;
-  /** Meesho may tier on max framed side — SupplierDen outputs often cap near 1280px. */
-  const MEESHO_FRAMED_MAX_SIDE = 1280;
 
   const STUDIO_CATEGORY_RE =
     /\b(bra|bras|lingerie|panty|panties|underwear|bikini|sports bra|feeding bra|shapewear|camisole|nighty|nightwear|blouse|petticoat)\b/i;
-  const INDOOR_CATEGORY_RE = /\b(raincoat|rain coat|rainwear|men raincoat)\b/i;
 
   const MOZ_BASE = {
     baseline: false,
@@ -48,10 +44,6 @@
     trellis_loops: 3,
     separate_chroma_quality: true,
   };
-
-  function tiersForWhite(whiteRatio) {
-    return whiteRatio >= WHITE_BG_THRESHOLD ? TIERS_WHITE_BG : TIERS_BUSY_BG;
-  }
 
   const GUEST_USER = {
     id: "guest-local",
@@ -415,135 +407,15 @@
     return false;
   }
 
-  /** Category + vision — bra/lingerie never get SupplierDen orange frame. */
+  /** Category + vision — bra/lingerie use studio path; others use 125b98a Meesho canvas. */
   function resolveStudioMode(img, tagName) {
     const tag = String(tagName || "").toLowerCase();
-    if (INDOOR_CATEGORY_RE.test(tag)) return false;
     if (STUDIO_CATEGORY_RE.test(tag)) return true;
     return isStudioWhiteBackground(img);
   }
 
-  function supplierDenBorderPx(w, h) {
-    let border = Math.max(SUPPLIERDEN_MIN_BORDER, Math.round(Math.min(w, h) * SUPPLIERDEN_BORDER_RATIO));
-    const maxSide = Math.max(w, h);
-    if (maxSide + border * 2 > MEESHO_FRAMED_MAX_SIDE) {
-      const capped = Math.floor((MEESHO_FRAMED_MAX_SIDE - maxSide) / 2);
-      if (capped >= 28) border = capped;
-    }
-    return border;
-  }
-
-  function roundRectPath(ctx, x, y, width, height, radius) {
-    const r = Math.min(radius, width / 2, height / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + width, y, x + width, y + height, r);
-    ctx.arcTo(x + width, y + height, x, y + height, r);
-    ctx.arcTo(x, y + height, x, y, r);
-    ctx.arcTo(x, y, x + width, y, r);
-    ctx.closePath();
-  }
-
-  function drawSpecialOfferBadge(ctx, x, y, scale) {
-    const w = 92 * scale;
-    const h = 54 * scale;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(-0.14);
-    roundRectPath(ctx, 0, 0, w, h, 7 * scale);
-    ctx.fillStyle = "#D32F2F";
-    ctx.fill();
-    ctx.strokeStyle = "#FFD600";
-    ctx.lineWidth = 2.8 * scale;
-    ctx.stroke();
-    ctx.fillStyle = "#FFD600";
-    ctx.font = `900 ${12 * scale}px Arial,sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("SPECIAL", w / 2, h * 0.34);
-    ctx.fillText("OFFER", w / 2, h * 0.72);
-    ctx.restore();
-  }
-
-  function drawHotSaleBurst(ctx, cx, cy, scale) {
-    const spikes = 14;
-    const outer = 78 * scale;
-    const inner = 34 * scale;
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.beginPath();
-    for (let i = 0; i < spikes * 2; i++) {
-      const angle = (Math.PI * i) / spikes - Math.PI / 2;
-      const radius = i % 2 === 0 ? outer : inner;
-      const px = Math.cos(angle) * radius;
-      const py = Math.sin(angle) * radius;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    const grad = ctx.createRadialGradient(0, 0, inner * 0.2, 0, 0, outer);
-    grad.addColorStop(0, "#FFEB3B");
-    grad.addColorStop(0.55, "#FF9800");
-    grad.addColorStop(1, "#E53935");
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = "#B71C1C";
-    ctx.lineWidth = 2.2 * scale;
-    ctx.stroke();
-    ctx.fillStyle = "#FFFFFF";
-    ctx.strokeStyle = "#7F0000";
-    ctx.lineWidth = 1.1 * scale;
-    ctx.font = `900 ${15 * scale}px Arial,sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.strokeText("HOT", 0, -14 * scale);
-    ctx.fillText("HOT", 0, -14 * scale);
-    ctx.font = `900 ${13 * scale}px Arial,sans-serif`;
-    ctx.strokeText("SALE", 0, 4 * scale);
-    ctx.fillText("SALE", 0, 4 * scale);
-    ctx.font = `900 ${11 * scale}px Arial,sans-serif`;
-    ctx.strokeText("BIG SALE", 0, 22 * scale);
-    ctx.fillText("BIG SALE", 0, 22 * scale);
-    ctx.restore();
-  }
-
-  function drawSupplierDenOverlays(ctx, border, photoW, photoH) {
-    const scale = Math.max(0.72, Math.min(1.35, Math.min(photoW, photoH) / 900));
-    drawSpecialOfferBadge(ctx, border + photoW * 0.66, border + photoH * 0.05, scale);
-    drawHotSaleBurst(ctx, border + photoW * 0.16, border + photoH * 0.72, scale * 1.05);
-  }
-
-  /** SupplierDen-style orange frame + sale stickers — photo stays full size inside border. */
-  function prepareSupplierDenCanvas(img) {
-    let w = img.width;
-    let h = img.height;
-    const max = Math.max(w, h);
-    if (max > MAX_SIDE) {
-      const scale = MAX_SIDE / max;
-      w = Math.round(w * scale);
-      h = Math.round(h * scale);
-    }
-
-    const border = supplierDenBorderPx(w, h);
-    const fw = w + border * 2;
-    const fh = h + border * 2;
-    const c = document.createElement("canvas");
-    c.width = fw;
-    c.height = fh;
-    const ctx = c.getContext("2d");
-    ctx.fillStyle = SUPPLIERDEN_ORANGE;
-    ctx.fillRect(0, 0, fw, fh);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(img, 0, 0, img.width, img.height, border, border, w, h);
-    drawSupplierDenOverlays(ctx, border, w, h);
-    return c;
-  }
-
-  /** Exact upload dimensions — never upscale; cap max side at 2000 only. */
-  function prepareCanvas(img, studio) {
-    if (!studio) return prepareSupplierDenCanvas(img);
-
+  /** White studio canvas — original dimensions, no orange frame. */
+  function prepareStudioCanvas(img) {
     let w = img.width;
     let h = img.height;
     const max = Math.max(w, h);
@@ -562,37 +434,63 @@
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(img, 0, 0, w, h);
-    if (studio) flattenBackgroundWhite(c);
+    flattenBackgroundWhite(c);
     return c;
   }
 
-  /** Highest-quality standard JPEG at or under slab KB — never upscale. */
-  async function compressBusyToSlab(canvas, slabKb) {
-    const targetBytes = slabKb * 1024;
-    const busyMin = BUSY_MIN_Q;
-    let best = null;
-    let lo = busyMin;
-    let hi = 98;
-    while (lo <= hi) {
-      const mid = Math.floor((lo + hi) / 2);
-      const blob = await blobAtCanvasQuality(canvas, mid / 100, busyMin / 100);
-      if (blob.size <= targetBytes) {
-        best = blob;
-        lo = mid + 1;
-      } else {
-        hi = mid - 1;
-      }
+  /** 125b98a — product centered on 2000×2000 white canvas at coverage tier. */
+  function prepareMeeshoCanvas(img, variant) {
+    const canvasSize = MEESHO_CANVAS_SIZE;
+    const productSize = Math.round(canvasSize * variant.coverage);
+    const canvas = document.createElement("canvas");
+    canvas.width = canvasSize;
+    canvas.height = canvasSize;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvasSize, canvasSize);
+    const scale = Math.min(productSize / img.width, productSize / img.height);
+    const w = Math.round(img.width * scale);
+    const h = Math.round(img.height * scale);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, Math.round((canvasSize - w) / 2), Math.round((canvasSize - h) / 2), w, h);
+    return canvas;
+  }
+
+  /** 125b98a — mozjpeg encode, reduce q until under 300 KB. */
+  async function compressToTargetMoz(canvas, quality) {
+    let q = quality;
+    let blob = await encodeMozjpeg(canvas, q, 0, false);
+    while (blob.size > MEESHO_MAX_BYTES && q > 45) {
+      q -= 5;
+      blob = await encodeMozjpeg(canvas, q, 0, false);
     }
-    if (best) return best;
-    return blobAtCanvasQuality(canvas, busyMin / 100, busyMin / 100);
+    return blob;
+  }
+
+  async function buildMeeshoVariants(img) {
+    const built = [];
+    for (const variant of MEESHO_VARIANTS) {
+      const canvas = prepareMeeshoCanvas(img, variant);
+      const blob = await compressToTargetMoz(canvas, variant.quality);
+      built.push({
+        blob,
+        bytes: blob.size,
+        label: `${variant.label} · ${MEESHO_CANVAS_SIZE}×${MEESHO_CANVAS_SIZE}`,
+        recommended: !!variant.recommended,
+        lowest: !!variant.lowest,
+        processingPath: "meesho",
+        width: MEESHO_CANVAS_SIZE,
+        height: MEESHO_CANVAS_SIZE,
+      });
+    }
+    built.sort((a, b) => a.bytes - b.bytes);
+    const minBytes = built[0]?.bytes ?? 0;
+    return built.map((v) => ({ ...v, lowest: v.bytes === minBytes }));
   }
 
   /** Hit byte target for studio white-bg photos (mozjpeg). */
-  async function compressCanvas(canvas, targetBytes, minQ, whiteRatio, studio) {
-    if (!studio) {
-      throw new Error("compressCanvas is studio-only; use compressBusyAtQuality for busy photos");
-    }
-
+  async function compressCanvas(canvas, targetBytes, minQ, whiteRatio) {
     const absMin = adaptiveAbsMinQ(whiteRatio);
     let lo = minQ;
     let hi = 92;
@@ -622,22 +520,18 @@
     return best;
   }
 
-  async function buildVariants(canvas, whiteRatio, studio) {
+  async function buildStudioVariants(canvas, whiteRatio) {
     const minQ = adaptiveMinQ(whiteRatio);
-    const tiers = studio ? TIERS_WHITE_BG : TIERS_BUSY_BG;
-    const processingPath = studio ? "studio" : "supplierden";
     const built = [];
-    for (const tier of tiers) {
-      const blob = studio
-        ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true)
-        : await compressBusyToSlab(canvas, tier.slabKb);
+    for (const tier of TIERS_WHITE_BG) {
+      const blob = await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio);
       built.push({
         blob,
         bytes: blob.size,
         label: `${tier.label} · ${canvas.width}×${canvas.height}`,
         recommended: !!tier.recommended,
         lowest: !!tier.lowest,
-        processingPath,
+        processingPath: "studio",
         width: canvas.width,
         height: canvas.height,
       });
@@ -649,9 +543,12 @@
     await loadMozjpeg();
     const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
     const studio = resolveStudioMode(img, tagName);
-    const canvas = prepareCanvas(img, studio);
-    const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
-    return buildVariants(canvas, whiteRatio, studio);
+    if (studio) {
+      const canvas = prepareStudioCanvas(img);
+      const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
+      return buildStudioVariants(canvas, whiteRatio);
+    }
+    return buildMeeshoVariants(img);
   }
 
   function blobToDataUrl(blob) {
@@ -744,7 +641,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 28, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 29, platform: "cloudflare-static" },
       };
     }
 
