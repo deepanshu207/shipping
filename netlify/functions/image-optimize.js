@@ -1,15 +1,15 @@
 import sharp from "sharp";
 
 const TIERS_BUSY_BG = [
-  { targetKb: 91, label: "Lowest · upload to Meesho first", lowest: true },
-  { targetKb: 92, label: "Recommended · balanced", recommended: true },
-  { targetKb: 93, label: "Standard" },
-  { targetKb: 93, label: "High detail" },
+  { jpegQ: 80, maxKb: 100, label: "Smaller file · verify ₹ on Meesho", lowest: true },
+  { jpegQ: 86, maxKb: 105, label: "Recommended · SupplierDen format", recommended: true },
+  { jpegQ: 90, maxKb: 110, label: "Standard quality" },
+  { jpegQ: 94, maxKb: 120, label: "High detail" },
 ];
 
 const TIERS_WHITE_BG = [
-  { targetKb: 20, label: "Lowest · upload to Meesho first", lowest: true },
-  { targetKb: 22, label: "Recommended · balanced", recommended: true },
+  { targetKb: 20, label: "Smallest file · verify ₹ on Meesho", lowest: true },
+  { targetKb: 22, label: "Recommended · white studio", recommended: true },
   { targetKb: 24, label: "Standard" },
   { targetKb: 26, label: "High detail" },
 ];
@@ -279,81 +279,25 @@ async function flattenBackgroundWhite(buffer) {
   return { buffer: out, whiteRatio };
 }
 
-async function maxBytesUnderTarget(buffer, targetBytes) {
-  let best = 0;
-  for (let q = 98; q >= BUSY_MIN_Q; q--) {
-    const len = (await standardJpeg(buffer, q, BUSY_MIN_Q).toBuffer()).length;
-    if (len <= targetBytes && len > best) best = len;
+async function compressBusyAtQuality(buffer, targetQ, maxBytes) {
+  const busyMin = BUSY_MIN_Q;
+  let q = Math.min(98, Math.max(busyMin, targetQ));
+  let out = await standardJpeg(buffer, q, busyMin).toBuffer();
+  while (out.length > maxBytes && q > busyMin) {
+    q -= 1;
+    out = await standardJpeg(buffer, q, busyMin).toBuffer();
   }
-  return best;
-}
-
-async function busyBufferForTarget(buffer, targetBytes) {
-  let current = buffer;
-  const meta = await sharp(buffer).metadata();
-  const minReach = targetBytes - 2048;
-  if ((await maxBytesUnderTarget(current, targetBytes)) >= minReach) return current;
-
-  let lo = 1;
-  let hi = 1.85;
-  while (hi - lo > 0.02) {
-    const mid = (lo + hi) / 2;
-    const w = Math.max(1, Math.round((meta.width || 1) * mid));
-    const h = Math.max(1, Math.round((meta.height || 1) * mid));
-    const scaled = await sharp(buffer).resize(w, h, { kernel: sharp.kernel.lanczos3 }).toBuffer();
-    if ((await maxBytesUnderTarget(scaled, targetBytes)) < minReach) lo = mid;
-    else {
-      current = scaled;
-      hi = mid;
-    }
-  }
-  return current;
+  return out;
 }
 
 async function compressToTarget(buffer, targetBytes, minQ, whiteRatio, studio) {
   if (!studio) {
-    const busyMin = BUSY_MIN_Q;
-    let best = await standardJpeg(buffer, 98, busyMin).toBuffer();
-    let lo = busyMin;
-    let hi = 98;
-    if (best.length > targetBytes) {
-      for (let q = hi; q >= lo; q -= 1) {
-        const out = await standardJpeg(buffer, q, busyMin).toBuffer();
-        if (out.length < best.length) best = out;
-        if (out.length <= targetBytes) {
-          best = out;
-          break;
-        }
-      }
-    }
-    if (best.length <= targetBytes) {
-      while (hi - lo > 1) {
-        const mid = Math.floor((lo + hi) / 2);
-        const out = await standardJpeg(buffer, mid, busyMin).toBuffer();
-        if (out.length <= targetBytes) {
-          best = out;
-          lo = mid;
-        } else {
-          hi = mid;
-        }
-      }
-      const top = await standardJpeg(buffer, lo, busyMin).toBuffer();
-      if (top.length <= targetBytes) return top;
-    }
-    if (best.length <= targetBytes) return best;
-
-    let mBest = await mozjpeg(buffer, ABS_MIN_Q, whiteRatio).toBuffer();
-    for (let q = ABS_MIN_Q; q <= 85; q++) {
-      const out = await mozjpeg(buffer, q, whiteRatio).toBuffer();
-      if (out.length <= targetBytes) return out;
-      if (out.length < mBest.length) mBest = out;
-    }
-    return mBest.length < best.length ? mBest : best;
+    throw new Error("compressToTarget is studio-only; use compressBusyAtQuality for busy photos");
   }
 
   const absMin = adaptiveAbsMinQ(whiteRatio);
-  let lo = studio ? minQ : absMin;
-  let hi = studio ? 92 : 98;
+  let lo = minQ;
+  let hi = 92;
   let best = await encodeAtQuality(buffer, lo, lo, whiteRatio, studio);
 
   if (best.length <= targetBytes) {
@@ -423,14 +367,10 @@ export async function prepareInput(imageBuffer, studio) {
 }
 
 async function buildVariant(prepared, tier) {
-  const targetBytes = tier.targetKb * 1024;
-  const jpeg = await compressToTarget(
-    prepared.buffer,
-    targetBytes,
-    prepared.minQ,
-    prepared.whiteRatio,
-    prepared.studio
-  );
+  const processingPath = prepared.studio ? "studio" : "supplierden";
+  const jpeg = prepared.studio
+    ? await compressToTarget(prepared.buffer, tier.targetKb * 1024, prepared.minQ, prepared.whiteRatio, true)
+    : await compressBusyAtQuality(prepared.buffer, tier.jpegQ, tier.maxKb * 1024);
 
   return {
     buffer: jpeg,
@@ -441,29 +381,15 @@ async function buildVariant(prepared, tier) {
     lowest: !!tier.lowest,
     width: prepared.width,
     height: prepared.height,
+    processingPath,
   };
 }
 
 export async function generateAllVariants(imageBuffer, categoryName) {
   const rotated = await sharp(imageBuffer).rotate().flatten({ background: { r: 255, g: 255, b: 255 } }).toBuffer();
   const studio = await isStudioWhiteBackground(rotated);
-  let prepared = await prepareInput(imageBuffer, studio);
+  const prepared = await prepareInput(imageBuffer, studio);
   const tiers = tiersForWhite(prepared.whiteRatio);
-
-  if (!prepared.studio) {
-    const maxTarget = Math.max(...tiers.map((tier) => tier.targetKb)) * 1024;
-    const scaled = await busyBufferForTarget(prepared.buffer, maxTarget);
-    if (scaled !== prepared.buffer) {
-      const meta = await sharp(scaled).metadata();
-      prepared = {
-        ...prepared,
-        buffer: scaled,
-        width: meta.width || prepared.width,
-        height: meta.height || prepared.height,
-      };
-    }
-  }
-
   const built = [];
 
   for (const tier of tiers) {
@@ -478,6 +404,11 @@ export async function generateAllVariants(imageBuffer, categoryName) {
     fileSizeBytes: item.fileSizeBytes,
     fileSizeKb: item.fileSizeKb,
     shippingCharge: String(item.fileSizeKb),
+    estimatedShippingInr: item.fileSizeKb,
+    shippingEstimate: true,
+    processingPath: item.processingPath,
+    width: item.width,
+    height: item.height,
     lowest: item.fileSizeBytes === minBytes,
     recommended: item.recommended,
     categoryName,
