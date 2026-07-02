@@ -30,6 +30,8 @@
   const SUPPLIERDEN_MIN_BORDER = 34;
   /** Meesho may tier on max framed side — SupplierDen outputs often cap near 1280px. */
   const MEESHO_FRAMED_MAX_SIDE = 1280;
+  /** Studio uploads: cap max side the same way — proportional only, no crop. */
+  const MEESHO_STUDIO_MAX_SIDE = MEESHO_FRAMED_MAX_SIDE;
   /** Draw stickers at 2× then downscale — sharper text after JPEG without changing frame size. */
   const OVERLAY_SUPERSAMPLE = 2;
 
@@ -260,10 +262,17 @@
   async function encodeAtQuality(canvas, quality, floor, whiteRatio, studio) {
     const minQ = floor ?? adaptiveMinQ(whiteRatio ?? 0);
     const q = Math.max(minQ, Math.min(100, Math.round(quality)));
-    if (!studio) {
-      return blobAtCanvasQuality(canvas, q / 100);
+    return encodeMozjpeg(canvas, q, whiteRatio ?? 0, false);
+  }
+
+  /** MozJPEG for busy photos — ~2× smaller than canvas JPEG at same quality. */
+  async function encodeBusyJpeg(canvas, quality, whiteRatio) {
+    const q = Math.max(BUSY_MIN_Q, Math.min(98, Math.round(quality)));
+    try {
+      return await encodeMozjpeg(canvas, q, whiteRatio ?? 0, false);
+    } catch {
+      return blobAtCanvasQuality(canvas, q / 100, BUSY_MIN_Q / 100);
     }
-    return encodeMozjpeg(canvas, q, whiteRatio, false);
   }
 
   function blobAtCanvasQuality(canvas, quality, minQuality = 0.28) {
@@ -458,6 +467,25 @@
     return { w: nw, h: nh };
   }
 
+  /** Studio: proportional downscale only when max side exceeds Meesho tier cap. */
+  function fitStudioPhotoDims(w, h) {
+    let nw = w;
+    let nh = h;
+    const max0 = Math.max(nw, nh);
+    if (max0 > MAX_SIDE) {
+      const scale = MAX_SIDE / max0;
+      nw = Math.round(nw * scale);
+      nh = Math.round(nh * scale);
+    }
+    const max1 = Math.max(nw, nh);
+    if (max1 > MEESHO_STUDIO_MAX_SIDE) {
+      const scale = MEESHO_STUDIO_MAX_SIDE / max1;
+      nw = Math.max(1, Math.round(nw * scale));
+      nh = Math.max(1, Math.round(nh * scale));
+    }
+    return { w: nw, h: nh };
+  }
+
   function scaleCanvas(canvas, factor) {
     const w = Math.max(1, Math.round(canvas.width * factor));
     const h = Math.max(1, Math.round(canvas.height * factor));
@@ -611,18 +639,13 @@
     return c;
   }
 
-  /** Exact upload dimensions — never upscale; cap max side at 2000 only. */
+  /** Exact upload dimensions — never upscale; cap max side for Meesho tier. */
   function prepareCanvas(img, studio) {
     if (!studio) return prepareSupplierDenCanvas(img);
 
-    let w = img.width;
-    let h = img.height;
-    const max = Math.max(w, h);
-    if (max > MAX_SIDE) {
-      const scale = MAX_SIDE / max;
-      w = Math.round(w * scale);
-      h = Math.round(h * scale);
-    }
+    const fitted = fitStudioPhotoDims(img.width, img.height);
+    const w = fitted.w;
+    const h = fitted.h;
 
     const c = document.createElement("canvas");
     c.width = w;
@@ -632,12 +655,12 @@
     ctx.fillRect(0, 0, w, h);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(img, 0, 0, w, h);
+    ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, w, h);
     return c;
   }
 
-  /** Highest-quality standard JPEG at or under slab KB — downscale if q floor still exceeds slab. */
-  async function compressBusyToSlabOnce(canvas, slabKb) {
+  /** Highest-quality mozjpeg at or under slab KB — downscale only if q floor still exceeds slab. */
+  async function compressBusyToSlabOnce(canvas, slabKb, whiteRatio) {
     const targetBytes = slabKb * 1024;
     const busyMin = BUSY_MIN_Q;
     let best = null;
@@ -645,7 +668,7 @@
     let hi = 98;
     while (lo <= hi) {
       const mid = Math.floor((lo + hi) / 2);
-      const blob = await blobAtCanvasQuality(canvas, mid / 100, busyMin / 100);
+      const blob = await encodeBusyJpeg(canvas, mid, whiteRatio);
       if (blob.size <= targetBytes) {
         best = blob;
         lo = mid + 1;
@@ -654,19 +677,23 @@
       }
     }
     if (best) return best;
-    return blobAtCanvasQuality(canvas, busyMin / 100, busyMin / 100);
+    let fallback = await encodeBusyJpeg(canvas, busyMin, whiteRatio);
+    if (fallback.size <= targetBytes) return fallback;
+    const baseline = await encodeMozjpeg(canvas, busyMin, whiteRatio ?? 0, true);
+    if (baseline.size < fallback.size) fallback = baseline;
+    return fallback;
   }
 
-  async function compressBusyToSlab(canvas, slabKb) {
+  async function compressBusyToSlab(canvas, slabKb, whiteRatio) {
     const targetBytes = slabKb * 1024;
     let work = canvas;
     for (let attempt = 0; attempt < 10; attempt++) {
-      const blob = await compressBusyToSlabOnce(work, slabKb);
+      const blob = await compressBusyToSlabOnce(work, slabKb, whiteRatio);
       if (blob.size <= targetBytes) return blob;
       if (Math.max(work.width, work.height) <= 480) return blob;
       work = scaleCanvas(work, 0.92);
     }
-    return compressBusyToSlabOnce(work, slabKb);
+    return compressBusyToSlabOnce(work, slabKb, whiteRatio);
   }
 
   /** Hit byte target for studio white-bg photos (mozjpeg). */
@@ -712,7 +739,7 @@
     for (const tier of tiers) {
       const blob = studio
         ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true)
-        : await compressBusyToSlab(canvas, tier.slabKb);
+        : await compressBusyToSlab(canvas, tier.slabKb, whiteRatio);
       built.push({
         blob,
         bytes: blob.size,
@@ -826,7 +853,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 35, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 36, platform: "cloudflare-static" },
       };
     }
 
