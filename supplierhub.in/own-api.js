@@ -11,25 +11,11 @@
     { coverage: 0.68, quality: 74, label: "Tier 3 · Balanced", recommended: true },
     { coverage: 0.7, quality: 70, label: "Tier 4 · Standard Meesho size" },
   ];
-  const TIERS_WHITE_BG = [
-    { targetKb: 20, label: "Smallest file · verify ₹ on Meesho", lowest: true },
-    { targetKb: 22, label: "Recommended · white studio", recommended: true },
-    { targetKb: 24, label: "Standard" },
-    { targetKb: 26, label: "High detail" },
-  ];
-
-  const WHITE_TOL = 42;
-  const WHITE_BG_THRESHOLD = 0.62;
   const ABS_MIN_Q = 18;
-  const BUSY_MIN_Q = 15;
-  const MAX_SIDE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 1200 : 2000;
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
   const STALE_PROCESSING_MS = 120000;
   const PROCESS_TIMEOUT_MS = 180000;
   const MOZJPEG_URL = () => new URL("/vendor/mozjpeg.mjs", location.origin).href;
-
-  const STUDIO_CATEGORY_RE =
-    /\b(bra|bras|lingerie|panty|panties|underwear|bikini|sports bra|feeding bra|shapewear|camisole|nighty|nightwear|blouse|petticoat)\b/i;
 
   const MOZ_BASE = {
     baseline: false,
@@ -247,197 +233,6 @@
     });
   }
 
-  async function encodeAtQuality(canvas, quality, floor, whiteRatio, studio) {
-    const minQ = floor ?? adaptiveMinQ(whiteRatio ?? 0);
-    const q = Math.max(minQ, Math.min(100, Math.round(quality)));
-    if (!studio) {
-      return blobAtCanvasQuality(canvas, q / 100);
-    }
-    return encodeMozjpeg(canvas, q, whiteRatio, false);
-  }
-
-  function blobAtCanvasQuality(canvas, quality, minQuality = 0.28) {
-    const q = Math.max(minQuality, Math.min(0.98, quality));
-    return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob || new Blob()), "image/jpeg", q));
-  }
-
-  function measureNearWhiteRatio(canvas) {
-    const { data } = canvas.getContext("2d", { willReadFrequently: true }).getImageData(
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
-    let near = 0;
-    const total = canvas.width * canvas.height;
-    for (let i = 0; i < data.length; i += 4) {
-      if (nearWhiteAt(data, i)) near++;
-    }
-    return near / total;
-  }
-
-  function measureWhiteRatio(canvas) {
-    const { data } = canvas.getContext("2d", { willReadFrequently: true }).getImageData(
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
-    let white = 0;
-    const total = canvas.width * canvas.height;
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i] === 255 && data[i + 1] === 255 && data[i + 2] === 255) white++;
-    }
-    return white / total;
-  }
-
-  /** White-bg photos tolerate lower q — background stays pure white. */
-  function adaptiveMinQ(whiteRatio) {
-    if (whiteRatio >= 0.78) return 24;
-    if (whiteRatio >= 0.68) return 26;
-    if (whiteRatio >= 0.55) return 30;
-    if (whiteRatio >= 0.40) return 28;
-    return 26;
-  }
-
-  function adaptiveAbsMinQ(whiteRatio) {
-    if (whiteRatio >= 0.72) return 20;
-    if (whiteRatio >= 0.58) return 22;
-    return ABS_MIN_Q;
-  }
-
-  function nearWhiteAt(d, i) {
-    return 255 - d[i] <= WHITE_TOL && 255 - d[i + 1] <= WHITE_TOL && 255 - d[i + 2] <= WHITE_TOL;
-  }
-
-  /** Flood-fill edge-connected near-white background to pure #FFF — product pixels untouched. */
-  function flattenBackgroundWhite(canvas) {
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    const { width, height } = canvas;
-    const img = ctx.getImageData(0, 0, width, height);
-    const d = img.data;
-    const total = width * height;
-    const seen = new Uint8Array(total);
-    const queue = new Int32Array(total);
-    let head = 0;
-    let tail = 0;
-
-    function push(idx) {
-      if (seen[idx] || !nearWhiteAt(d, idx * 4)) return;
-      seen[idx] = 1;
-      queue[tail++] = idx;
-    }
-
-    for (let x = 0; x < width; x++) {
-      push(x);
-      push((height - 1) * width + x);
-    }
-    for (let y = 0; y < height; y++) {
-      push(y * width);
-      push(y * width + width - 1);
-    }
-
-    while (head < tail) {
-      const idx = queue[head++];
-      const o = idx * 4;
-      d[o] = 255;
-      d[o + 1] = 255;
-      d[o + 2] = 255;
-      const x = idx % width;
-      const y = (idx / width) | 0;
-      if (x > 0) push(idx - 1);
-      if (x < width - 1) push(idx + 1);
-      if (y > 0) push(idx - width);
-      if (y < height - 1) push(idx + width);
-    }
-
-    for (let idx = 0; idx < total; idx++) {
-      const o = idx * 4;
-      if (seen[idx]) continue;
-      const r = d[o];
-      const g = d[o + 1];
-      const b = d[o + 2];
-      if (r >= 248 && g >= 248 && b >= 248 && Math.max(r, g, b) - Math.min(r, g, b) < 10) {
-        d[o] = 255;
-        d[o + 1] = 255;
-        d[o + 2] = 255;
-      }
-    }
-
-    ctx.putImageData(img, 0, 0);
-  }
-
-  /** Studio photos: white edges / high white fill. Indoor shots have dark floor at bottom. */
-  function isStudioWhiteBackground(img) {
-    const maxProbe = 320;
-    const scale = Math.min(1, maxProbe / Math.max(img.width, img.height));
-    const w = Math.max(1, Math.round(img.width * scale));
-    const h = Math.max(1, Math.round(img.height * scale));
-    const c = document.createElement("canvas");
-    c.width = w;
-    c.height = h;
-    const ctx = c.getContext("2d");
-    ctx.drawImage(img, 0, 0, w, h);
-    const { data } = ctx.getImageData(0, 0, w, h);
-
-    function sideNearWhiteRatio(y0, y1, x0, x1) {
-      let near = 0;
-      let total = 0;
-      for (let y = y0; y < y1; y++) {
-        for (let x = x0; x < x1; x++) {
-          const i = (y * w + x) * 4;
-          total++;
-          if (nearWhiteAt(data, i)) near++;
-        }
-      }
-      return total ? near / total : 0;
-    }
-
-    const top = sideNearWhiteRatio(0, 1, 0, w);
-    const bottom = sideNearWhiteRatio(h - 1, h, 0, w);
-    const left = sideNearWhiteRatio(0, h, 0, 1);
-    const right = sideNearWhiteRatio(0, h, w - 1, w);
-    const allEdges = (top + bottom + left + right) / 4;
-    const topLeftRight = (top + left + right) / 3;
-    const full = measureNearWhiteRatio(c);
-
-    if (allEdges >= 0.72 && full >= 0.5) return true;
-    if (topLeftRight >= 0.8 && full >= 0.55) return true;
-    if (full >= 0.7) return true;
-    return false;
-  }
-
-  /** Category + vision — bra/lingerie use studio path; others use 125b98a Meesho canvas. */
-  function resolveStudioMode(img, tagName) {
-    const tag = String(tagName || "").toLowerCase();
-    if (STUDIO_CATEGORY_RE.test(tag)) return true;
-    return isStudioWhiteBackground(img);
-  }
-
-  /** White studio canvas — original dimensions, no orange frame. */
-  function prepareStudioCanvas(img) {
-    let w = img.width;
-    let h = img.height;
-    const max = Math.max(w, h);
-    if (max > MAX_SIDE) {
-      const scale = MAX_SIDE / max;
-      w = Math.round(w * scale);
-      h = Math.round(h * scale);
-    }
-
-    const c = document.createElement("canvas");
-    c.width = w;
-    c.height = h;
-    const ctx = c.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, w, h);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(img, 0, 0, w, h);
-    flattenBackgroundWhite(c);
-    return c;
-  }
-
   /** 125b98a — product centered on 2000×2000 white canvas at coverage tier. */
   function prepareMeeshoCanvas(img, variant) {
     const canvasSize = MEESHO_CANVAS_SIZE;
@@ -489,65 +284,9 @@
     return built.map((v) => ({ ...v, lowest: v.bytes === minBytes }));
   }
 
-  /** Hit byte target for studio white-bg photos (mozjpeg). */
-  async function compressCanvas(canvas, targetBytes, minQ, whiteRatio) {
-    const absMin = adaptiveAbsMinQ(whiteRatio);
-    let lo = minQ;
-    let hi = 92;
-    let best = await encodeMozjpeg(canvas, minQ, whiteRatio, false);
-
-    if (best.size <= targetBytes) {
-      while (hi - lo > 1) {
-        const mid = Math.floor((lo + hi) / 2);
-        const blob = await encodeMozjpeg(canvas, mid, whiteRatio, false);
-        if (blob.size <= targetBytes) {
-          best = blob;
-          lo = mid;
-        } else {
-          hi = mid;
-        }
-      }
-      const top = await encodeMozjpeg(canvas, lo, whiteRatio, false);
-      if (top.size <= targetBytes) return top;
-    }
-
-    for (let q = minQ - 1; q >= absMin && best.size > targetBytes; q--) {
-      const blob = await encodeMozjpeg(canvas, q, whiteRatio, false);
-      if (blob.size <= targetBytes) return blob;
-      if (blob.size < best.size) best = blob;
-    }
-
-    return best;
-  }
-
-  async function buildStudioVariants(canvas, whiteRatio) {
-    const minQ = adaptiveMinQ(whiteRatio);
-    const built = [];
-    for (const tier of TIERS_WHITE_BG) {
-      const blob = await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio);
-      built.push({
-        blob,
-        bytes: blob.size,
-        label: `${tier.label} · ${canvas.width}×${canvas.height}`,
-        recommended: !!tier.recommended,
-        lowest: !!tier.lowest,
-        processingPath: "studio",
-        width: canvas.width,
-        height: canvas.height,
-      });
-    }
-    return built;
-  }
-
-  async function optimizeToVariants(source, tagName) {
+  async function optimizeToVariants(source) {
     await loadMozjpeg();
     const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
-    const studio = resolveStudioMode(img, tagName);
-    if (studio) {
-      const canvas = prepareStudioCanvas(img);
-      const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
-      return buildStudioVariants(canvas, whiteRatio);
-    }
     return buildMeeshoVariants(img);
   }
 
@@ -641,7 +380,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 29, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 30, platform: "cloudflare-static" },
       };
     }
 
