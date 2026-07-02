@@ -2,12 +2,12 @@
  * Own API for Meesho Image Generator — runs entirely in the browser.
  */
 (function () {
-  /** Busy/indoor: SupplierDen format + quality tiers (KB is not Meesho ₹). */
+  /** Busy/indoor: SupplierDen format, then compress to Meesho slab sizes (empirical, not guaranteed ₹). */
   const TIERS_BUSY_BG = [
-    { jpegQ: 80, maxKb: 100, label: "Smaller file · verify ₹ on Meesho", lowest: true },
-    { jpegQ: 86, maxKb: 105, label: "Recommended · SupplierDen format", recommended: true },
-    { jpegQ: 90, maxKb: 110, label: "Standard quality" },
-    { jpegQ: 94, maxKb: 120, label: "High detail" },
+    { slabKb: 91, label: "Lowest · may beat ₹93 on Meesho", lowest: true },
+    { slabKb: 92, label: "Balanced" },
+    { slabKb: 93, label: "Recommended · SupplierDen ₹93 match", recommended: true },
+    { slabKb: 94, label: "High detail backup" },
   ];
   const TIERS_WHITE_BG = [
     { targetKb: 20, label: "Smallest file · verify ₹ on Meesho", lowest: true },
@@ -542,16 +542,25 @@
     return c;
   }
 
-  /** Standard JPEG at target quality; only reduce q if above maxBytes (never upscale for KB). */
-  async function compressBusyAtQuality(canvas, targetQ, maxBytes) {
+  /** Highest-quality standard JPEG at or under slab KB — never upscale. */
+  async function compressBusyToSlab(canvas, slabKb) {
+    const targetBytes = slabKb * 1024;
     const busyMin = BUSY_MIN_Q;
-    let q = Math.min(98, Math.max(busyMin, targetQ));
-    let blob = await blobAtCanvasQuality(canvas, q / 100, busyMin / 100);
-    while (blob.size > maxBytes && q > busyMin) {
-      q -= 1;
-      blob = await blobAtCanvasQuality(canvas, q / 100, busyMin / 100);
+    let best = null;
+    let lo = busyMin;
+    let hi = 98;
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      const blob = await blobAtCanvasQuality(canvas, mid / 100, busyMin / 100);
+      if (blob.size <= targetBytes) {
+        best = blob;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
     }
-    return blob;
+    if (best) return best;
+    return blobAtCanvasQuality(canvas, busyMin / 100, busyMin / 100);
   }
 
   /** Hit byte target for studio white-bg photos (mozjpeg). */
@@ -597,7 +606,7 @@
     for (const tier of tiers) {
       const blob = studio
         ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true)
-        : await compressBusyAtQuality(canvas, tier.jpegQ, tier.maxKb * 1024);
+        : await compressBusyToSlab(canvas, tier.slabKb);
       built.push({
         blob,
         bytes: blob.size,
@@ -711,7 +720,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 26, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 27, platform: "cloudflare-static" },
       };
     }
 

@@ -1,10 +1,10 @@
 import sharp from "sharp";
 
 const TIERS_BUSY_BG = [
-  { jpegQ: 80, maxKb: 100, label: "Smaller file · verify ₹ on Meesho", lowest: true },
-  { jpegQ: 86, maxKb: 105, label: "Recommended · SupplierDen format", recommended: true },
-  { jpegQ: 90, maxKb: 110, label: "Standard quality" },
-  { jpegQ: 94, maxKb: 120, label: "High detail" },
+  { slabKb: 91, label: "Lowest · may beat ₹93 on Meesho", lowest: true },
+  { slabKb: 92, label: "Balanced" },
+  { slabKb: 93, label: "Recommended · SupplierDen ₹93 match", recommended: true },
+  { slabKb: 94, label: "High detail backup" },
 ];
 
 const TIERS_WHITE_BG = [
@@ -279,20 +279,29 @@ async function flattenBackgroundWhite(buffer) {
   return { buffer: out, whiteRatio };
 }
 
-async function compressBusyAtQuality(buffer, targetQ, maxBytes) {
+async function compressBusyToSlab(buffer, slabKb) {
+  const targetBytes = slabKb * 1024;
   const busyMin = BUSY_MIN_Q;
-  let q = Math.min(98, Math.max(busyMin, targetQ));
-  let out = await standardJpeg(buffer, q, busyMin).toBuffer();
-  while (out.length > maxBytes && q > busyMin) {
-    q -= 1;
-    out = await standardJpeg(buffer, q, busyMin).toBuffer();
+  let best = null;
+  let lo = busyMin;
+  let hi = 98;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const out = await standardJpeg(buffer, mid, busyMin).toBuffer();
+    if (out.length <= targetBytes) {
+      best = out;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
   }
-  return out;
+  if (best) return best;
+  return standardJpeg(buffer, busyMin, busyMin).toBuffer();
 }
 
 async function compressToTarget(buffer, targetBytes, minQ, whiteRatio, studio) {
   if (!studio) {
-    throw new Error("compressToTarget is studio-only; use compressBusyAtQuality for busy photos");
+    throw new Error("compressToTarget is studio-only; use compressBusyToSlab for busy photos");
   }
 
   const absMin = adaptiveAbsMinQ(whiteRatio);
@@ -370,7 +379,7 @@ async function buildVariant(prepared, tier) {
   const processingPath = prepared.studio ? "studio" : "supplierden";
   const jpeg = prepared.studio
     ? await compressToTarget(prepared.buffer, tier.targetKb * 1024, prepared.minQ, prepared.whiteRatio, true)
-    : await compressBusyAtQuality(prepared.buffer, tier.jpegQ, tier.maxKb * 1024);
+    : await compressBusyToSlab(prepared.buffer, tier.slabKb);
 
   return {
     buffer: jpeg,
