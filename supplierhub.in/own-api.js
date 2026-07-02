@@ -2,34 +2,209 @@
  * Own API for Meesho Image Generator — runs entirely in the browser.
  */
 (function () {
-  /** Original Meesho size tiers from commit 125b98a — 2000×2000 white canvas + coverage. */
-  const MEESHO_CANVAS_SIZE = 2000;
-  const MEESHO_MAX_BYTES = 300 * 1024;
-  const MEESHO_VARIANTS = [
-    { coverage: 0.62, quality: 82, label: "Tier 1 · Smallest frame (try first)", lowest: true },
-    { coverage: 0.65, quality: 78, label: "Tier 2 · Compact" },
-    { coverage: 0.68, quality: 74, label: "Tier 3 · Balanced", recommended: true },
-    { coverage: 0.7, quality: 70, label: "Tier 4 · Standard Meesho size" },
+  /** SupplierDen format for every image — orange frame, overlays, slab KB tiers. */
+  const TIERS_BUSY_BG = [
+    { slabKb: 91, label: "Lowest · may beat ₹93 on Meesho", lowest: true },
+    { slabKb: 92, label: "Balanced" },
+    { slabKb: 93, label: "Recommended · SupplierDen ₹93 match", recommended: true },
+    { slabKb: 94, label: "High detail backup" },
   ];
-  const ABS_MIN_Q = 18;
-  const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
+  const BUSY_MIN_Q = 15;
+  const MAX_SIDE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 1200 : 2000;
   const STALE_PROCESSING_MS = 120000;
   const PROCESS_TIMEOUT_MS = 180000;
-  const MOZJPEG_URL = () => new URL("/vendor/mozjpeg.mjs", location.origin).href;
+  const SUPPLIERDEN_ORANGE = "#FF7900";
+  const SUPPLIERDEN_BORDER_RATIO = 0.048;
+  const SUPPLIERDEN_MIN_BORDER = 34;
+  const MEESHO_FRAMED_MAX_SIDE = 1280;
 
-  const MOZ_BASE = {
-    baseline: false,
-    progressive: true,
-    optimize_coding: true,
-    quant_table: 2,
-    auto_subsample: true,
-    chroma_subsample: 2,
-    trellis_multipass: true,
-    trellis_opt_zero: true,
-    trellis_opt_table: true,
-    trellis_loops: 3,
-    separate_chroma_quality: true,
-  };
+  function blobAtCanvasQuality(canvas, quality, minQuality = 0.28) {
+    const q = Math.max(minQuality, Math.min(0.98, quality));
+    return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob || new Blob()), "image/jpeg", q));
+  }
+
+  function supplierDenBorderPx(w, h) {
+    let border = Math.max(SUPPLIERDEN_MIN_BORDER, Math.round(Math.min(w, h) * SUPPLIERDEN_BORDER_RATIO));
+    const maxSide = Math.max(w, h);
+    if (maxSide + border * 2 > MEESHO_FRAMED_MAX_SIDE) {
+      const capped = Math.floor((MEESHO_FRAMED_MAX_SIDE - maxSide) / 2);
+      if (capped >= 28) border = capped;
+    }
+    return border;
+  }
+
+  function roundRectPath(ctx, x, y, width, height, radius) {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + width, y, x + width, y + height, r);
+    ctx.arcTo(x + width, y + height, x, y + height, r);
+    ctx.arcTo(x, y + height, x, y, r);
+    ctx.arcTo(x, y, x + width, y, r);
+    ctx.closePath();
+  }
+
+  function drawSpecialOfferBadge(ctx, x, y, scale) {
+    const w = 92 * scale;
+    const h = 54 * scale;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-0.14);
+    roundRectPath(ctx, 0, 0, w, h, 7 * scale);
+    ctx.fillStyle = "#D32F2F";
+    ctx.fill();
+    ctx.strokeStyle = "#FFD600";
+    ctx.lineWidth = 2.8 * scale;
+    ctx.stroke();
+    ctx.fillStyle = "#FFD600";
+    ctx.font = `900 ${12 * scale}px Arial,sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("SPECIAL", w / 2, h * 0.34);
+    ctx.fillText("OFFER", w / 2, h * 0.72);
+    ctx.restore();
+  }
+
+  function drawHotSaleBurst(ctx, cx, cy, scale) {
+    const spikes = 14;
+    const outer = 78 * scale;
+    const inner = 34 * scale;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.beginPath();
+    for (let i = 0; i < spikes * 2; i++) {
+      const angle = (Math.PI * i) / spikes - Math.PI / 2;
+      const radius = i % 2 === 0 ? outer : inner;
+      const px = Math.cos(angle) * radius;
+      const py = Math.sin(angle) * radius;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    const grad = ctx.createRadialGradient(0, 0, inner * 0.2, 0, 0, outer);
+    grad.addColorStop(0, "#FFEB3B");
+    grad.addColorStop(0.55, "#FF9800");
+    grad.addColorStop(1, "#E53935");
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = "#B71C1C";
+    ctx.lineWidth = 2.2 * scale;
+    ctx.stroke();
+    ctx.fillStyle = "#FFFFFF";
+    ctx.strokeStyle = "#7F0000";
+    ctx.lineWidth = 1.1 * scale;
+    ctx.font = `900 ${15 * scale}px Arial,sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.strokeText("HOT", 0, -14 * scale);
+    ctx.fillText("HOT", 0, -14 * scale);
+    ctx.font = `900 ${13 * scale}px Arial,sans-serif`;
+    ctx.strokeText("SALE", 0, 4 * scale);
+    ctx.fillText("SALE", 0, 4 * scale);
+    ctx.font = `900 ${11 * scale}px Arial,sans-serif`;
+    ctx.strokeText("BIG SALE", 0, 22 * scale);
+    ctx.fillText("BIG SALE", 0, 22 * scale);
+    ctx.restore();
+  }
+
+  function drawSupplierDenOverlays(ctx, border, photoW, photoH) {
+    const scale = Math.max(0.72, Math.min(1.35, Math.min(photoW, photoH) / 900));
+    drawSpecialOfferBadge(ctx, border + photoW * 0.66, border + photoH * 0.05, scale);
+    drawHotSaleBurst(ctx, border + photoW * 0.16, border + photoH * 0.72, scale * 1.05);
+  }
+
+  function prepareSupplierDenCanvas(img) {
+    let w = img.width;
+    let h = img.height;
+    const max = Math.max(w, h);
+    if (max > MAX_SIDE) {
+      const scale = MAX_SIDE / max;
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+    }
+
+    const border = supplierDenBorderPx(w, h);
+    const fw = w + border * 2;
+    const fh = h + border * 2;
+    const c = document.createElement("canvas");
+    c.width = fw;
+    c.height = fh;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = SUPPLIERDEN_ORANGE;
+    ctx.fillRect(0, 0, fw, fh);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, img.width, img.height, border, border, w, h);
+    drawSupplierDenOverlays(ctx, border, w, h);
+    return c;
+  }
+
+  async function compressBusyToSlab(canvas, slabKb) {
+    const targetBytes = slabKb * 1024;
+    const busyMin = BUSY_MIN_Q;
+    let best = null;
+    let lo = busyMin;
+    let hi = 98;
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      const blob = await blobAtCanvasQuality(canvas, mid / 100, busyMin / 100);
+      if (blob.size <= targetBytes) {
+        best = blob;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    if (best) return best;
+    return blobAtCanvasQuality(canvas, busyMin / 100, busyMin / 100);
+  }
+
+  async function buildVariants(canvas) {
+    const built = [];
+    for (const tier of TIERS_BUSY_BG) {
+      const blob = await compressBusyToSlab(canvas, tier.slabKb);
+      built.push({
+        blob,
+        bytes: blob.size,
+        label: `${tier.label} · ${canvas.width}×${canvas.height}`,
+        recommended: !!tier.recommended,
+        lowest: !!tier.lowest,
+        processingPath: "supplierden",
+        width: canvas.width,
+        height: canvas.height,
+      });
+    }
+    return built;
+  }
+
+  function loadImageFromFile(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(img);
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
+  function loadImageFromUrl(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
+  async function optimizeToVariants(source) {
+    const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
+    const canvas = prepareSupplierDenCanvas(img);
+    return buildVariants(canvas);
+  }
 
   const GUEST_USER = {
     id: "guest-local",
@@ -146,150 +321,6 @@
     persistRequest(id, req);
   }
 
-  function loadImageFromFile(file) {
-    return new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        resolve(img);
-      };
-      img.onerror = reject;
-      img.src = url;
-    });
-  }
-
-  function loadImageFromUrl(src) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = src;
-    });
-  }
-
-  let mozEncodeFn = null;
-  let mozLoadPromise = null;
-
-  /** Wait for mozjpeg WASM — required for real compression (canvas JPEG ~2× larger). */
-  function loadMozjpeg() {
-    if (mozEncodeFn) return Promise.resolve(mozEncodeFn);
-    if (window.__mozEncodeReady) {
-      mozEncodeFn = window.__mozEncodeReady;
-      return Promise.resolve(mozEncodeFn);
-    }
-    if (mozLoadPromise) return mozLoadPromise;
-
-    mozLoadPromise = new Promise((resolve, reject) => {
-      const done = (fn) => {
-        mozEncodeFn = fn;
-        resolve(fn);
-      };
-      const timeout = setTimeout(() => reject(new Error("mozjpeg load timeout")), MOZJPEG_TIMEOUT_MS);
-
-      window.addEventListener(
-        "mozjpeg-ready",
-        () => {
-          clearTimeout(timeout);
-          if (window.__mozEncodeReady) done(window.__mozEncodeReady);
-          else reject(new Error("mozjpeg loader empty"));
-        },
-        { once: true }
-      );
-
-      import(/* webpackIgnore: true */ MOZJPEG_URL())
-        .then((mod) => {
-          clearTimeout(timeout);
-          done(mod.encodeImageData);
-        })
-        .catch((err) => {
-          clearTimeout(timeout);
-          mozLoadPromise = null;
-          reject(err);
-        });
-    });
-
-    return mozLoadPromise;
-  }
-
-  function canvasImageData(canvas) {
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    return ctx.getImageData(0, 0, canvas.width, canvas.height);
-  }
-
-  async function encodeMozjpeg(canvas, quality, whiteRatio, baseline) {
-    const q = Math.max(ABS_MIN_Q, Math.min(100, Math.round(quality)));
-    const encode = await loadMozjpeg();
-    return encode(canvasImageData(canvas), {
-      ...MOZ_BASE,
-      baseline: !!baseline,
-      progressive: !baseline,
-      quality: q,
-      quant_table: 2,
-      trellis_multipass: !baseline,
-      separate_chroma_quality: !baseline,
-      chroma_quality: Math.max(18, Math.round(q * 0.62)),
-    });
-  }
-
-  /** 125b98a — product centered on 2000×2000 white canvas at coverage tier. */
-  function prepareMeeshoCanvas(img, variant) {
-    const canvasSize = MEESHO_CANVAS_SIZE;
-    const productSize = Math.round(canvasSize * variant.coverage);
-    const canvas = document.createElement("canvas");
-    canvas.width = canvasSize;
-    canvas.height = canvasSize;
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvasSize, canvasSize);
-    const scale = Math.min(productSize / img.width, productSize / img.height);
-    const w = Math.round(img.width * scale);
-    const h = Math.round(img.height * scale);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(img, Math.round((canvasSize - w) / 2), Math.round((canvasSize - h) / 2), w, h);
-    return canvas;
-  }
-
-  /** 125b98a — mozjpeg encode, reduce q until under 300 KB. */
-  async function compressToTargetMoz(canvas, quality) {
-    let q = quality;
-    let blob = await encodeMozjpeg(canvas, q, 0, false);
-    while (blob.size > MEESHO_MAX_BYTES && q > 45) {
-      q -= 5;
-      blob = await encodeMozjpeg(canvas, q, 0, false);
-    }
-    return blob;
-  }
-
-  async function buildMeeshoVariants(img) {
-    const built = [];
-    for (const variant of MEESHO_VARIANTS) {
-      const canvas = prepareMeeshoCanvas(img, variant);
-      const blob = await compressToTargetMoz(canvas, variant.quality);
-      built.push({
-        blob,
-        bytes: blob.size,
-        label: `${variant.label} · ${MEESHO_CANVAS_SIZE}×${MEESHO_CANVAS_SIZE}`,
-        recommended: !!variant.recommended,
-        lowest: !!variant.lowest,
-        processingPath: "meesho",
-        width: MEESHO_CANVAS_SIZE,
-        height: MEESHO_CANVAS_SIZE,
-      });
-    }
-    built.sort((a, b) => a.bytes - b.bytes);
-    const minBytes = built[0]?.bytes ?? 0;
-    return built.map((v) => ({ ...v, lowest: v.bytes === minBytes }));
-  }
-
-  async function optimizeToVariants(source) {
-    await loadMozjpeg();
-    const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
-    return buildMeeshoVariants(img);
-  }
-
   function blobToDataUrl(blob) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -380,7 +411,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 30, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 31, platform: "cloudflare-static" },
       };
     }
 
