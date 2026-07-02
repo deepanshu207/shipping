@@ -30,6 +30,8 @@
   const SUPPLIERDEN_MIN_BORDER = 34;
   /** Meesho may tier on max framed side — SupplierDen outputs often cap near 1280px. */
   const MEESHO_FRAMED_MAX_SIDE = 1280;
+  /** Draw stickers at 2× then downscale — sharper text after JPEG without changing frame size. */
+  const OVERLAY_SUPERSAMPLE = 2;
 
   const STUDIO_CATEGORY_RE =
     /\b(bra|bras|lingerie|panty|panties|underwear|bikini|sports bra|feeding bra|shapewear|camisole|nighty|nightwear|blouse|petticoat)\b/i;
@@ -480,33 +482,72 @@
     ctx.closePath();
   }
 
-  function drawSpecialOfferBadge(ctx, x, y, scale) {
+  function drawStickerText(ctx, text, x, y, fontSize, scale, options = {}) {
+    const weight = options.weight ?? 900;
+    const fill = options.fill ?? "#FFFFFF";
+    const stroke = options.stroke ?? "#7F0000";
+    const strokeWidth = (options.strokeWidth ?? 1.35) * scale;
+    ctx.font = `${weight} ${fontSize * scale}px Arial,Helvetica,sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
+    ctx.miterLimit = 2;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = strokeWidth;
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = fill;
+    ctx.fillText(text, x, y);
+  }
+
+  function renderSpecialOfferBadge(scale) {
     const w = 92 * scale;
     const h = 54 * scale;
-    ctx.save();
-    ctx.translate(x, y);
+    const pad = 8 * scale;
+    const bw = w + pad * 2;
+    const bh = h + pad * 2;
+    const ss = OVERLAY_SUPERSAMPLE;
+    const c = document.createElement("canvas");
+    c.width = Math.ceil(bw * ss);
+    c.height = Math.ceil(bh * ss);
+    const ctx = c.getContext("2d");
+    ctx.scale(ss, ss);
+    ctx.translate(pad, pad);
     ctx.rotate(-0.14);
     roundRectPath(ctx, 0, 0, w, h, 7 * scale);
     ctx.fillStyle = "#D32F2F";
     ctx.fill();
     ctx.strokeStyle = "#FFD600";
-    ctx.lineWidth = 2.8 * scale;
+    ctx.lineWidth = 3 * scale;
     ctx.stroke();
-    ctx.fillStyle = "#FFD600";
-    ctx.font = `900 ${12 * scale}px Arial,sans-serif`;
+    const fontSize = 12.5 * scale;
+    ctx.font = `900 ${fontSize}px Arial,Helvetica,sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 0.55 * scale;
+    ctx.strokeStyle = "#B71C1C";
+    ctx.fillStyle = "#FFD600";
+    ctx.strokeText("SPECIAL", w / 2, h * 0.34);
     ctx.fillText("SPECIAL", w / 2, h * 0.34);
+    ctx.strokeText("OFFER", w / 2, h * 0.72);
     ctx.fillText("OFFER", w / 2, h * 0.72);
-    ctx.restore();
+    return { canvas: c, width: bw, height: bh };
   }
 
-  function drawHotSaleBurst(ctx, cx, cy, scale) {
+  function renderHotSaleBurst(scale) {
     const spikes = 14;
     const outer = 78 * scale;
     const inner = 34 * scale;
-    ctx.save();
-    ctx.translate(cx, cy);
+    const pad = 14 * scale;
+    const size = outer * 2 + pad * 2;
+    const center = size / 2;
+    const ss = OVERLAY_SUPERSAMPLE;
+    const c = document.createElement("canvas");
+    c.width = Math.ceil(size * ss);
+    c.height = Math.ceil(size * ss);
+    const ctx = c.getContext("2d");
+    ctx.scale(ss, ss);
+    ctx.translate(center, center);
     ctx.beginPath();
     for (let i = 0; i < spikes * 2; i++) {
       const angle = (Math.PI * i) / spikes - Math.PI / 2;
@@ -524,29 +565,28 @@
     ctx.fillStyle = grad;
     ctx.fill();
     ctx.strokeStyle = "#B71C1C";
-    ctx.lineWidth = 2.2 * scale;
+    ctx.lineWidth = 2.4 * scale;
     ctx.stroke();
-    ctx.fillStyle = "#FFFFFF";
-    ctx.strokeStyle = "#7F0000";
-    ctx.lineWidth = 1.1 * scale;
-    ctx.font = `900 ${15 * scale}px Arial,sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.strokeText("HOT", 0, -14 * scale);
-    ctx.fillText("HOT", 0, -14 * scale);
-    ctx.font = `900 ${13 * scale}px Arial,sans-serif`;
-    ctx.strokeText("SALE", 0, 4 * scale);
-    ctx.fillText("SALE", 0, 4 * scale);
-    ctx.font = `900 ${11 * scale}px Arial,sans-serif`;
-    ctx.strokeText("BIG SALE", 0, 22 * scale);
-    ctx.fillText("BIG SALE", 0, 22 * scale);
-    ctx.restore();
+    drawStickerText(ctx, "HOT", 0, -14 * scale, 15, scale, { strokeWidth: 1.5 });
+    drawStickerText(ctx, "SALE", 0, 4 * scale, 13, scale, { strokeWidth: 1.45 });
+    drawStickerText(ctx, "BIG SALE", 0, 22 * scale, 12, scale, { strokeWidth: 1.6 });
+    return { canvas: c, width: size, height: size };
   }
 
   function drawSupplierDenOverlays(ctx, border, photoW, photoH) {
-    const scale = Math.max(0.72, Math.min(1.35, Math.min(photoW, photoH) / 900));
-    drawSpecialOfferBadge(ctx, border + photoW * 0.66, border + photoH * 0.05, scale);
-    drawHotSaleBurst(ctx, border + photoW * 0.16, border + photoH * 0.72, scale * 1.05);
+    const scale = Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
+    const badge = renderSpecialOfferBadge(scale);
+    const burst = renderHotSaleBurst(scale * 1.05);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(badge.canvas, border + photoW * 0.66, border + photoH * 0.05, badge.width, badge.height);
+    ctx.drawImage(
+      burst.canvas,
+      border + photoW * 0.16 - burst.width / 2,
+      border + photoH * 0.72 - burst.height / 2,
+      burst.width,
+      burst.height
+    );
   }
 
   /** SupplierDen-style orange frame + sale stickers — photo scaled to Meesho framed cap. */
@@ -786,7 +826,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 34, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 35, platform: "cloudflare-static" },
       };
     }
 
