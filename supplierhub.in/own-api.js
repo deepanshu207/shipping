@@ -15,6 +15,27 @@
     { targetKb: 24, label: "Standard" },
     { targetKb: 26, label: "High detail" },
   ];
+  /** Smaller white-studio targets — push below typical ₹66 tier on Meesho. */
+  const TIERS_STUDIO_ULTRA = [
+    { targetKb: 16, label: "Ultra minimum · verify ₹ on Meesho", lowest: true },
+    { targetKb: 18, label: "Recommended · lowest studio", recommended: true },
+    { targetKb: 20, label: "Standard ultra" },
+    { targetKb: 22, label: "High detail backup" },
+  ];
+  /** Mid slabs — matches ₹66–₹71 uploads some sellers see on Meesho. */
+  const TIERS_FRAMED_LOW = [
+    { slabKb: 64, label: "Lowest · try on Meesho first", lowest: true },
+    { slabKb: 66, label: "Recommended · ₹66 slab", recommended: true },
+    { slabKb: 68, label: "Balanced" },
+    { slabKb: 71, label: "₹71 backup" },
+  ];
+  /** SupplierDen parity — larger files, same 1280px framed cap; Meesho may still tier on dimensions. */
+  const TIERS_FRAMED_SUPPLIERDEN = [
+    { slabKb: 177, label: "SupplierDen ~177 KB", lowest: true },
+    { slabKb: 185, label: "Recommended · large file low ₹", recommended: true },
+    { slabKb: 193, label: "Standard SupplierDen" },
+    { slabKb: 200, label: "High detail · SupplierDen match" },
+  ];
 
   const WHITE_TOL = 42;
   const WHITE_BG_THRESHOLD = 0.62;
@@ -242,8 +263,9 @@
     return ctx.getImageData(0, 0, canvas.width, canvas.height);
   }
 
-  async function encodeMozjpeg(canvas, quality, whiteRatio, baseline) {
-    const q = Math.max(ABS_MIN_Q, Math.min(100, Math.round(quality)));
+  async function encodeMozjpeg(canvas, quality, whiteRatio, baseline, minQFloor) {
+    const floor = minQFloor ?? ABS_MIN_Q;
+    const q = Math.max(floor, Math.min(100, Math.round(quality)));
     const encode = await loadMozjpeg();
     return encode(canvasImageData(canvas), {
       ...MOZ_BASE,
@@ -257,13 +279,13 @@
     });
   }
 
-  async function encodeAtQuality(canvas, quality, floor, whiteRatio, studio) {
+  async function encodeAtQuality(canvas, quality, floor, whiteRatio, studio, minQFloor) {
     const minQ = floor ?? adaptiveMinQ(whiteRatio ?? 0);
     const q = Math.max(minQ, Math.min(100, Math.round(quality)));
     if (!studio) {
       return blobAtCanvasQuality(canvas, q / 100);
     }
-    return encodeMozjpeg(canvas, q, whiteRatio, false);
+    return encodeMozjpeg(canvas, q, whiteRatio, false, minQFloor);
   }
 
   function blobAtCanvasQuality(canvas, quality, minQuality = 0.28) {
@@ -425,22 +447,94 @@
     return isStudioWhiteBackground(img);
   }
 
-  function supplierDenBorderPx(w, h) {
+  /** Explicit compression profile from UI tag — legacy Studio/Framed tags keep prior behavior. */
+  function resolveProcessingProfile(img, tagName) {
+    const tag = String(tagName || "").toLowerCase();
+
+    if (tag.includes("studio ultra")) {
+      return { id: "studio_ultra", studio: true, tiers: TIERS_STUDIO_ULTRA, path: "studio_ultra", absMinQ: 14 };
+    }
+    if (tag.includes("framed supplierden") || tag.includes("supplierden match")) {
+      return {
+        id: "framed_supplierden",
+        studio: false,
+        tiers: TIERS_FRAMED_SUPPLIERDEN,
+        path: "supplierden_heavy",
+        framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+      };
+    }
+    if (tag.includes("framed best") || tag.includes("framed low") || tag.includes("framed minimum")) {
+      return {
+        id: "framed_low",
+        studio: false,
+        tiers: TIERS_FRAMED_LOW,
+        path: "framed_low",
+        framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+      };
+    }
+    if (tag.includes("framed compact") || tag.includes("compact frame")) {
+      return {
+        id: "framed_compact",
+        studio: false,
+        tiers: TIERS_FRAMED_LOW,
+        path: "framed_compact",
+        framedMaxSide: 1024,
+      };
+    }
+    if (tag.includes("auto detect")) {
+      const studio = resolveStudioMode(img, tagName);
+      return studio
+        ? { id: "studio", studio: true, tiers: TIERS_WHITE_BG, path: "studio" }
+        : {
+            id: "framed",
+            studio: false,
+            tiers: TIERS_BUSY_BG,
+            path: "supplierden",
+            framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+          };
+    }
+
+    if (tag.includes("indoor") || tag.includes("busy") || INDOOR_CATEGORY_RE.test(tag)) {
+      return {
+        id: "framed",
+        studio: false,
+        tiers: TIERS_BUSY_BG,
+        path: "supplierden",
+        framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+      };
+    }
+    if (tag.includes("studio") || tag.includes("white studio") || STUDIO_CATEGORY_RE.test(tag)) {
+      return { id: "studio", studio: true, tiers: TIERS_WHITE_BG, path: "studio" };
+    }
+
+    const studio = isStudioWhiteBackground(img);
+    return studio
+      ? { id: "studio", studio: true, tiers: TIERS_WHITE_BG, path: "studio" }
+      : {
+          id: "framed",
+          studio: false,
+          tiers: TIERS_BUSY_BG,
+          path: "supplierden",
+          framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+        };
+  }
+
+  function supplierDenBorderPx(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
     let border = Math.max(SUPPLIERDEN_MIN_BORDER, Math.round(Math.min(w, h) * SUPPLIERDEN_BORDER_RATIO));
     const maxSide = Math.max(w, h);
-    if (maxSide + border * 2 > MEESHO_FRAMED_MAX_SIDE) {
-      const capped = Math.floor((MEESHO_FRAMED_MAX_SIDE - maxSide) / 2);
+    if (maxSide + border * 2 > framedMaxSide) {
+      const capped = Math.floor((framedMaxSide - maxSide) / 2);
       if (capped >= 28) border = capped;
     }
     return border;
   }
 
-  function supplierDenFramedMaxSide(w, h) {
-    return Math.max(w, h) + supplierDenBorderPx(w, h) * 2;
+  function supplierDenFramedMaxSide(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
+    return Math.max(w, h) + supplierDenBorderPx(w, h, framedMaxSide) * 2;
   }
 
   /** Proportional downscale only — keeps aspect ratio, no crop; Meesho tiers on framed max side (~1280). */
-  function fitSupplierDenPhotoDims(w, h) {
+  function fitSupplierDenPhotoDims(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
     let nw = w;
     let nh = h;
     const max0 = Math.max(nw, nh);
@@ -449,9 +543,9 @@
       nw = Math.round(nw * scale);
       nh = Math.round(nh * scale);
     }
-    for (let i = 0; i < 12 && supplierDenFramedMaxSide(nw, nh) > MEESHO_FRAMED_MAX_SIDE; i++) {
-      const framed = supplierDenFramedMaxSide(nw, nh);
-      const scale = (MEESHO_FRAMED_MAX_SIDE - 1) / framed;
+    for (let i = 0; i < 12 && supplierDenFramedMaxSide(nw, nh, framedMaxSide) > framedMaxSide; i++) {
+      const framed = supplierDenFramedMaxSide(nw, nh, framedMaxSide);
+      const scale = (framedMaxSide - 1) / framed;
       nw = Math.max(1, Math.round(nw * scale));
       nh = Math.max(1, Math.round(nh * scale));
     }
@@ -590,12 +684,12 @@
   }
 
   /** SupplierDen-style orange frame + sale stickers — photo scaled to Meesho framed cap. */
-  function prepareSupplierDenCanvas(img) {
-    const fitted = fitSupplierDenPhotoDims(img.width, img.height);
+  function prepareSupplierDenCanvas(img, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
+    const fitted = fitSupplierDenPhotoDims(img.width, img.height, framedMaxSide);
     const w = fitted.w;
     const h = fitted.h;
 
-    const border = supplierDenBorderPx(w, h);
+    const border = supplierDenBorderPx(w, h, framedMaxSide);
     const fw = w + border * 2;
     const fh = h + border * 2;
     const c = document.createElement("canvas");
@@ -612,8 +706,8 @@
   }
 
   /** Exact upload dimensions — never upscale; cap max side at 2000 only. */
-  function prepareCanvas(img, studio) {
-    if (!studio) return prepareSupplierDenCanvas(img);
+  function prepareCanvas(img, studio, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
+    if (!studio) return prepareSupplierDenCanvas(img, framedMaxSide);
 
     let w = img.width;
     let h = img.height;
@@ -670,20 +764,20 @@
   }
 
   /** Hit byte target for studio white-bg photos (mozjpeg). */
-  async function compressCanvas(canvas, targetBytes, minQ, whiteRatio, studio) {
+  async function compressCanvas(canvas, targetBytes, minQ, whiteRatio, studio, absMinOverride) {
     if (!studio) {
       throw new Error("compressCanvas is studio-only; use compressBusyAtQuality for busy photos");
     }
 
-    const absMin = adaptiveAbsMinQ(whiteRatio);
+    const absMin = absMinOverride ?? adaptiveAbsMinQ(whiteRatio);
     let lo = minQ;
     let hi = 92;
-    let best = await encodeMozjpeg(canvas, minQ, whiteRatio, false);
+    let best = await encodeMozjpeg(canvas, minQ, whiteRatio, false, absMin);
 
     if (best.size <= targetBytes) {
       while (hi - lo > 1) {
         const mid = Math.floor((lo + hi) / 2);
-        const blob = await encodeMozjpeg(canvas, mid, whiteRatio, false);
+        const blob = await encodeMozjpeg(canvas, mid, whiteRatio, false, absMin);
         if (blob.size <= targetBytes) {
           best = blob;
           lo = mid;
@@ -691,12 +785,12 @@
           hi = mid;
         }
       }
-      const top = await encodeMozjpeg(canvas, lo, whiteRatio, false);
+      const top = await encodeMozjpeg(canvas, lo, whiteRatio, false, absMin);
       if (top.size <= targetBytes) return top;
     }
 
     for (let q = minQ - 1; q >= absMin && best.size > targetBytes; q--) {
-      const blob = await encodeMozjpeg(canvas, q, whiteRatio, false);
+      const blob = await encodeMozjpeg(canvas, q, whiteRatio, false, absMin);
       if (blob.size <= targetBytes) return blob;
       if (blob.size < best.size) best = blob;
     }
@@ -704,14 +798,19 @@
     return best;
   }
 
-  async function buildVariants(canvas, whiteRatio, studio) {
+  async function buildVariants(canvas, whiteRatio, profile) {
     const minQ = adaptiveMinQ(whiteRatio);
-    const tiers = studio ? TIERS_WHITE_BG : TIERS_BUSY_BG;
-    const processingPath = studio ? "studio" : "supplierden";
     const built = [];
-    for (const tier of tiers) {
-      const blob = studio
-        ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true)
+    for (const tier of profile.tiers) {
+      const blob = profile.studio
+        ? await compressCanvas(
+            canvas,
+            tier.targetKb * 1024,
+            minQ,
+            whiteRatio,
+            true,
+            profile.absMinQ
+          )
         : await compressBusyToSlab(canvas, tier.slabKb);
       built.push({
         blob,
@@ -719,7 +818,7 @@
         label: `${tier.label} · ${canvas.width}×${canvas.height}`,
         recommended: !!tier.recommended,
         lowest: !!tier.lowest,
-        processingPath,
+        processingPath: profile.path,
         width: canvas.width,
         height: canvas.height,
       });
@@ -730,10 +829,10 @@
   async function optimizeToVariants(source, tagName) {
     await loadMozjpeg();
     const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
-    const studio = resolveStudioMode(img, tagName);
-    const canvas = prepareCanvas(img, studio);
+    const profile = resolveProcessingProfile(img, tagName);
+    const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide);
     const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
-    return buildVariants(canvas, whiteRatio, studio);
+    return buildVariants(canvas, whiteRatio, profile);
   }
 
   function blobToDataUrl(blob) {

@@ -14,6 +14,27 @@ const TIERS_WHITE_BG = [
   { targetKb: 26, label: "High detail" },
 ];
 
+const TIERS_STUDIO_ULTRA = [
+  { targetKb: 16, label: "Ultra minimum · verify ₹ on Meesho", lowest: true },
+  { targetKb: 18, label: "Recommended · lowest studio", recommended: true },
+  { targetKb: 20, label: "Standard ultra" },
+  { targetKb: 22, label: "High detail backup" },
+];
+
+const TIERS_FRAMED_LOW = [
+  { slabKb: 64, label: "Lowest · try on Meesho first", lowest: true },
+  { slabKb: 66, label: "Recommended · ₹66 slab", recommended: true },
+  { slabKb: 68, label: "Balanced" },
+  { slabKb: 71, label: "₹71 backup" },
+];
+
+const TIERS_FRAMED_SUPPLIERDEN = [
+  { slabKb: 177, label: "SupplierDen ~177 KB", lowest: true },
+  { slabKb: 185, label: "Recommended · large file low ₹", recommended: true },
+  { slabKb: 193, label: "Standard SupplierDen" },
+  { slabKb: 200, label: "High detail · SupplierDen match" },
+];
+
 const WHITE_TOL = 42;
 const WHITE_BG_THRESHOLD = 0.62;
 const ABS_MIN_Q = 18;
@@ -28,22 +49,22 @@ const STUDIO_CATEGORY_RE =
   /\b(bra|bras|lingerie|panty|panties|underwear|bikini|sports bra|feeding bra|shapewear|camisole|nighty|nightwear|blouse|petticoat)\b/i;
 const INDOOR_CATEGORY_RE = /\b(raincoat|rain coat|rainwear|men raincoat)\b/i;
 
-function supplierDenBorderPx(w, h) {
+function supplierDenBorderPx(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
   let border = Math.max(SUPPLIERDEN_MIN_BORDER, Math.round(Math.min(w, h) * SUPPLIERDEN_BORDER_RATIO));
   const maxSide = Math.max(w, h);
-  if (maxSide + border * 2 > MEESHO_FRAMED_MAX_SIDE) {
-    const capped = Math.floor((MEESHO_FRAMED_MAX_SIDE - maxSide) / 2);
+  if (maxSide + border * 2 > framedMaxSide) {
+    const capped = Math.floor((framedMaxSide - maxSide) / 2);
     if (capped >= 28) border = capped;
   }
   return border;
 }
 
-function supplierDenFramedMaxSide(w, h) {
-  return Math.max(w, h) + supplierDenBorderPx(w, h) * 2;
+function supplierDenFramedMaxSide(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
+  return Math.max(w, h) + supplierDenBorderPx(w, h, framedMaxSide) * 2;
 }
 
-/** Proportional downscale — framed max side ≤ 1280 (Meesho shipping tier). */
-function fitSupplierDenPhotoDims(w, h) {
+/** Proportional downscale — framed max side ≤ cap (Meesho shipping tier). */
+function fitSupplierDenPhotoDims(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
   let nw = w;
   let nh = h;
   const max0 = Math.max(nw, nh);
@@ -52,9 +73,9 @@ function fitSupplierDenPhotoDims(w, h) {
     nw = Math.round(nw * scale);
     nh = Math.round(nh * scale);
   }
-  for (let i = 0; i < 12 && supplierDenFramedMaxSide(nw, nh) > MEESHO_FRAMED_MAX_SIDE; i++) {
-    const framed = supplierDenFramedMaxSide(nw, nh);
-    const scale = (MEESHO_FRAMED_MAX_SIDE - 1) / framed;
+  for (let i = 0; i < 12 && supplierDenFramedMaxSide(nw, nh, framedMaxSide) > framedMaxSide; i++) {
+    const framed = supplierDenFramedMaxSide(nw, nh, framedMaxSide);
+    const scale = (framedMaxSide - 1) / framed;
     nw = Math.max(1, Math.round(nw * scale));
     nh = Math.max(1, Math.round(nh * scale));
   }
@@ -108,8 +129,8 @@ function hotSaleSvg(scale) {
   </svg>`);
 }
 
-async function prepareSupplierDenBuffer(buffer, width, height) {
-  const border = supplierDenBorderPx(width, height);
+async function prepareSupplierDenBuffer(buffer, width, height, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
+  const border = supplierDenBorderPx(width, height, framedMaxSide);
   const fw = width + border * 2;
   const fh = height + border * 2;
   const scale = Math.max(0.78, Math.min(1.35, Math.min(width, height) / 900));
@@ -144,8 +165,8 @@ export function kbFromBytes(bytes) {
   return Math.max(1, Math.ceil(bytes / 1024));
 }
 
-function mozjpeg(buffer, quality, whiteRatio = 0) {
-  const q = Math.max(ABS_MIN_Q, quality);
+function mozjpeg(buffer, quality, whiteRatio = 0, minQFloor = ABS_MIN_Q) {
+  const q = Math.max(minQFloor, quality);
   return sharp(buffer).jpeg({
     quality: q,
     mozjpeg: true,
@@ -168,11 +189,11 @@ function standardJpeg(buffer, quality, minQ = BUSY_MIN_Q) {
   });
 }
 
-async function encodeAtQuality(buffer, quality, floor, whiteRatio = 0, studio = false) {
+async function encodeAtQuality(buffer, quality, floor, whiteRatio = 0, studio = false, minQFloor) {
   const minQ = floor ?? adaptiveMinQ(whiteRatio);
   const q = Math.max(minQ, quality);
   if (studio) {
-    return mozjpeg(buffer, q, whiteRatio).toBuffer();
+    return mozjpeg(buffer, q, whiteRatio, minQFloor ?? ABS_MIN_Q).toBuffer();
   }
   return standardJpeg(buffer, q).toBuffer();
 }
@@ -334,6 +355,77 @@ function resolveStudioMode(buffer, categoryName) {
   return isStudioWhiteBackground(buffer);
 }
 
+function resolveProcessingProfile(buffer, categoryName) {
+  const tag = String(categoryName || "").toLowerCase();
+
+  if (tag.includes("studio ultra")) {
+    return { id: "studio_ultra", studio: true, tiers: TIERS_STUDIO_ULTRA, path: "studio_ultra", absMinQ: 14 };
+  }
+  if (tag.includes("framed supplierden") || tag.includes("supplierden match")) {
+    return {
+      id: "framed_supplierden",
+      studio: false,
+      tiers: TIERS_FRAMED_SUPPLIERDEN,
+      path: "supplierden_heavy",
+      framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+    };
+  }
+  if (tag.includes("framed best") || tag.includes("framed low") || tag.includes("framed minimum")) {
+    return {
+      id: "framed_low",
+      studio: false,
+      tiers: TIERS_FRAMED_LOW,
+      path: "framed_low",
+      framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+    };
+  }
+  if (tag.includes("framed compact") || tag.includes("compact frame")) {
+    return {
+      id: "framed_compact",
+      studio: false,
+      tiers: TIERS_FRAMED_LOW,
+      path: "framed_compact",
+      framedMaxSide: 1024,
+    };
+  }
+  if (tag.includes("auto detect")) {
+    const studio = resolveStudioMode(buffer, categoryName);
+    return studio
+      ? { id: "studio", studio: true, tiers: TIERS_WHITE_BG, path: "studio" }
+      : {
+          id: "framed",
+          studio: false,
+          tiers: TIERS_BUSY_BG,
+          path: "supplierden",
+          framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+        };
+  }
+
+  if (tag.includes("indoor") || tag.includes("busy") || INDOOR_CATEGORY_RE.test(tag)) {
+    return {
+      id: "framed",
+      studio: false,
+      tiers: TIERS_BUSY_BG,
+      path: "supplierden",
+      framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+    };
+  }
+  if (tag.includes("studio") || tag.includes("white studio") || STUDIO_CATEGORY_RE.test(tag)) {
+    return { id: "studio", studio: true, tiers: TIERS_WHITE_BG, path: "studio" };
+  }
+
+  const studio = isStudioWhiteBackground(buffer);
+  return studio
+    ? { id: "studio", studio: true, tiers: TIERS_WHITE_BG, path: "studio" }
+    : {
+        id: "framed",
+        studio: false,
+        tiers: TIERS_BUSY_BG,
+        path: "supplierden",
+        framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+      };
+}
+
 function adaptiveMinQ(whiteRatio) {
   if (whiteRatio >= 0.78) return 24;
   if (whiteRatio >= 0.68) return 26;
@@ -391,20 +483,20 @@ async function compressBusyToSlab(buffer, slabKb) {
   return compressBusyToSlabOnce(work, slabKb);
 }
 
-async function compressToTarget(buffer, targetBytes, minQ, whiteRatio, studio) {
+async function compressToTarget(buffer, targetBytes, minQ, whiteRatio, studio, absMinOverride) {
   if (!studio) {
     throw new Error("compressToTarget is studio-only; use compressBusyToSlab for busy photos");
   }
 
-  const absMin = adaptiveAbsMinQ(whiteRatio);
+  const absMin = absMinOverride ?? adaptiveAbsMinQ(whiteRatio);
   let lo = minQ;
   let hi = 92;
-  let best = await encodeAtQuality(buffer, lo, lo, whiteRatio, studio);
+  let best = await encodeAtQuality(buffer, lo, lo, whiteRatio, studio, absMin);
 
   if (best.length <= targetBytes) {
     while (hi - lo > 1) {
       const mid = Math.floor((lo + hi) / 2);
-      const out = await encodeAtQuality(buffer, mid, lo, whiteRatio, studio);
+      const out = await encodeAtQuality(buffer, mid, lo, whiteRatio, studio, absMin);
       if (out.length <= targetBytes) {
         best = out;
         lo = mid;
@@ -412,12 +504,12 @@ async function compressToTarget(buffer, targetBytes, minQ, whiteRatio, studio) {
         hi = mid;
       }
     }
-    const top = await encodeAtQuality(buffer, lo, lo, whiteRatio, studio);
+    const top = await encodeAtQuality(buffer, lo, lo, whiteRatio, studio, absMin);
     if (top.length <= targetBytes) return top;
   }
 
   for (let q = lo - 1; q >= absMin && best.length > targetBytes; q--) {
-    const out = await encodeAtQuality(buffer, q, absMin, whiteRatio, studio);
+    const out = await encodeAtQuality(buffer, q, absMin, whiteRatio, studio, absMin);
     if (out.length <= targetBytes) return out;
     if (out.length < best.length) best = out;
   }
@@ -425,7 +517,7 @@ async function compressToTarget(buffer, targetBytes, minQ, whiteRatio, studio) {
   return best;
 }
 
-export async function prepareInput(imageBuffer, studio) {
+export async function prepareInput(imageBuffer, profile) {
   const inputBytes = imageBuffer.length;
   let buffer = await sharp(imageBuffer).rotate().toBuffer();
 
@@ -443,7 +535,9 @@ export async function prepareInput(imageBuffer, studio) {
   }
 
   let whiteRatio = 0;
-  if (studio) {
+  const framedMaxSide = profile.framedMaxSide ?? MEESHO_FRAMED_MAX_SIDE;
+
+  if (profile.studio) {
     const rawCheck = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     whiteRatio = measureNearWhiteRatioRaw(
       rawCheck.data,
@@ -453,7 +547,7 @@ export async function prepareInput(imageBuffer, studio) {
     );
   } else {
     buffer = await sharp(buffer).flatten({ background: { r: 255, g: 255, b: 255 } }).toBuffer();
-    const fitted = fitSupplierDenPhotoDims(w, h);
+    const fitted = fitSupplierDenPhotoDims(w, h, framedMaxSide);
     if (fitted.w !== w || fitted.h !== h) {
       buffer = await sharp(buffer)
         .resize(fitted.w, fitted.h, { fit: "fill" })
@@ -461,7 +555,7 @@ export async function prepareInput(imageBuffer, studio) {
       w = fitted.w;
       h = fitted.h;
     }
-    const framed = await prepareSupplierDenBuffer(buffer, w, h);
+    const framed = await prepareSupplierDenBuffer(buffer, w, h, framedMaxSide);
     buffer = framed.buffer;
     w = framed.width;
     h = framed.height;
@@ -474,13 +568,28 @@ export async function prepareInput(imageBuffer, studio) {
     );
   }
 
-  return { buffer, width: w, height: h, inputBytes, whiteRatio, minQ: adaptiveMinQ(whiteRatio), studio };
+  return {
+    buffer,
+    width: w,
+    height: h,
+    inputBytes,
+    whiteRatio,
+    minQ: adaptiveMinQ(whiteRatio),
+    studio: profile.studio,
+    profile,
+  };
 }
 
 async function buildVariant(prepared, tier) {
-  const processingPath = prepared.studio ? "studio" : "supplierden";
-  const jpeg = prepared.studio
-    ? await compressToTarget(prepared.buffer, tier.targetKb * 1024, prepared.minQ, prepared.whiteRatio, true)
+  const jpeg = prepared.profile.studio
+    ? await compressToTarget(
+        prepared.buffer,
+        tier.targetKb * 1024,
+        prepared.minQ,
+        prepared.whiteRatio,
+        true,
+        prepared.profile.absMinQ
+      )
     : await compressBusyToSlab(prepared.buffer, tier.slabKb);
 
   return {
@@ -492,18 +601,17 @@ async function buildVariant(prepared, tier) {
     lowest: !!tier.lowest,
     width: prepared.width,
     height: prepared.height,
-    processingPath,
+    processingPath: prepared.profile.path,
   };
 }
 
 export async function generateAllVariants(imageBuffer, categoryName) {
   const rotated = await sharp(imageBuffer).rotate().toBuffer();
-  const studio = await resolveStudioMode(rotated, categoryName);
-  const prepared = await prepareInput(imageBuffer, studio);
-  const tiers = studio ? TIERS_WHITE_BG : TIERS_BUSY_BG;
+  const profile = resolveProcessingProfile(rotated, categoryName);
+  const prepared = await prepareInput(imageBuffer, profile);
   const built = [];
 
-  for (const tier of tiers) {
+  for (const tier of profile.tiers) {
     built.push(await buildVariant(prepared, tier));
   }
 

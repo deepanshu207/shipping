@@ -59,7 +59,7 @@
     .dark .theme-btn .sun { display: none; }
     .dark .theme-btn .moon { display: block; }
     .main {
-      position: relative; z-index: 1; max-width: 720px; margin: 0 auto;
+      position: relative; z-index: 1; max-width: 820px; margin: 0 auto;
       padding: 1.75rem 1.15rem 2.5rem;
     }
     .subtitle {
@@ -74,25 +74,28 @@
       font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
       color: var(--muted); margin: 0 0 0.85rem;
     }
-    .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-    @media (max-width: 520px) { .modes { grid-template-columns: 1fr; } }
+    .modes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+    @media (min-width: 640px) { .modes { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 420px) { .modes { grid-template-columns: 1fr; } }
     .mode {
       text-align: left; font: inherit; color: inherit; cursor: pointer;
-      border: 2px solid var(--border); border-radius: 1rem; padding: 1rem;
+      border: 2px solid var(--border); border-radius: 1rem; padding: 0.9rem;
       background: var(--surface); transition: 0.15s ease;
     }
     .mode:hover { transform: translateY(-1px); }
-    .mode.selected.studio { border-color: var(--emerald); box-shadow: 0 0 0 3px rgb(5 150 105 / 0.15); }
+    .mode.selected { border-color: var(--emerald); box-shadow: 0 0 0 3px rgb(5 150 105 / 0.15); }
     .mode.selected.framed { border-color: var(--orange); box-shadow: 0 0 0 3px rgb(255 121 0 / 0.15); }
-    .mode-title { font-size: 1rem; font-weight: 800; margin: 0 0 0.35rem; }
-    .mode-for { font-size: 0.8125rem; color: var(--muted); margin: 0; line-height: 1.4; }
+    .mode.selected.auto { border-color: #6366f1; box-shadow: 0 0 0 3px rgb(99 102 241 / 0.15); }
+    .mode-title { font-size: 0.92rem; font-weight: 800; margin: 0 0 0.3rem; line-height: 1.25; }
+    .mode-for { font-size: 0.75rem; color: var(--muted); margin: 0; line-height: 1.35; }
     .mode-for b { color: var(--text); font-weight: 700; }
     .mode-tag {
-      display: inline-block; margin-top: 0.65rem; font-size: 0.65rem; font-weight: 800;
-      text-transform: uppercase; letter-spacing: 0.04em; padding: 0.3rem 0.55rem; border-radius: 999px;
+      display: inline-block; margin-top: 0.55rem; font-size: 0.6rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.04em; padding: 0.25rem 0.45rem; border-radius: 999px;
     }
     .mode.studio .mode-tag { background: #ecfdf5; color: var(--emerald-dark); }
     .mode.framed .mode-tag { background: #fff7ed; color: #c2410c; }
+    .mode.auto .mode-tag { background: #eef2ff; color: #4338ca; }
     .upload { margin-top: 1.35rem; }
     .drop {
       border: 2px dashed var(--border); border-radius: 1rem; min-height: 11rem;
@@ -182,7 +185,7 @@
   </header>
 
   <main class="main">
-    <p class="subtitle">Choose Studio or Framed, upload your product photo, download optimized JPEGs.</p>
+    <p class="subtitle">Pick a compression strategy, upload your product photo, download optimized JPEGs. Try multiple modes to find the lowest Meesho shipping rate.</p>
 
     <!-- FORM -->
     <section class="card" id="panel-form">
@@ -191,12 +194,32 @@
         <button type="button" class="mode studio selected" data-id="mo_studio" data-tag="White studio product" data-name="Studio Compress">
           <p class="mode-title">Studio Compress</p>
           <p class="mode-for"><b>For:</b> White / plain background (bra, lingerie)</p>
-          <span class="mode-tag">White canvas · ~20–26 KB</span>
+          <span class="mode-tag">~20–26 KB</span>
+        </button>
+        <button type="button" class="mode studio" data-id="mo_studio_ultra" data-tag="Studio Ultra white background" data-name="Studio Ultra">
+          <p class="mode-title">Studio Ultra</p>
+          <p class="mode-for"><b>For:</b> Minimum white-studio file size</p>
+          <span class="mode-tag">~16–22 KB · lowest ₹</span>
         </button>
         <button type="button" class="mode framed" data-id="mo_indoor" data-tag="Indoor busy background" data-name="Framed Compress">
           <p class="mode-title">Framed Compress</p>
-          <p class="mode-for"><b>For:</b> Indoor / busy background (raincoat, jacket)</p>
+          <p class="mode-for"><b>For:</b> Indoor / busy background (raincoat)</p>
           <span class="mode-tag">Orange frame · ~91–93 KB</span>
+        </button>
+        <button type="button" class="mode framed" data-id="mo_framed_low" data-tag="Framed Best Rate indoor" data-name="Framed Best Rate">
+          <p class="mode-title">Framed Best Rate</p>
+          <p class="mode-for"><b>For:</b> Mid slabs — targets ₹66–₹71 tier</p>
+          <span class="mode-tag">Orange frame · ~64–71 KB</span>
+        </button>
+        <button type="button" class="mode framed" data-id="mo_framed_sd" data-tag="Framed SupplierDen Match indoor" data-name="Framed SupplierDen">
+          <p class="mode-title">Framed SupplierDen</p>
+          <p class="mode-for"><b>For:</b> Large file like SupplierDen — may still get low ₹</p>
+          <span class="mode-tag">1280px cap · ~177–200 KB</span>
+        </button>
+        <button type="button" class="mode auto" data-id="mo_auto" data-tag="Auto Detect product photo" data-name="Auto Detect">
+          <p class="mode-title">Auto Detect</p>
+          <p class="mode-for"><b>For:</b> Let the app pick Studio or Framed from your photo</p>
+          <span class="mode-tag">Smart routing</span>
         </button>
       </div>
 
@@ -233,7 +256,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=39"></script>
+  <script src="/own-api.js?v=40"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -382,7 +405,7 @@
 
       generateBtn.addEventListener("click", function () {
         if (!selected || !imageFile) {
-          setError(!selected ? "Choose Studio or Framed first." : "Upload an image first.");
+          setError(!selected ? "Choose a compression mode first." : "Upload an image first.");
           return;
         }
         setError("");
