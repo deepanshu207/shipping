@@ -76,7 +76,7 @@
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
   const AUTO_MIN_VARIANTS = 10;
   const AUTO_MAX_VARIANTS = 30;
-  const LINGERIE_MAX_VARIANTS = 14;
+  const LINGERIE_MAX_VARIANTS = 24;
   const AUTO_PROCESS_TIMEOUT_MS = 540000;
   const PROCESS_TIMEOUT_MS = 180000;
   const STALE_BUFFER_MS = 30000;
@@ -121,6 +121,11 @@
   ]);
   /** Meesho may tier on max framed side — pro sellers often cap near 1280px. */
   const MEESHO_FRAMED_MAX_SIDE = 1280;
+  /** 1:1 square studio — wide front+back collages inflate Meesho volumetric tier. */
+  const STUDIO_SQUARE_SIDE = 1200;
+  /** Product fill on square canvas — 82% keeps bra large (68% was too small). */
+  const STUDIO_SQUARE_COVERAGE = 0.82;
+  const WIDE_COLLAGE_RATIO = 1.42;
   /** Draw stickers at 2× then downscale — sharper text after JPEG without changing frame size. */
   const OVERLAY_SUPERSAMPLE = 2;
 
@@ -244,13 +249,23 @@
     return Math.max(1, Math.ceil(bytes / 1024));
   }
 
-  /** Meesho shipping heuristic — framed 1280px cap often tiers on dimensions, not KB alone. */
+  /** Meesho shipping heuristic — framed cap tiers on dimensions; wide studio collages inflate ₹. */
   function estimateMeeshoInr(variant) {
     const fileKb = kb(variant.bytes);
-    const maxSide = Math.max(variant.width || 0, variant.height || 0);
+    const w = variant.width || 0;
+    const h = variant.height || 0;
+    const maxSide = Math.max(w, h);
     const path = variant.processingPath || "";
     if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
       return Math.min(fileKb, 93);
+    }
+    if (path === "studio_square" || (w > 0 && h > 0 && Math.abs(w - h) <= 4)) {
+      return fileKb;
+    }
+    const aspect = w / Math.max(1, h);
+    if (aspect >= WIDE_COLLAGE_RATIO && path.startsWith("studio")) {
+      const volPenalty = Math.round(Math.min(48, (aspect - 1) * 32));
+      return Math.max(fileKb, fileKb + volPenalty);
     }
     return fileKb;
   }
@@ -414,21 +429,78 @@
     return [profileStudioUltra(), profileStudioBalanced(), profileStudio()];
   }
 
-  function prepareLingerieCanvas(img) {
-    const c = prepareCanvas(img, true);
-    flattenBackgroundWhite(c);
-    return c;
+  function isWideCollage(img) {
+    return img.width / Math.max(1, img.height) >= WIDE_COLLAGE_RATIO;
   }
 
-  /** Lingerie-only pipeline — studio compress, full size, no orange frame (pre-cleanup logic). */
+  function withLingerieLayout(profile, layout, priority, suffix = "") {
+    const tag = suffix ? ` ${suffix}` : "";
+    return {
+      ...profile,
+      id: `${profile.id}_${layout}`,
+      modeName: `${profile.modeName}${tag}`.trim(),
+      path: layout === "full" ? profile.path : "studio_square",
+      studioLayout: layout,
+      lingeriePriority: priority,
+      absMinQ: Math.max(profile.absMinQ ?? 0, 22),
+    };
+  }
+
+  /** Lingerie layouts — square/panel first (SupplierDen-style), wide full as backup only. */
+  function lingerieProfilesForImage(img) {
+    const wide = isWideCollage(img);
+    const ultra = { ...profileStudioUltra(), absMinQ: 22 };
+    const balanced = { ...profileStudioBalanced(), absMinQ: 24 };
+    const plans = wide
+      ? [
+          { layout: "panel_left", suffix: "· front panel", priority: 0, tierMode: "ultra" },
+          { layout: "panel_right", suffix: "· back panel", priority: 0, tierMode: "ultra" },
+          { layout: "square", suffix: "· 1:1 square", priority: 1, tierMode: "both" },
+          { layout: "panel_left", suffix: "· front · balanced", priority: 2, tierMode: "balanced" },
+          { layout: "panel_right", suffix: "· back · balanced", priority: 2, tierMode: "balanced" },
+          { layout: "full", suffix: "· wide backup", priority: 8, tierMode: "top2" },
+        ]
+      : [
+          { layout: "square", suffix: "· 1:1 square", priority: 0, tierMode: "both" },
+          { layout: "full", suffix: "", priority: 4, tierMode: "top2" },
+        ];
+
+    const out = [];
+    for (const plan of plans) {
+      let baseProfiles = [];
+      if (plan.tierMode === "ultra") baseProfiles = [ultra];
+      else if (plan.tierMode === "balanced") baseProfiles = [balanced];
+      else if (plan.tierMode === "both") baseProfiles = [ultra, balanced];
+      else if (plan.tierMode === "top2") baseProfiles = [ultra];
+
+      for (const base of baseProfiles) {
+        const tiers =
+          plan.tierMode === "top2" ? base.tiers.slice(0, 2) : base.tiers;
+        out.push({
+          ...withLingerieLayout(base, plan.layout, plan.priority, plan.suffix),
+          tiers,
+        });
+      }
+    }
+    return out.sort((a, b) => (a.lingeriePriority ?? 99) - (b.lingeriePriority ?? 99));
+  }
+
+  function prepareLingerieLayoutCanvas(img, layout) {
+    if (layout === "square") return prepareStudioSquareCanvas(img);
+    if (layout === "panel_left") return prepareStudioPanelCanvas(img, "left");
+    if (layout === "panel_right") return prepareStudioPanelCanvas(img, "right");
+    return prepareStudioCanvasFull(img, { gentle: true });
+  }
+
+  /** Lingerie-only pipeline — multi-layout studio, no orange frame, ranked lowest ₹. */
   async function optimizeLingerieAll(img, onProgress) {
-    const profiles = lingerieProfiles();
+    const profiles = lingerieProfilesForImage(img);
     const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
     const allVariants = [];
     let done = 0;
-    const canvas = prepareLingerieCanvas(img);
-    const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
     for (const profile of profiles) {
+      const canvas = prepareLingerieLayoutCanvas(img, profile.studioLayout);
+      const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
       for (const tier of profile.tiers) {
         if (onProgress) {
           onProgress(
@@ -737,7 +809,8 @@
   }
 
   /** Flood-fill edge-connected near-white background to pure #FFF — product pixels untouched. */
-  function flattenBackgroundWhite(canvas) {
+  function flattenBackgroundWhite(canvas, options = {}) {
+    const gentle = !!options.gentle;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     const { width, height } = canvas;
     const img = ctx.getImageData(0, 0, width, height);
@@ -777,16 +850,18 @@
       if (y < height - 1) push(idx + width);
     }
 
-    for (let idx = 0; idx < total; idx++) {
-      const o = idx * 4;
-      if (seen[idx]) continue;
-      const r = d[o];
-      const g = d[o + 1];
-      const b = d[o + 2];
-      if (r >= 248 && g >= 248 && b >= 248 && Math.max(r, g, b) - Math.min(r, g, b) < 10) {
-        d[o] = 255;
-        d[o + 1] = 255;
-        d[o + 2] = 255;
+    if (!gentle) {
+      for (let idx = 0; idx < total; idx++) {
+        const o = idx * 4;
+        if (seen[idx]) continue;
+        const r = d[o];
+        const g = d[o + 1];
+        const b = d[o + 2];
+        if (r >= 248 && g >= 248 && b >= 248 && Math.max(r, g, b) - Math.min(r, g, b) < 10) {
+          d[o] = 255;
+          d[o + 1] = 255;
+          d[o + 2] = 255;
+        }
       }
     }
 
@@ -1295,6 +1370,67 @@
     drawClassicPromoOverlays(ctx, border, photoW, photoH);
   }
 
+  /** 1:1 square white studio — Meesho charges less than wide front+back collages. */
+  function prepareStudioSquareCanvas(source, options = {}) {
+    const side = options.side ?? STUDIO_SQUARE_SIDE;
+    const coverage = options.coverage ?? STUDIO_SQUARE_COVERAGE;
+    const c = document.createElement("canvas");
+    c.width = side;
+    c.height = side;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, side, side);
+    const fitScale = (side * coverage) / Math.max(source.width, source.height);
+    const dw = Math.round(source.width * fitScale);
+    const dh = Math.round(source.height * fitScale);
+    const dx = Math.round((side - dw) / 2);
+    const dy = Math.round((side - dh) / 2);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(source, 0, 0, source.width, source.height, dx, dy, dw, dh);
+    flattenBackgroundWhite(c, { gentle: true });
+    return c;
+  }
+
+  function prepareStudioPanelCanvas(img, panel) {
+    if (!isWideCollage(img)) return prepareStudioSquareCanvas(img);
+    const mid = Math.floor(img.width / 2);
+    const sx = panel === "left" ? 0 : mid;
+    const sw = panel === "left" ? mid : img.width - mid;
+    const panelCanvas = document.createElement("canvas");
+    panelCanvas.width = sw;
+    panelCanvas.height = img.height;
+    const pctx = panelCanvas.getContext("2d");
+    pctx.fillStyle = "#ffffff";
+    pctx.fillRect(0, 0, sw, img.height);
+    pctx.imageSmoothingEnabled = true;
+    pctx.imageSmoothingQuality = "high";
+    pctx.drawImage(img, sx, 0, sw, img.height, 0, 0, sw, img.height);
+    return prepareStudioSquareCanvas(panelCanvas);
+  }
+
+  function prepareStudioCanvasFull(img, options = {}) {
+    let w = img.width;
+    let h = img.height;
+    const max = Math.max(w, h);
+    if (max > MAX_SIDE) {
+      const scale = MAX_SIDE / max;
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+    }
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, w, h);
+    flattenBackgroundWhite(c, { gentle: options.gentle !== false });
+    return c;
+  }
+
   /** Promo frame + stickers — photo scaled to Meesho framed cap. */
   function prepareFramedCanvas(img, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, frameStyle) {
     const style = { ...defaultFrameStyle(), ...(frameStyle || {}) };
@@ -1609,7 +1745,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 50, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 51, platform: "cloudflare-static" },
       };
     }
 
