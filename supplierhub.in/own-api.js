@@ -22,6 +22,13 @@
     { targetKb: 20, label: "Standard ultra" },
     { targetKb: 22, label: "High detail backup" },
   ];
+  /** Full-resolution white studio — targets typical ₹20–₹40 Meesho tier without shrinking pixels. */
+  const TIERS_STUDIO_BALANCED = [
+    { targetKb: 20, label: "₹20 range · full size display", lowest: true },
+    { targetKb: 24, label: "Recommended · ₹20–40 on Meesho", recommended: true },
+    { targetKb: 28, label: "Standard" },
+    { targetKb: 32, label: "High detail backup" },
+  ];
   /** Mid slabs — matches ₹66–₹71 uploads some sellers see on Meesho. */
   const TIERS_FRAMED_LOW = [
     { slabKb: 64, label: "Lowest · try on Meesho first", lowest: true },
@@ -45,6 +52,7 @@
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
   const STALE_PROCESSING_MS = 120000;
   const PROCESS_TIMEOUT_MS = 180000;
+  const AUTO_PROCESS_TIMEOUT_MS = 360000;
   const MOZJPEG_URL = () => new URL("/vendor/mozjpeg.mjs", location.origin).href;
   const SUPPLIERDEN_ORANGE = "#FF7900";
   const SUPPLIERDEN_BORDER_RATIO = 0.048;
@@ -95,6 +103,86 @@
 
   function kb(bytes) {
     return Math.max(1, Math.ceil(bytes / 1024));
+  }
+
+  /** Meesho shipping heuristic — framed 1280px cap often tiers on dimensions, not KB alone. */
+  function estimateMeeshoInr(variant) {
+    const fileKb = kb(variant.bytes);
+    const maxSide = Math.max(variant.width || 0, variant.height || 0);
+    const path = variant.processingPath || "";
+    if ((path === "supplierden" || path === "supplierden_heavy") && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
+      return Math.min(fileKb, 93);
+    }
+    return fileKb;
+  }
+
+  function profileStudio() {
+    return { id: "studio", studio: true, tiers: TIERS_WHITE_BG, path: "studio", modeName: "Studio Compress" };
+  }
+
+  function profileStudioUltra() {
+    return {
+      id: "studio_ultra",
+      studio: true,
+      tiers: TIERS_STUDIO_ULTRA,
+      path: "studio_ultra",
+      modeName: "Studio Ultra",
+      absMinQ: 14,
+    };
+  }
+
+  function profileStudioBalanced() {
+    return {
+      id: "studio_balanced",
+      studio: true,
+      tiers: TIERS_STUDIO_BALANCED,
+      path: "studio_balanced",
+      modeName: "Studio ₹20–40",
+    };
+  }
+
+  function profileFramed() {
+    return {
+      id: "framed",
+      studio: false,
+      tiers: TIERS_BUSY_BG,
+      path: "supplierden",
+      modeName: "Framed Compress",
+      framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+    };
+  }
+
+  function profileFramedLow() {
+    return {
+      id: "framed_low",
+      studio: false,
+      tiers: TIERS_FRAMED_LOW,
+      path: "framed_low",
+      modeName: "Framed Best Rate",
+      framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+    };
+  }
+
+  function profileFramedSupplierden() {
+    return {
+      id: "framed_supplierden",
+      studio: false,
+      tiers: TIERS_FRAMED_SUPPLIERDEN,
+      path: "supplierden_heavy",
+      modeName: "Framed SupplierDen",
+      framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+    };
+  }
+
+  function autoProfilesForImage(img) {
+    if (isStudioWhiteBackground(img)) {
+      return [profileStudioUltra(), profileStudioBalanced(), profileStudio()];
+    }
+    return [profileFramedLow(), profileFramed(), profileFramedSupplierden()];
+  }
+
+  function autoTierPick(tier) {
+    return !!(tier.lowest || tier.recommended);
   }
 
   function pathOf(url) {
@@ -451,26 +539,20 @@
   function resolveProcessingProfile(img, tagName) {
     const tag = String(tagName || "").toLowerCase();
 
+    if (tag.includes("auto lowest") || tag.includes("auto detect") || tag.includes("auto shipping")) {
+      return { id: "auto_all", auto: true, modeName: "Auto Lowest Shipping" };
+    }
     if (tag.includes("studio ultra")) {
-      return { id: "studio_ultra", studio: true, tiers: TIERS_STUDIO_ULTRA, path: "studio_ultra", absMinQ: 14 };
+      return profileStudioUltra();
+    }
+    if (tag.includes("studio balanced") || tag.includes("studio ₹20") || tag.includes("studio 20-40")) {
+      return profileStudioBalanced();
     }
     if (tag.includes("framed supplierden") || tag.includes("supplierden match")) {
-      return {
-        id: "framed_supplierden",
-        studio: false,
-        tiers: TIERS_FRAMED_SUPPLIERDEN,
-        path: "supplierden_heavy",
-        framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
-      };
+      return profileFramedSupplierden();
     }
     if (tag.includes("framed best") || tag.includes("framed low") || tag.includes("framed minimum")) {
-      return {
-        id: "framed_low",
-        studio: false,
-        tiers: TIERS_FRAMED_LOW,
-        path: "framed_low",
-        framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
-      };
+      return profileFramedLow();
     }
     if (tag.includes("framed compact") || tag.includes("compact frame")) {
       return {
@@ -478,45 +560,18 @@
         studio: false,
         tiers: TIERS_FRAMED_LOW,
         path: "framed_compact",
+        modeName: "Framed Compact",
         framedMaxSide: 1024,
       };
     }
-    if (tag.includes("auto detect")) {
-      const studio = resolveStudioMode(img, tagName);
-      return studio
-        ? { id: "studio", studio: true, tiers: TIERS_WHITE_BG, path: "studio" }
-        : {
-            id: "framed",
-            studio: false,
-            tiers: TIERS_BUSY_BG,
-            path: "supplierden",
-            framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
-          };
-    }
-
     if (tag.includes("indoor") || tag.includes("busy") || INDOOR_CATEGORY_RE.test(tag)) {
-      return {
-        id: "framed",
-        studio: false,
-        tiers: TIERS_BUSY_BG,
-        path: "supplierden",
-        framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
-      };
+      return profileFramed();
     }
     if (tag.includes("studio") || tag.includes("white studio") || STUDIO_CATEGORY_RE.test(tag)) {
-      return { id: "studio", studio: true, tiers: TIERS_WHITE_BG, path: "studio" };
+      return profileStudio();
     }
 
-    const studio = isStudioWhiteBackground(img);
-    return studio
-      ? { id: "studio", studio: true, tiers: TIERS_WHITE_BG, path: "studio" }
-      : {
-          id: "framed",
-          studio: false,
-          tiers: TIERS_BUSY_BG,
-          path: "supplierden",
-          framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
-        };
+    return isStudioWhiteBackground(img) ? profileStudio() : profileFramed();
   }
 
   function supplierDenBorderPx(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
@@ -730,7 +785,7 @@
     return c;
   }
 
-  /** Highest-quality standard JPEG at or under slab KB — downscale if q floor still exceeds slab. */
+  /** Highest-quality standard JPEG at or under slab KB — quality only, keeps display dimensions. */
   async function compressBusyToSlabOnce(canvas, slabKb) {
     const targetBytes = slabKb * 1024;
     const busyMin = BUSY_MIN_Q;
@@ -752,15 +807,7 @@
   }
 
   async function compressBusyToSlab(canvas, slabKb) {
-    const targetBytes = slabKb * 1024;
-    let work = canvas;
-    for (let attempt = 0; attempt < 10; attempt++) {
-      const blob = await compressBusyToSlabOnce(work, slabKb);
-      if (blob.size <= targetBytes) return blob;
-      if (Math.max(work.width, work.height) <= 480) return blob;
-      work = scaleCanvas(work, 0.92);
-    }
-    return compressBusyToSlabOnce(work, slabKb);
+    return compressBusyToSlabOnce(canvas, slabKb);
   }
 
   /** Hit byte target for studio white-bg photos (mozjpeg). */
@@ -798,38 +845,62 @@
     return best;
   }
 
-  async function buildVariants(canvas, whiteRatio, profile) {
+  async function buildVariantForTier(canvas, whiteRatio, profile, tier, options = {}) {
     const minQ = adaptiveMinQ(whiteRatio);
+    const blob = profile.studio
+      ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true, profile.absMinQ)
+      : await compressBusyToSlab(canvas, tier.slabKb);
+    const label = options.showMode
+      ? `[${profile.modeName || profile.id}] ${tier.label} · ${canvas.width}×${canvas.height}`
+      : `${tier.label} · ${canvas.width}×${canvas.height}`;
+    return {
+      blob,
+      bytes: blob.size,
+      label,
+      recommended: !!tier.recommended,
+      lowest: !!tier.lowest,
+      processingPath: profile.path,
+      profileId: profile.id,
+      modeName: profile.modeName || profile.id,
+      width: canvas.width,
+      height: canvas.height,
+    };
+  }
+
+  async function buildVariants(canvas, whiteRatio, profile) {
     const built = [];
     for (const tier of profile.tiers) {
-      const blob = profile.studio
-        ? await compressCanvas(
-            canvas,
-            tier.targetKb * 1024,
-            minQ,
-            whiteRatio,
-            true,
-            profile.absMinQ
-          )
-        : await compressBusyToSlab(canvas, tier.slabKb);
-      built.push({
-        blob,
-        bytes: blob.size,
-        label: `${tier.label} · ${canvas.width}×${canvas.height}`,
-        recommended: !!tier.recommended,
-        lowest: !!tier.lowest,
-        processingPath: profile.path,
-        width: canvas.width,
-        height: canvas.height,
-      });
+      built.push(await buildVariantForTier(canvas, whiteRatio, profile, tier));
     }
     return built;
+  }
+
+  async function optimizeAutoAll(img) {
+    const profiles = autoProfilesForImage(img);
+    const allVariants = [];
+    for (const profile of profiles) {
+      const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide);
+      const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
+      const tiers = profile.tiers.filter(autoTierPick);
+      for (const tier of tiers) {
+        allVariants.push(await buildVariantForTier(canvas, whiteRatio, profile, tier, { showMode: true }));
+      }
+    }
+    allVariants.sort((a, b) => estimateMeeshoInr(a) - estimateMeeshoInr(b));
+    if (allVariants.length) {
+      allVariants[0].autoBest = true;
+      allVariants[0].recommended = true;
+    }
+    return allVariants;
   }
 
   async function optimizeToVariants(source, tagName) {
     await loadMozjpeg();
     const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
     const profile = resolveProcessingProfile(img, tagName);
+    if (profile.auto) {
+      return optimizeAutoAll(img);
+    }
     const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide);
     const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
     return buildVariants(canvas, whiteRatio, profile);
@@ -845,24 +916,28 @@
   }
 
   async function variantsToResults(variants, tagName) {
-    const minBytes = Math.min(...variants.map((v) => v.bytes));
+    const minEstimate = Math.min(...variants.map((v) => estimateMeeshoInr(v)));
     const out = [];
     for (const v of variants) {
       const imageUrl = await blobToDataUrl(v.blob);
       const fileSizeKb = kb(v.bytes);
+      const estimatedShippingInr = estimateMeeshoInr(v);
       out.push({
         imageUrl,
         tagName: `${v.label} · ${fileSizeKb} KB`,
         fileSizeBytes: v.bytes,
         fileSizeKb,
-        shippingCharge: String(fileSizeKb),
-        estimatedShippingInr: fileSizeKb,
+        shippingCharge: String(estimatedShippingInr),
+        estimatedShippingInr,
         shippingEstimate: true,
         processingPath: v.processingPath,
+        profileId: v.profileId,
+        modeName: v.modeName,
         width: v.width,
         height: v.height,
-        lowest: v.bytes === minBytes,
+        lowest: estimatedShippingInr === minEstimate,
         recommended: v.recommended,
+        autoBest: !!v.autoBest,
         [OPT_FLAG]: true,
         categoryName: tagName,
       });
@@ -885,6 +960,8 @@
   async function processImage(id, imageFile, tagName) {
     const req = STORE.requests.get(id);
     if (!req) return;
+    const isAuto = String(tagName || "").toLowerCase().includes("auto");
+    const timeoutMs = isAuto ? AUTO_PROCESS_TIMEOUT_MS : PROCESS_TIMEOUT_MS;
     const work = (async () => {
       req.results = await optimizeToVariants(imageFile, tagName).then((v) => variantsToResults(v, tagName));
       req.status = "completed";
@@ -893,7 +970,7 @@
       await Promise.race([
         work,
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Image processing timeout")), PROCESS_TIMEOUT_MS)
+          setTimeout(() => reject(new Error("Image processing timeout")), timeoutMs)
         ),
       ]);
     } catch (e) {

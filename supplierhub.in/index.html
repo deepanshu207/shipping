@@ -86,6 +86,12 @@
     .mode.selected { border-color: var(--emerald); box-shadow: 0 0 0 3px rgb(5 150 105 / 0.15); }
     .mode.selected.framed { border-color: var(--orange); box-shadow: 0 0 0 3px rgb(255 121 0 / 0.15); }
     .mode.selected.auto { border-color: #6366f1; box-shadow: 0 0 0 3px rgb(99 102 241 / 0.15); }
+    .mode.auto-featured {
+      grid-column: 1 / -1;
+      border-color: #6366f1;
+      background: linear-gradient(135deg, rgb(99 102 241 / 0.06), rgb(5 150 105 / 0.04));
+    }
+    .mode.auto-featured.selected { box-shadow: 0 0 0 3px rgb(99 102 241 / 0.2); }
     .mode-title { font-size: 0.92rem; font-weight: 800; margin: 0 0 0.3rem; line-height: 1.25; }
     .mode-for { font-size: 0.75rem; color: var(--muted); margin: 0; line-height: 1.35; }
     .mode-for b { color: var(--text); font-weight: 700; }
@@ -154,6 +160,7 @@
       background: #ecfdf5; color: var(--emerald-dark); padding: 0.15rem 0.4rem;
       border-radius: 0.3rem; width: fit-content;
     }
+    .badge.best { background: #fef3c7; color: #b45309; }
     .result-label { font-size: 0.8rem; font-weight: 700; line-height: 1.35; }
     .result-meta { font-size: 0.72rem; color: var(--muted); }
     .download {
@@ -185,26 +192,36 @@
   </header>
 
   <main class="main">
-    <p class="subtitle">Pick a compression strategy, upload your product photo, download optimized JPEGs. Try multiple modes to find the lowest Meesho shipping rate.</p>
+    <p class="subtitle">Upload once — <b>Auto</b> tries every strategy and ranks results by lowest estimated Meesho shipping. Full image size kept; only JPEG quality is tuned.</p>
 
     <!-- FORM -->
     <section class="card" id="panel-form">
       <p class="label">1 · Choose compression mode</p>
       <div class="modes">
-        <button type="button" class="mode studio selected" data-id="mo_studio" data-tag="White studio product" data-name="Studio Compress">
+        <button type="button" class="mode auto auto-featured selected" data-id="mo_auto" data-tag="Auto Lowest Shipping product photo" data-name="Auto Lowest Shipping" data-auto="1">
+          <p class="mode-title">Auto Lowest Shipping</p>
+          <p class="mode-for"><b>Recommended:</b> Tries all strategies, picks lowest ₹ — no manual testing</p>
+          <span class="mode-tag">Smart · full size · ₹20–40 studio / best framed</span>
+        </button>
+        <button type="button" class="mode studio" data-id="mo_studio" data-tag="White studio product" data-name="Studio Compress">
           <p class="mode-title">Studio Compress</p>
           <p class="mode-for"><b>For:</b> White / plain background (bra, lingerie)</p>
-          <span class="mode-tag">~20–26 KB</span>
-        </button>
-        <button type="button" class="mode studio" data-id="mo_studio_ultra" data-tag="Studio Ultra white background" data-name="Studio Ultra">
-          <p class="mode-title">Studio Ultra</p>
-          <p class="mode-for"><b>For:</b> Minimum white-studio file size</p>
-          <span class="mode-tag">~16–22 KB · lowest ₹</span>
+          <span class="mode-tag">Full size · ~20–26 KB · ₹20–40</span>
         </button>
         <button type="button" class="mode framed" data-id="mo_indoor" data-tag="Indoor busy background" data-name="Framed Compress">
           <p class="mode-title">Framed Compress</p>
           <p class="mode-for"><b>For:</b> Indoor / busy background (raincoat)</p>
           <span class="mode-tag">Orange frame · ~91–93 KB</span>
+        </button>
+        <button type="button" class="mode studio" data-id="mo_studio_ultra" data-tag="Studio Ultra white background" data-name="Studio Ultra">
+          <p class="mode-title">Studio Ultra</p>
+          <p class="mode-for"><b>For:</b> Minimum white-studio shipping</p>
+          <span class="mode-tag">Full size · ~16–22 KB</span>
+        </button>
+        <button type="button" class="mode studio" data-id="mo_studio_balanced" data-tag="Studio Balanced white product" data-name="Studio ₹20–40">
+          <p class="mode-title">Studio ₹20–40</p>
+          <p class="mode-for"><b>For:</b> Balanced quality at typical Meesho white-bg rate</p>
+          <span class="mode-tag">Full size · ~20–32 KB</span>
         </button>
         <button type="button" class="mode framed" data-id="mo_framed_low" data-tag="Framed Best Rate indoor" data-name="Framed Best Rate">
           <p class="mode-title">Framed Best Rate</p>
@@ -213,13 +230,8 @@
         </button>
         <button type="button" class="mode framed" data-id="mo_framed_sd" data-tag="Framed SupplierDen Match indoor" data-name="Framed SupplierDen">
           <p class="mode-title">Framed SupplierDen</p>
-          <p class="mode-for"><b>For:</b> Large file like SupplierDen — may still get low ₹</p>
-          <span class="mode-tag">1280px cap · ~177–200 KB</span>
-        </button>
-        <button type="button" class="mode auto" data-id="mo_auto" data-tag="Auto Detect product photo" data-name="Auto Detect">
-          <p class="mode-title">Auto Detect</p>
-          <p class="mode-for"><b>For:</b> Let the app pick Studio or Framed from your photo</p>
-          <span class="mode-tag">Smart routing</span>
+          <p class="mode-for"><b>For:</b> SupplierDen pattern — large file, 1280px cap</p>
+          <span class="mode-tag">Full frame · ~177–200 KB · est. ₹93</span>
         </button>
       </div>
 
@@ -243,7 +255,7 @@
     <section class="card processing hidden" id="panel-processing">
       <div class="spinner"></div>
       <h2 id="processing-title">Optimizing…</h2>
-      <p style="color:var(--muted);margin:0">Usually takes 10–30 seconds. Please wait.</p>
+      <p style="color:var(--muted);margin:0" id="processing-hint">Usually takes 10–30 seconds. Please wait.</p>
     </section>
 
     <!-- RESULTS -->
@@ -256,7 +268,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=40"></script>
+  <script src="/own-api.js?v=41"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -343,7 +355,8 @@
         return new Promise(function (r) { setTimeout(r, ms); });
       }
 
-      function poll(requestId) {
+      function poll(requestId, isAuto) {
+        var maxAttempts = isAuto ? 240 : 180;
         return new Promise(function (resolve, reject) {
           var attempts = 0;
           function tick() {
@@ -352,7 +365,7 @@
               .then(function (d) {
                 if (d.status === "completed" && d.results && d.results.length) return resolve(d.results);
                 if (d.status === "failed") return reject(new Error("Optimization failed. Try another photo or mode."));
-                if (++attempts >= 180) return reject(new Error("Timed out. Please try again."));
+                if (++attempts >= maxAttempts) return reject(new Error("Timed out. Please try again."));
                 setTimeout(tick, 1500);
               })
               .catch(reject);
@@ -366,17 +379,18 @@
       }
 
       function showResults(results, modeName) {
-        resultsTitle.textContent = modeName + " · " + results.length + " variants";
+        resultsTitle.textContent = modeName + " · " + results.length + " pick" + (results.length === 1 ? "" : "s");
         resultsGrid.innerHTML = results.map(function (r, i) {
           var fname = "meesho-" + r.fileSizeKb + "kb-" + (i + 1) + ".jpg";
           return (
             '<article class="result">' +
               '<div class="result-img"><img src="' + r.imageUrl + '" alt="Variant ' + (i + 1) + '" loading="lazy" /></div>' +
               '<div class="result-body">' +
-                (r.recommended ? '<span class="badge">Recommended</span>' : "") +
-                (r.lowest ? '<span class="badge">Smallest</span>' : "") +
+                (r.autoBest ? '<span class="badge best">Best for Meesho</span>' : "") +
+                (!r.autoBest && r.recommended ? '<span class="badge">Recommended</span>' : "") +
+                (r.lowest && !r.autoBest ? '<span class="badge">Lowest est.</span>' : "") +
                 '<div class="result-label">' + esc(r.tagName || "Variant " + (i + 1)) + '</div>' +
-                '<div class="result-meta">Est. ~₹' + (r.estimatedShippingInr || r.fileSizeKb) + " · " + r.fileSizeKb + " KB</div>" +
+                '<div class="result-meta">Est. ~₹' + (r.estimatedShippingInr || r.fileSizeKb) + " · " + r.fileSizeKb + " KB · " + (r.width || "?") + "×" + (r.height || "?") + "</div>" +
                 '<a class="download" href="' + r.imageUrl + '" download="' + fname + '">Download JPEG</a>' +
               '</div></article>'
           );
@@ -385,11 +399,9 @@
       }
 
       function resetForm() {
-        selected = document.querySelector(".mode.selected") || document.querySelector(".mode.studio");
-        if (selected && !selected.classList.contains("selected")) {
-          document.querySelectorAll(".mode").forEach(function (b) { b.classList.remove("selected"); });
-          selected.classList.add("selected");
-        }
+        selected = document.querySelector(".mode.auto") || document.querySelector(".mode.selected");
+        document.querySelectorAll(".mode").forEach(function (b) { b.classList.remove("selected"); });
+        if (selected) selected.classList.add("selected");
         imageFile = null;
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         previewUrl = null;
@@ -409,7 +421,11 @@
           return;
         }
         setError("");
-        processingTitle.textContent = "Running " + selected.dataset.name + "…";
+        var isAuto = selected && selected.dataset.auto === "1";
+        processingTitle.textContent = isAuto ? "Auto — trying all strategies…" : "Running " + selected.dataset.name + "…";
+        processingHint.textContent = isAuto
+          ? "Testing every strategy at full image size. Usually 30–60 seconds."
+          : "Usually takes 10–30 seconds. Please wait.";
         show("processing");
 
         var form = new FormData();
@@ -421,7 +437,7 @@
           .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
           .then(function (_ref) {
             if (!_ref.ok || !_ref.d.requestId) throw new Error((_ref.d && _ref.d.message) || "Upload failed");
-            return poll(_ref.d.requestId);
+            return poll(_ref.d.requestId, isAuto);
           })
           .then(function (results) {
             showResults(results, selected.dataset.name);
