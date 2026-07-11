@@ -1,5 +1,5 @@
 /**
- * Tests own-api mobile flow: processing completes before POST returns,
+ * Tests own-api mobile flow: POST returns quickly, polling completes with progress,
  * and results are readable after simulated navigation via localStorage.
  */
 import { chromium, devices } from "playwright";
@@ -57,21 +57,26 @@ async function run() {
       const postBody = await postRes.json();
       const postMs = Date.now() - postStart;
       if (!postBody.requestId) return { ok: false, step: "post", postBody, postMs };
+      if (postMs > 15000) return { ok: false, step: "post-slow", postMs, postBody };
 
       const id = postBody.requestId;
 
       let pollBody = null;
-      for (let i = 0; i < 40; i++) {
+      let sawProgress = false;
+      for (let i = 0; i < 120; i++) {
         const pollRes = await fetch(`/api/meesho/request/${id}`);
         pollBody = await pollRes.json();
+        if (typeof pollBody.progress === "number" && pollBody.progress > 0) sawProgress = true;
         if (pollBody.status === "completed" || pollBody.status === "failed") break;
         await new Promise((r) => setTimeout(r, 1000));
       }
 
       return {
-        ok: pollBody?.status === "completed" && pollBody.results?.length > 0,
+        ok: pollBody?.status === "completed" && pollBody.results?.length > 0 && sawProgress,
         postMs,
         pollStatus: pollBody?.status,
+        progress: pollBody?.progress,
+        sawProgress,
         resultCount: pollBody?.results?.length || 0,
         smallestKb: pollBody?.results?.[0]?.fileSizeKb,
         id,

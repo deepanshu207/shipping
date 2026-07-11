@@ -136,6 +136,20 @@
       border: 3px solid var(--border); border-top-color: var(--emerald);
       border-radius: 999px; animation: spin 0.7s linear infinite;
     }
+    .progress-wrap { margin: 0 auto 1rem; max-width: 18rem; text-align: left; }
+    .progress-meta {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.78rem; font-weight: 700; color: var(--muted); margin-bottom: 0.45rem;
+    }
+    .progress-meta strong { color: var(--emerald-dark); font-size: 0.9rem; }
+    .progress-track {
+      height: 0.55rem; border-radius: 999px; background: var(--border); overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; width: 0%; border-radius: inherit;
+      background: linear-gradient(90deg, var(--emerald), #34d399);
+      transition: width 0.35s ease;
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
     .results-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
     .results-head h2 { margin: 0; font-size: 1.2rem; }
@@ -348,6 +362,15 @@
     <!-- PROCESSING -->
     <section class="card processing hidden" id="panel-processing">
       <div class="spinner"></div>
+      <div class="progress-wrap">
+        <div class="progress-meta">
+          <span id="processing-stage">Preparing upload…</span>
+          <strong id="processing-percent">0%</strong>
+        </div>
+        <div class="progress-track" aria-hidden="true">
+          <div class="progress-fill" id="processing-bar"></div>
+        </div>
+      </div>
       <h2 id="processing-title">Optimizing…</h2>
       <p style="color:var(--muted);margin:0" id="processing-hint">Usually takes 10–30 seconds. Please wait.</p>
     </section>
@@ -362,7 +385,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=44"></script>
+  <script src="/own-api.js?v=45"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -380,6 +403,9 @@
       var resultsGrid = document.getElementById("results-grid");
       var processingTitle = document.getElementById("processing-title");
       var processingHint = document.getElementById("processing-hint");
+      var processingStage = document.getElementById("processing-stage");
+      var processingPercent = document.getElementById("processing-percent");
+      var processingBar = document.getElementById("processing-bar");
       var resultsTitle = document.getElementById("results-title");
       var FS = window.MeeshoFrameSettings;
       var borderPreset = document.getElementById("border-preset");
@@ -575,18 +601,37 @@
         return new Promise(function (r) { setTimeout(r, ms); });
       }
 
+      function setProcessingProgress(percent, stageText) {
+        var pct = Math.max(0, Math.min(100, Math.round(percent || 0)));
+        processingPercent.textContent = pct + "%";
+        processingBar.style.width = pct + "%";
+        if (stageText) processingStage.textContent = stageText;
+      }
+
+      function resetProcessingProgress() {
+        setProcessingProgress(0, "Preparing upload…");
+      }
+
       function poll(requestId, isAuto) {
-        var maxAttempts = isAuto ? 240 : 180;
+        var maxAttempts = isAuto ? 280 : 200;
         return new Promise(function (resolve, reject) {
           var attempts = 0;
           function tick() {
             fetch("/api/meesho/request-status/" + requestId, { credentials: "include" })
               .then(function (r) { return r.json(); })
               .then(function (d) {
-                if (d.status === "completed" && d.results && d.results.length) return resolve(d.results);
-                if (d.status === "failed") return reject(new Error("Optimization failed. Try another photo or mode."));
+                if (typeof d.progress === "number") {
+                  setProcessingProgress(d.progress, d.progressLabel || processingStage.textContent);
+                }
+                if (d.status === "completed" && d.results && d.results.length) {
+                  setProcessingProgress(100, d.progressLabel || "Done");
+                  return resolve(d.results);
+                }
+                if (d.status === "failed") {
+                  return reject(new Error(d.message || d.progressLabel || "Optimization failed. Try another photo or mode."));
+                }
                 if (++attempts >= maxAttempts) return reject(new Error("Timed out. Please try again."));
-                setTimeout(tick, 1500);
+                setTimeout(tick, 800);
               })
               .catch(reject);
           }
@@ -644,8 +689,9 @@
         var isAuto = selected && selected.dataset.auto === "1";
         processingTitle.textContent = isAuto ? "Auto — trying all strategies…" : "Running " + selected.dataset.name + "…";
         processingHint.textContent = isAuto
-          ? "Testing every strategy at full image size. Usually 30–60 seconds."
-          : "Usually takes 10–30 seconds. Please wait.";
+          ? "Testing every strategy at full image size. Progress updates below — usually 30–90 seconds on mobile."
+          : "Usually takes 10–30 seconds. Progress updates below.";
+        resetProcessingProgress();
         show("processing");
 
         var form = new FormData();
@@ -657,10 +703,12 @@
         form.append("image", imageFile);
         persistFrameDefaults();
 
+        setProcessingProgress(1, "Uploading image…");
         fetch("/api/meesho/getLowestShippingCharge", { method: "POST", body: form, credentials: "include" })
           .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
           .then(function (_ref) {
             if (!_ref.ok || !_ref.d.requestId) throw new Error((_ref.d && _ref.d.message) || "Upload failed");
+            setProcessingProgress(3, "Upload complete — optimizing…");
             return poll(_ref.d.requestId, isAuto);
           })
           .then(function (results) {

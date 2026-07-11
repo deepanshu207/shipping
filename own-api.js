@@ -50,9 +50,11 @@
   const BUSY_MIN_Q = 15;
   const MAX_SIDE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 1200 : 2000;
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
-  const STALE_PROCESSING_MS = 120000;
   const PROCESS_TIMEOUT_MS = 180000;
   const AUTO_PROCESS_TIMEOUT_MS = 360000;
+  const STALE_BUFFER_MS = 30000;
+  const PROGRESS_PERSIST_MS = 400;
+  const PROCESSING = new Set();
   const MOZJPEG_URL = () => new URL("/vendor/mozjpeg.mjs", location.origin).href;
   const FRAME_DEFAULT_ORANGE = "#FF7900";
   const FRAME_LS_BORDER = "meesho_frame_border_color";
@@ -329,11 +331,25 @@
     }
   }
 
+  function isAutoTagName(tagName) {
+    return String(tagName || "").toLowerCase().includes("auto");
+  }
+
+  function staleProcessingMs(tagName) {
+    return (isAutoTagName(tagName) ? AUTO_PROCESS_TIMEOUT_MS : PROCESS_TIMEOUT_MS) + STALE_BUFFER_MS;
+  }
+
+  function yieldToMain() {
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
   function persistRequest(id, req) {
     const payload = {
       createdAt: req.createdAt,
       tagName: req.tagName,
       status: req.status,
+      progress: typeof req.progress === "number" ? req.progress : 0,
+      progressLabel: req.progressLabel || "",
       results: req.results || [],
       error: req.error || null,
     };
@@ -362,10 +378,9 @@
   }
 
   function loadRequest(id, fresh) {
-    if (!fresh) {
-      const cached = STORE.requests.get(id);
-      if (cached) return cached;
-    }
+    const cached = STORE.requests.get(id);
+    if (cached) return cached;
+    if (fresh === false) return null;
     try {
       const raw = localStorage.getItem(REQ_PREFIX + id);
       if (!raw) {
@@ -380,9 +395,22 @@
     }
   }
 
+  function updateRequestProgress(id, progress, progressLabel) {
+    const req = STORE.requests.get(id);
+    if (!req || req.status !== "processing") return;
+    req.progress = Math.round(Math.min(99, Math.max(0, progress)));
+    if (progressLabel) req.progressLabel = progressLabel;
+    const now = Date.now();
+    if (!req._progressPersistAt || now - req._progressPersistAt >= PROGRESS_PERSIST_MS) {
+      req._progressPersistAt = now;
+      persistRequest(id, req);
+    }
+  }
+
   function markStaleProcessingFailed(id, req) {
     req.status = "failed";
     req.error = "Processing timed out";
+    req.progressLabel = "Timed out";
     STORE.requests.set(id, req);
     persistRequest(id, req);
   }
@@ -1212,23 +1240,63 @@
     };
   }
 
-  async function buildVariants(canvas, whiteRatio, profile) {
+  async function buildVariants(canvas, whiteRatio, profile, onProgress, progressBase, progressSpan) {
     const built = [];
-    for (const tier of profile.tiers) {
+    const tiers = profile.tiers;
+    for (let i = 0; i < tiers.length; i++) {
+      const tier = tiers[i];
+      if (onProgress) {
+        onProgress(
+          progressBase + ((i + 0.15) / tiers.length) * progressSpan,
+          `Compressing ${profile.modeName || profile.id} · ${tier.label}`
+        );
+      }
       built.push(await buildVariantForTier(canvas, whiteRatio, profile, tier));
+      if (onProgress) {
+        onProgress(
+          progressBase + ((i + 1) / tiers.length) * progressSpan,
+          `Finished ${profile.modeName || profile.id} · ${tier.label}`
+        );
+      }
+      await yieldToMain();
     }
     return built;
   }
 
-  async function optimizeAutoAll(img, frameStyle) {
+  async function optimizeAutoAll(img, frameStyle, onProgress) {
     const profiles = autoProfilesForImage(img);
+    const steps = profiles.map((profile) => ({
+      profile,
+      tiers: profile.tiers.filter(autoTierPick),
+    }));
+    const totalSteps = steps.reduce((sum, step) => sum + Math.max(step.tiers.length, 1), 0);
     const allVariants = [];
-    for (const profile of profiles) {
+    let done = 0;
+    for (const { profile, tiers } of steps) {
+      if (onProgress) {
+        onProgress(
+          12 + (done / totalSteps) * 78,
+          `Preparing ${profile.modeName || profile.id}…`
+        );
+      }
       const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide, frameStyle);
       const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
-      const tiers = profile.tiers.filter(autoTierPick);
       for (const tier of tiers) {
+        if (onProgress) {
+          onProgress(
+            12 + (done / totalSteps) * 78,
+            `Testing ${profile.modeName || profile.id} · ${tier.label}`
+          );
+        }
         allVariants.push(await buildVariantForTier(canvas, whiteRatio, profile, tier, { showMode: true }));
+        done += 1;
+        if (onProgress) {
+          onProgress(
+            12 + (done / totalSteps) * 78,
+            `Tested ${done}/${totalSteps} strategies`
+          );
+        }
+        await yieldToMain();
       }
     }
     allVariants.sort((a, b) => estimateMeeshoInr(a) - estimateMeeshoInr(b));
@@ -1239,16 +1307,20 @@
     return allVariants;
   }
 
-  async function optimizeToVariants(source, tagName, frameStyle) {
+  async function optimizeToVariants(source, tagName, frameStyle, onProgress) {
+    if (onProgress) onProgress(6, "Loading image compressor…");
     await loadMozjpeg();
+    if (onProgress) onProgress(10, "Reading your image…");
     const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
+    await yieldToMain();
     const profile = resolveProcessingProfile(img, tagName);
     if (profile.auto) {
-      return optimizeAutoAll(img, frameStyle);
+      return optimizeAutoAll(img, frameStyle, onProgress);
     }
+    if (onProgress) onProgress(15, `Running ${profile.modeName || profile.id}…`);
     const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide, frameStyle);
     const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
-    return buildVariants(canvas, whiteRatio, profile);
+    return buildVariants(canvas, whiteRatio, profile, onProgress, 15, 80);
   }
 
   function blobToDataUrl(blob) {
@@ -1303,28 +1375,39 @@
   }
 
   async function processImage(id, imageFile, tagName, frameStyle) {
+    if (PROCESSING.has(id)) return;
     const req = STORE.requests.get(id);
-    if (!req) return;
-    const isAuto = String(tagName || "").toLowerCase().includes("auto");
+    if (!req || req.status !== "processing") return;
+    PROCESSING.add(id);
+    const isAuto = isAutoTagName(tagName);
     const timeoutMs = isAuto ? AUTO_PROCESS_TIMEOUT_MS : PROCESS_TIMEOUT_MS;
-    const work = (async () => {
-      req.results = await optimizeToVariants(imageFile, tagName, frameStyle).then((v) =>
-        variantsToResults(v, tagName)
-      );
-      req.status = "completed";
-    })();
+    const deadline = Date.now() + timeoutMs;
+    const checkDeadline = () => {
+      if (Date.now() > deadline) throw new Error("Image processing timeout");
+    };
+    const onProgress = (progress, progressLabel) => {
+      checkDeadline();
+      updateRequestProgress(id, progress, progressLabel);
+    };
     try {
-      await Promise.race([
-        work,
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Image processing timeout")), timeoutMs)
-        ),
-      ]);
+      updateRequestProgress(id, 2, "Image received");
+      await yieldToMain();
+      checkDeadline();
+      const variants = await optimizeToVariants(imageFile, tagName, frameStyle, onProgress);
+      checkDeadline();
+      updateRequestProgress(id, 92, "Saving optimized images…");
+      req.results = await variantsToResults(variants, tagName);
+      checkDeadline();
+      req.status = "completed";
+      req.progress = 100;
+      req.progressLabel = "Done";
     } catch (e) {
       req.status = "failed";
       req.error = String(e);
+      req.progressLabel = "Failed";
       console.error("[own-api] processImage failed:", e);
     } finally {
+      PROCESSING.delete(id);
       persistRequest(id, req);
     }
   }
@@ -1341,7 +1424,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 43, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 44, platform: "cloudflare-static" },
       };
     }
 
@@ -1389,28 +1472,66 @@
         tagName,
         frameStyle,
         status: "processing",
+        progress: 0,
+        progressLabel: "Starting…",
         results: [],
       };
       STORE.requests.set(id, req);
       persistRequest(id, req);
-      await processImage(id, image, tagName, frameStyle);
+      void processImage(id, image, tagName, frameStyle);
       return { status: 200, body: { requestId: id } };
     }
 
     const poll = path.match(/^\/api\/meesho\/request(?:-status)?\/([^/]+)$/);
     if (poll && method === "GET") {
       const id = poll[1];
-      const req = loadRequest(id, true);
+      const req = loadRequest(id);
       if (!req) return { status: 404, body: { message: "Request not found" } };
       if (req.status === "completed") {
-        return { status: 200, body: { status: "completed", results: req.results || [] } };
+        return {
+          status: 200,
+          body: {
+            status: "completed",
+            progress: 100,
+            progressLabel: req.progressLabel || "Done",
+            results: req.results || [],
+          },
+        };
       }
-      if (req.status === "failed") return { status: 200, body: { status: "failed", results: [] } };
-      if (Date.now() - req.createdAt > STALE_PROCESSING_MS) {
+      if (req.status === "failed") {
+        return {
+          status: 200,
+          body: {
+            status: "failed",
+            progress: req.progress || 0,
+            progressLabel: req.progressLabel || "Failed",
+            message: req.error || "Optimization failed",
+            results: [],
+          },
+        };
+      }
+      if (Date.now() - req.createdAt > staleProcessingMs(req.tagName)) {
         markStaleProcessingFailed(id, req);
-        return { status: 200, body: { status: "failed", results: [] } };
+        return {
+          status: 200,
+          body: {
+            status: "failed",
+            progress: req.progress || 0,
+            progressLabel: "Timed out",
+            message: "Processing timed out",
+            results: [],
+          },
+        };
       }
-      return { status: 200, body: { status: "processing", results: [] } };
+      return {
+        status: 200,
+        body: {
+          status: "processing",
+          progress: req.progress || 0,
+          progressLabel: req.progressLabel || "Processing…",
+          results: [],
+        },
+      };
     }
 
     return { status: 404, body: { message: "Not found", route: path } };
