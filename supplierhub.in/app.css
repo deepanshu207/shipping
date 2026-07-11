@@ -292,18 +292,25 @@ body {
   margin: 0 0 0.2rem;
 }
 
-.mo-mode__tag {
-  font-size: 0.8125rem;
-  font-weight: 600;
+.mo-mode__for {
+  font-size: 0.875rem;
+  line-height: 1.45;
   color: var(--mo-muted);
   margin: 0;
 }
 
+.mo-mode__for span {
+  font-weight: 800;
+  color: var(--mo-text);
+}
+
+.dark .mo-mode__for span {
+  color: #e2e8f0;
+}
+
+.mo-mode__tag,
 .mo-mode__examples {
-  font-size: 0.8125rem;
-  line-height: 1.45;
-  color: var(--mo-muted);
-  margin: 0;
+  display: none;
 }
 
 .mo-mode__pill {

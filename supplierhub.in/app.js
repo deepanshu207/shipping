@@ -8,9 +8,8 @@
       tagName: "White studio product",
       key: "studio",
       name: "Studio Compress",
-      tag: "White or plain background",
-      examples: "Bra, lingerie, catalogue shots on a clean studio background.",
-      pill: "~20–26 KB · white canvas",
+      forLabel: "White / plain background (bra, lingerie)",
+      pill: "White canvas · ~20–26 KB",
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`,
     },
     {
@@ -18,9 +17,8 @@
       tagName: "Indoor busy background",
       key: "framed",
       name: "Framed Compress",
-      tag: "Indoor or busy background",
-      examples: "Raincoat, jacket, room or outdoor photos with busy backgrounds.",
-      pill: "~91–93 KB · orange frame",
+      forLabel: "Indoor / busy background (raincoat, jacket)",
+      pill: "Orange frame · ~91–93 KB tier",
       icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="16" rx="2" stroke="#ff7900" stroke-width="2.5"/><rect x="5" y="7" width="14" height="10" rx="1"/></svg>`,
     },
   ];
@@ -109,11 +107,11 @@
     app.innerHTML = `
       <section class="mo-hero">
         <h1>Meesho Image Generator</h1>
-        <p>Choose compression mode, upload your product photo, download optimized JPEGs for Meesho.</p>
+        <p>Pick one of two compression modes, upload your photo, download optimized JPEGs.</p>
       </section>
 
       <section class="mo-card">
-        <p class="mo-section-title">Step 1 · Compression mode</p>
+        <p class="mo-section-title">Choose category</p>
         <div class="mo-modes" id="mo-modes">
           ${MODES.map(
             (m) => `
@@ -122,17 +120,16 @@
                 <div class="mo-mode__icon">${m.icon}</div>
                 <div>
                   <p class="mo-mode__name">${m.name}</p>
-                  <p class="mo-mode__tag">${m.tag}</p>
+                  <p class="mo-mode__for"><span>For:</span> ${m.forLabel}</p>
                 </div>
               </div>
-              <p class="mo-mode__examples">${m.examples}</p>
               <span class="mo-mode__pill">${m.pill}</span>
             </button>`
           ).join("")}
         </div>
 
         <div class="mo-upload-wrap">
-          <p class="mo-section-title">Step 2 · Upload product image</p>
+          <p class="mo-section-title">Upload image</p>
           <div class="mo-drop" id="mo-drop">
             <div class="mo-drop__empty">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
