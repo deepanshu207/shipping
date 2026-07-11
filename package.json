@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "python3 server.py",
+    "dev": "node scripts/dev-server.mjs",
+    "dev:python": "python3 server.py",
     "deploy": "wrangler deploy",
     "deploy:preview": "wrangler deploy --dry-run",
     "verify:deploy": "node scripts/verify-deploy.mjs",
