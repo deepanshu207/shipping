@@ -260,7 +260,7 @@
         <button type="button" class="mode auto auto-featured selected" data-id="mo_auto" data-tag="Auto Lowest Shipping product photo" data-name="Auto Lowest Shipping" data-auto="1">
           <p class="mode-title">Auto Lowest Shipping</p>
           <p class="mode-for"><b>Recommended:</b> Tries all strategies, picks lowest ₹ — no manual testing</p>
-          <span class="mode-tag">Smart · full size · ₹20–40 studio / best framed</span>
+          <span class="mode-tag">Smart · full size · ₹20–40 studio / framed fallback</span>
         </button>
         <button type="button" class="mode studio" data-id="mo_studio" data-tag="White studio product" data-name="Studio Compress">
           <p class="mode-title">Studio Compress</p>
@@ -279,8 +279,13 @@
         </button>
         <button type="button" class="mode studio" data-id="mo_studio_balanced" data-tag="Studio Balanced white product" data-name="Studio ₹20–40">
           <p class="mode-title">Studio ₹20–40</p>
-          <p class="mode-for"><b>For:</b> Balanced quality at typical Meesho white-bg rate</p>
-          <span class="mode-tag">Full size · ~20–32 KB</span>
+          <p class="mode-for"><b>For:</b> White / plain background — targets ₹20–40 band</p>
+          <span class="mode-tag">Full size · ~20–40 KB · best quality in band</span>
+        </button>
+        <button type="button" class="mode studio" data-id="mo_studio_any" data-tag="Any photo studio ₹20-40 no frame" data-name="Any Photo → Studio ₹20–40">
+          <p class="mode-title">Any Photo → Studio ₹20–40</p>
+          <p class="mode-for"><b>For:</b> Indoor / busy photos — no orange frame, studio compress only</p>
+          <span class="mode-tag">Try ₹20–40 without frame · verify on Meesho</span>
         </button>
         <button type="button" class="mode framed" data-id="mo_framed_low" data-tag="Framed Best Rate indoor" data-name="Framed Best Rate">
           <p class="mode-title">Framed Best Rate</p>
@@ -385,7 +390,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=45"></script>
+  <script src="/own-api.js?v=46"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");

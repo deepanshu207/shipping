@@ -26,8 +26,17 @@
   const TIERS_STUDIO_BALANCED = [
     { targetKb: 20, label: "₹20 range · full size display", lowest: true },
     { targetKb: 24, label: "Recommended · ₹20–40 on Meesho", recommended: true },
-    { targetKb: 28, label: "Standard" },
-    { targetKb: 32, label: "High detail backup" },
+    { targetKb: 28, label: "Standard · mid band" },
+    { targetKb: 32, label: "Higher detail" },
+    { targetKb: 36, label: "Upper ₹20–40 band" },
+    { targetKb: 40, label: "Max quality · ₹40 ceiling", recommended: true },
+  ];
+  /** Studio compression on any photo (no orange frame) — indoor sellers trying ₹20–40; verify on Meesho. */
+  const TIERS_STUDIO_ANY = [
+    { targetKb: 22, label: "Entry ₹20 band · verify on Meesho", lowest: true },
+    { targetKb: 28, label: "Recommended · mid ₹20–40", recommended: true },
+    { targetKb: 34, label: "Balanced detail" },
+    { targetKb: 40, label: "Max quality in ₹20–40 band" },
   ];
   /** Mid slabs — matches ₹66–₹71 uploads some sellers see on Meesho. */
   const TIERS_FRAMED_LOW = [
@@ -251,6 +260,16 @@
     };
   }
 
+  function profileStudioAnyPhoto() {
+    return {
+      id: "studio_any",
+      studio: true,
+      tiers: TIERS_STUDIO_ANY,
+      path: "studio_any",
+      modeName: "Any Photo → Studio ₹20–40",
+    };
+  }
+
   function profileFramed() {
     return {
       id: "framed",
@@ -288,7 +307,7 @@
     if (isStudioWhiteBackground(img)) {
       return [profileStudioUltra(), profileStudioBalanced(), profileStudio()];
     }
-    return [profileFramedLow(), profileFramed(), profileFramedPro()];
+    return [profileStudioAnyPhoto(), profileFramedLow(), profileFramed(), profileFramedPro()];
   }
 
   function autoTierPick(tier) {
@@ -681,7 +700,15 @@
     if (tag.includes("studio ultra")) {
       return profileStudioUltra();
     }
-    if (tag.includes("studio balanced") || tag.includes("studio ₹20") || tag.includes("studio 20-40")) {
+    if (
+      tag.includes("any photo") ||
+      tag.includes("studio any") ||
+      tag.includes("indoor studio") ||
+      tag.includes("no frame studio")
+    ) {
+      return profileStudioAnyPhoto();
+    }
+    if (tag.includes("studio balanced") || tag.includes("studio 20-40") || tag.includes("studio ₹20–40")) {
       return profileStudioBalanced();
     }
     if (
