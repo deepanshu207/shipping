@@ -826,7 +826,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 38, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 39, platform: "cloudflare-static" },
       };
     }
 
