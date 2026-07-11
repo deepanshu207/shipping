@@ -175,6 +175,8 @@
       border-radius: 0.3rem; width: fit-content;
     }
     .badge.best { background: #fef3c7; color: #b45309; }
+    .badge.rank { background: #dbeafe; color: #1d4ed8; }
+    .badge.try-first { background: #fef3c7; color: #b45309; }
     .result-label { font-size: 0.8rem; font-weight: 700; line-height: 1.35; }
     .result-meta { font-size: 0.72rem; color: var(--muted); }
     .download {
@@ -251,7 +253,7 @@
   </header>
 
   <main class="main">
-    <p class="subtitle">Upload once — <b>Auto</b> tries every strategy and ranks results by lowest estimated Meesho shipping. Full image size kept; only JPEG quality is tuned.</p>
+    <p class="subtitle">Upload once — <b>Auto</b> generates up to <b>30 ranked JPEGs</b> (lowest est. ₹ first). Studio strategies run before framed — download #1–#3 and verify on Meesho Seller Panel.</p>
 
     <!-- FORM -->
     <section class="card" id="panel-form">
@@ -259,8 +261,8 @@
       <div class="modes">
         <button type="button" class="mode auto auto-featured selected" data-id="mo_auto" data-tag="Auto Lowest Shipping product photo" data-name="Auto Lowest Shipping" data-auto="1">
           <p class="mode-title">Auto Lowest Shipping</p>
-          <p class="mode-for"><b>Recommended:</b> Tries all strategies, picks lowest ₹ — no manual testing</p>
-          <span class="mode-tag">Smart · full size · ₹20–40 studio / framed fallback</span>
+          <p class="mode-for"><b>Recommended:</b> Up to 30 variants — studio ₹20–40 first, then compact framed, ranked lowest ₹</p>
+          <span class="mode-tag">Smart · 10–30 options · try #1 on Meesho first</span>
         </button>
         <button type="button" class="mode studio" data-id="mo_studio" data-tag="White studio product" data-name="Studio Compress">
           <p class="mode-title">Studio Compress</p>
@@ -390,7 +392,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=46"></script>
+  <script src="/own-api.js?v=47"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -618,7 +620,7 @@
       }
 
       function poll(requestId, isAuto) {
-        var maxAttempts = isAuto ? 280 : 200;
+        var maxAttempts = isAuto ? 480 : 200;
         return new Promise(function (resolve, reject) {
           var attempts = 0;
           function tick() {
@@ -649,17 +651,20 @@
       }
 
       function showResults(results, modeName) {
-        resultsTitle.textContent = modeName + " · " + results.length + " pick" + (results.length === 1 ? "" : "s");
+        resultsTitle.textContent = modeName + " · " + results.length + " ranked pick" + (results.length === 1 ? "" : "s");
         resultsGrid.innerHTML = results.map(function (r, i) {
           var fname = "meesho-" + r.fileSizeKb + "kb-" + (i + 1) + ".jpg";
+          var rank = r.autoRank || (i + 1);
           return (
             '<article class="result">' +
-              '<div class="result-img"><img src="' + r.imageUrl + '" alt="Variant ' + (i + 1) + '" loading="lazy" /></div>' +
+              '<div class="result-img"><img src="' + r.imageUrl + '" alt="Variant ' + rank + '" loading="lazy" /></div>' +
               '<div class="result-body">' +
-                (r.autoBest ? '<span class="badge best">Best for Meesho</span>' : "") +
-                (!r.autoBest && r.recommended ? '<span class="badge">Recommended</span>' : "") +
-                (r.lowest && !r.autoBest ? '<span class="badge">Lowest est.</span>' : "") +
-                '<div class="result-label">' + esc(r.tagName || "Variant " + (i + 1)) + '</div>' +
+                (r.autoBest ? '<span class="badge try-first">#1 · Try on Meesho first</span>' : "") +
+                (!r.autoBest && rank <= 3 && r.autoRank ? '<span class="badge rank">#' + rank + " · Top pick</span>" : "") +
+                (!r.autoBest && rank > 3 && r.autoRank ? '<span class="badge rank">#' + rank + "</span>" : "") +
+                (!r.autoRank && r.recommended ? '<span class="badge">Recommended</span>' : "") +
+                (!r.autoRank && r.lowest ? '<span class="badge">Lowest est.</span>' : "") +
+                '<div class="result-label">' + esc(r.tagName || "Variant " + rank) + '</div>' +
                 '<div class="result-meta">Est. ~₹' + (r.estimatedShippingInr || r.fileSizeKb) + " · " + r.fileSizeKb + " KB · " + (r.width || "?") + "×" + (r.height || "?") + "</div>" +
                 '<a class="download" href="' + r.imageUrl + '" download="' + fname + '">Download JPEG</a>' +
               '</div></article>'
@@ -694,7 +699,7 @@
         var isAuto = selected && selected.dataset.auto === "1";
         processingTitle.textContent = isAuto ? "Auto — trying all strategies…" : "Running " + selected.dataset.name + "…";
         processingHint.textContent = isAuto
-          ? "Testing every strategy at full image size. Progress updates below — usually 30–90 seconds on mobile."
+          ? "Testing every strategy (up to ~45 compressions, showing best 30). Usually 1–3 minutes on mobile."
           : "Usually takes 10–30 seconds. Progress updates below.";
         resetProcessingProgress();
         show("processing");

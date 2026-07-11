@@ -38,6 +38,21 @@
     { targetKb: 34, label: "Balanced detail" },
     { targetKb: 40, label: "Max quality in ₹20–40 band" },
   ];
+  /** Experimental mid slabs — try to beat ₹66–₹93 framed tier on Meesho. */
+  const TIERS_FRAMED_MID = [
+    { slabKb: 48, label: "Lowest slab · verify ₹ on Meesho", lowest: true },
+    { slabKb: 52, label: "Low slab try" },
+    { slabKb: 56, label: "Recommended · beat ₹70 band", recommended: true },
+    { slabKb: 60, label: "Mid slab" },
+    { slabKb: 63, label: "Near ₹64 ceiling" },
+  ];
+  /** Tight framed classic — still orange frame but lower KB targets. */
+  const TIERS_FRAMED_CLASSIC_LOW = [
+    { slabKb: 85, label: "Lowest classic frame", lowest: true },
+    { slabKb: 88, label: "Recommended · under ₹93", recommended: true },
+    { slabKb: 91, label: "₹91 slab try" },
+    { slabKb: 93, label: "Standard framed match" },
+  ];
   /** Mid slabs — matches ₹66–₹71 uploads some sellers see on Meesho. */
   const TIERS_FRAMED_LOW = [
     { slabKb: 64, label: "Lowest · try on Meesho first", lowest: true },
@@ -59,8 +74,10 @@
   const BUSY_MIN_Q = 15;
   const MAX_SIDE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 1200 : 2000;
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
+  const AUTO_MIN_VARIANTS = 10;
+  const AUTO_MAX_VARIANTS = 30;
+  const AUTO_PROCESS_TIMEOUT_MS = 540000;
   const PROCESS_TIMEOUT_MS = 180000;
-  const AUTO_PROCESS_TIMEOUT_MS = 360000;
   const STALE_BUFFER_MS = 30000;
   const PROGRESS_PERSIST_MS = 400;
   const PROCESSING = new Set();
@@ -95,7 +112,9 @@
     "framed_classic",
     "framed_pro",
     "framed_low",
+    "framed_mid",
     "framed_compact",
+    "framed_mini",
     "supplierden",
     "supplierden_heavy",
   ]);
@@ -303,15 +322,107 @@
     };
   }
 
-  function autoProfilesForImage(img) {
-    if (isStudioWhiteBackground(img)) {
-      return [profileStudioUltra(), profileStudioBalanced(), profileStudio()];
-    }
-    return [profileStudioAnyPhoto(), profileFramedLow(), profileFramed(), profileFramedPro()];
+  function profileFramedAuto(overrides = {}) {
+    return {
+      id: overrides.id || "framed_auto",
+      studio: false,
+      tiers: overrides.tiers || TIERS_FRAMED_LOW,
+      path: overrides.path || "framed_low",
+      modeName: overrides.modeName || "Framed",
+      framedMaxSide: overrides.framedMaxSide ?? MEESHO_FRAMED_MAX_SIDE,
+      frameStyleOverride: overrides.frameStyleOverride || null,
+      autoPriority: overrides.autoPriority ?? 50,
+    };
   }
 
-  function autoTierPick(tier) {
-    return !!(tier.lowest || tier.recommended);
+  /** All auto strategies — studio first (lowest ₹), then compact framed, then standard framed. */
+  function autoProfilesForImage(_img) {
+    return [
+      { ...profileStudioUltra(), autoPriority: 1 },
+      { ...profileStudioBalanced(), autoPriority: 2 },
+      { ...profileStudioAnyPhoto(), autoPriority: 3 },
+      { ...profileStudio(), autoPriority: 4 },
+      profileFramedAuto({
+        id: "framed_mini_ns",
+        path: "framed_mini",
+        modeName: "Framed 960 · no stickers",
+        tiers: TIERS_FRAMED_MID,
+        framedMaxSide: 960,
+        frameStyleOverride: { stickerTemplate: "none" },
+        autoPriority: 10,
+      }),
+      profileFramedAuto({
+        id: "framed_compact_ns",
+        path: "framed_compact",
+        modeName: "Framed 1024 · no stickers",
+        tiers: TIERS_FRAMED_MID,
+        framedMaxSide: 1024,
+        frameStyleOverride: { stickerTemplate: "none" },
+        autoPriority: 11,
+      }),
+      profileFramedAuto({
+        id: "framed_compact",
+        path: "framed_compact",
+        modeName: "Framed 1024 · promo stickers",
+        tiers: TIERS_FRAMED_MID,
+        framedMaxSide: 1024,
+        autoPriority: 12,
+      }),
+      { ...profileFramedLow(), autoPriority: 20 },
+      profileFramedAuto({
+        id: "framed_classic_low",
+        path: "framed_classic",
+        modeName: "Framed · lower slabs",
+        tiers: TIERS_FRAMED_CLASSIC_LOW,
+        framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+        autoPriority: 30,
+      }),
+      { ...profileFramed(), autoPriority: 31 },
+    ];
+  }
+
+  function autoTiersForProfile(_profile) {
+    return _profile.tiers;
+  }
+
+  function mergeFrameStyle(base, override) {
+    if (!override) return base;
+    return { ...defaultFrameStyle(), ...(base || {}), ...override };
+  }
+
+  function dedupeAutoVariants(variants) {
+    const seen = new Set();
+    const out = [];
+    for (const v of variants) {
+      const key = [
+        v.profileId,
+        v.processingPath,
+        v.width,
+        v.height,
+        kb(v.bytes),
+        v.label,
+      ].join("|");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(v);
+    }
+    return out;
+  }
+
+  function finalizeAutoVariants(variants) {
+    const sorted = dedupeAutoVariants(variants).sort(
+      (a, b) => estimateMeeshoInr(a) - estimateMeeshoInr(b) || a.bytes - b.bytes
+    );
+    const capped = sorted.slice(0, AUTO_MAX_VARIANTS);
+    const minCount = Math.min(AUTO_MIN_VARIANTS, sorted.length);
+    const results = capped.length >= minCount ? capped : sorted.slice(0, Math.max(minCount, capped.length));
+    results.forEach((v, i) => {
+      v.autoRank = i + 1;
+      v.autoBest = i === 0;
+      v.recommended = i < 3;
+      v.lowest = i === 0;
+    });
+    return results;
   }
 
   function pathOf(url) {
@@ -1291,47 +1402,43 @@
   }
 
   async function optimizeAutoAll(img, frameStyle, onProgress) {
-    const profiles = autoProfilesForImage(img);
+    const profiles = autoProfilesForImage(img).sort((a, b) => (a.autoPriority ?? 99) - (b.autoPriority ?? 99));
     const steps = profiles.map((profile) => ({
       profile,
-      tiers: profile.tiers.filter(autoTierPick),
+      tiers: autoTiersForProfile(profile),
     }));
-    const totalSteps = steps.reduce((sum, step) => sum + Math.max(step.tiers.length, 1), 0);
+    const totalSteps = steps.reduce((sum, step) => sum + step.tiers.length, 0);
     const allVariants = [];
     let done = 0;
     for (const { profile, tiers } of steps) {
+      const style = mergeFrameStyle(frameStyle, profile.frameStyleOverride);
       if (onProgress) {
         onProgress(
-          12 + (done / totalSteps) * 78,
+          10 + (done / totalSteps) * 82,
           `Preparing ${profile.modeName || profile.id}…`
         );
       }
-      const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide, frameStyle);
+      const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide, style);
       const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
       for (const tier of tiers) {
         if (onProgress) {
           onProgress(
-            12 + (done / totalSteps) * 78,
-            `Testing ${profile.modeName || profile.id} · ${tier.label}`
+            10 + (done / totalSteps) * 82,
+            `#${done + 1}/${totalSteps} · ${profile.modeName} · ${tier.label}`
           );
         }
         allVariants.push(await buildVariantForTier(canvas, whiteRatio, profile, tier, { showMode: true }));
         done += 1;
         if (onProgress) {
           onProgress(
-            12 + (done / totalSteps) * 78,
-            `Tested ${done}/${totalSteps} strategies`
+            10 + (done / totalSteps) * 82,
+            `Ranked preview · ${done}/${totalSteps} strategies tested`
           );
         }
         await yieldToMain();
       }
     }
-    allVariants.sort((a, b) => estimateMeeshoInr(a) - estimateMeeshoInr(b));
-    if (allVariants.length) {
-      allVariants[0].autoBest = true;
-      allVariants[0].recommended = true;
-    }
-    return allVariants;
+    return finalizeAutoVariants(allVariants);
   }
 
   async function optimizeToVariants(source, tagName, frameStyle, onProgress) {
@@ -1382,6 +1489,7 @@
         lowest: estimatedShippingInr === minEstimate,
         recommended: v.recommended,
         autoBest: !!v.autoBest,
+        autoRank: v.autoRank || null,
         [OPT_FLAG]: true,
         categoryName: tagName,
       });
