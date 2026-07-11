@@ -329,8 +329,8 @@ async function isStudioWhiteBackground(buffer) {
 
 function resolveStudioMode(buffer, categoryName) {
   const tag = String(categoryName || "").toLowerCase();
-  if (INDOOR_CATEGORY_RE.test(tag)) return false;
-  if (STUDIO_CATEGORY_RE.test(tag)) return true;
+  if (tag.includes("indoor") || tag.includes("busy") || INDOOR_CATEGORY_RE.test(tag)) return false;
+  if (tag.includes("studio") || tag.includes("white studio") || STUDIO_CATEGORY_RE.test(tag)) return true;
   return isStudioWhiteBackground(buffer);
 }
 

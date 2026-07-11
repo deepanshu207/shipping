@@ -29,6 +29,9 @@ function loadCategories() {
   if (categoriesCache) return categoriesCache;
 
   const candidates = [
+    join(FUNCTION_DIR, "supplierhub.in/data/product-types.json"),
+    join(FUNCTION_DIR, "../../supplierhub.in/data/product-types.json"),
+    join(process.cwd(), "supplierhub.in/data/product-types.json"),
     join(FUNCTION_DIR, "supplierhub.in/data/meesho-categories.json"),
     join(FUNCTION_DIR, "../../supplierhub.in/data/meesho-categories.json"),
     join(process.cwd(), "supplierhub.in/data/meesho-categories.json"),
@@ -41,7 +44,7 @@ function loadCategories() {
     }
   }
 
-  throw new Error("meesho-categories.json not found in function bundle");
+  throw new Error("product-types.json not found in function bundle");
 }
 
 function getStore() {

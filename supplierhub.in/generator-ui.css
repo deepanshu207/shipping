@@ -1,0 +1,341 @@
+/* Simplified Meesho generator — two product types instead of full category tree */
+
+body.mo-generator-simple .mo-hide-legacy-picker {
+  display: none !important;
+}
+
+body.mo-generator-simple [class*="h-[380px]"] {
+  display: none !important;
+}
+
+body.mo-generator-simple .mo-gen-legacy-form {
+  display: none !important;
+}
+
+#mo-simple-generator {
+  margin-bottom: 2rem;
+}
+
+.mo-gen-card {
+  border-radius: 1.25rem;
+  border: 2px solid rgb(229 231 235);
+  background: #fff;
+  padding: 1.25rem 1.35rem;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  text-align: left;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.dark .mo-gen-card {
+  border-color: rgb(255 255 255 / 0.1);
+  background: rgb(24 24 27);
+}
+
+.mo-gen-card:hover {
+  border-color: rgb(5 150 105 / 0.45);
+  box-shadow: 0 8px 28px rgb(5 150 105 / 0.12);
+  transform: translateY(-1px);
+}
+
+.mo-gen-card.is-selected {
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgb(5 150 105 / 0.18);
+  background: linear-gradient(180deg, rgb(236 253 245 / 0.65) 0%, #fff 55%);
+}
+
+.dark .mo-gen-card.is-selected {
+  border-color: #34d399;
+  box-shadow: 0 0 0 3px rgb(52 211 153 / 0.15);
+  background: linear-gradient(180deg, rgb(6 78 59 / 0.35) 0%, rgb(24 24 27) 55%);
+}
+
+.mo-gen-card__icon {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  flex-shrink: 0;
+}
+
+.mo-gen-card__icon--studio {
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  border: 1px solid #e2e8f0;
+}
+
+.dark .mo-gen-card__icon--studio {
+  background: rgb(255 255 255 / 0.08);
+  border-color: rgb(255 255 255 / 0.12);
+}
+
+.mo-gen-card__icon--indoor {
+  background: linear-gradient(135deg, #fff7ed, #ffedd5);
+  border: 1px solid #fdba74;
+}
+
+.dark .mo-gen-card__icon--indoor {
+  background: rgb(255 120 0 / 0.15);
+  border-color: rgb(255 120 0 / 0.35);
+}
+
+.mo-gen-card__title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: -0.02em;
+}
+
+.dark .mo-gen-card__title {
+  color: #f9fafb;
+}
+
+.mo-gen-card__desc {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: #6b7280;
+}
+
+.dark .mo-gen-card__desc {
+  color: #9ca3af;
+}
+
+.mo-gen-card__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: auto;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.mo-gen-card__badge--studio {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.dark .mo-gen-card__badge--studio {
+  background: rgb(6 78 59 / 0.45);
+  color: #6ee7b7;
+}
+
+.mo-gen-card__badge--indoor {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.dark .mo-gen-card__badge--indoor {
+  background: rgb(255 120 0 / 0.18);
+  color: #fdba74;
+}
+
+.mo-gen-panel {
+  border-radius: 1.25rem;
+  border: 1px solid rgb(167 243 208 / 0.55);
+  background: linear-gradient(180deg, rgb(236 253 245 / 0.45) 0%, #fff 28%);
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.04);
+}
+
+.dark .mo-gen-panel {
+  border-color: rgb(52 211 153 / 0.2);
+  background: linear-gradient(180deg, rgb(6 78 59 / 0.22) 0%, rgb(9 9 11) 32%);
+}
+
+.mo-gen-step {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.mo-gen-step__num {
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 999px;
+  background: #059669;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mo-gen-step__label {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #374151;
+}
+
+.dark .mo-gen-step__label {
+  color: #e5e7eb;
+}
+
+.mo-gen-types {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.85rem;
+}
+
+@media (min-width: 640px) {
+  .mo-gen-types {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.mo-gen-drop {
+  margin-top: 1.25rem;
+  border-radius: 1rem;
+  border: 2px dashed rgb(209 213 219);
+  background: rgb(249 250 251 / 0.8);
+  min-height: 11rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.dark .mo-gen-drop {
+  border-color: rgb(255 255 255 / 0.12);
+  background: rgb(255 255 255 / 0.03);
+}
+
+.mo-gen-drop.is-dragover,
+.mo-gen-drop:hover {
+  border-color: #059669;
+  background: rgb(236 253 245 / 0.55);
+}
+
+.dark .mo-gen-drop.is-dragover,
+.dark .mo-gen-drop:hover {
+  border-color: #34d399;
+  background: rgb(6 78 59 / 0.25);
+}
+
+.mo-gen-drop.has-image {
+  border-style: solid;
+  padding: 0;
+}
+
+.mo-gen-drop img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  max-height: 16rem;
+  background: #f3f4f6;
+}
+
+.dark .mo-gen-drop img {
+  background: #18181b;
+}
+
+.mo-gen-drop__empty {
+  text-align: center;
+  padding: 1.5rem;
+  pointer-events: none;
+}
+
+.mo-gen-drop__empty p {
+  margin: 0.35rem 0 0;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.dark .mo-gen-drop__empty p {
+  color: #9ca3af;
+}
+
+.mo-gen-drop__empty strong {
+  display: block;
+  font-size: 0.9375rem;
+  color: #111827;
+}
+
+.dark .mo-gen-drop__empty strong {
+  color: #f3f4f6;
+}
+
+.mo-gen-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 1.25rem;
+}
+
+.mo-gen-submit {
+  appearance: none;
+  border: none;
+  border-radius: 0.85rem;
+  padding: 0.85rem 1.35rem;
+  font-size: 0.9375rem;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, #059669, #0d9488);
+  box-shadow: 0 8px 24px rgb(5 150 105 / 0.28);
+  cursor: pointer;
+  transition: transform 0.15s, opacity 0.15s;
+}
+
+.mo-gen-submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.mo-gen-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.mo-gen-hint {
+  font-size: 0.8125rem;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
+.dark .mo-gen-hint {
+  color: #9ca3af;
+}
+
+.mo-gen-error {
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #dc2626;
+}
+
+.mo-gen-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mo-gen-loading::before {
+  content: "";
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgb(255 255 255 / 0.35);
+  border-top-color: #fff;
+  border-radius: 999px;
+  animation: mo-spin 0.7s linear infinite;
+}
+
+@keyframes mo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -420,8 +420,8 @@
   /** Category + vision — bra/lingerie never get SupplierDen orange frame. */
   function resolveStudioMode(img, tagName) {
     const tag = String(tagName || "").toLowerCase();
-    if (INDOOR_CATEGORY_RE.test(tag)) return false;
-    if (STUDIO_CATEGORY_RE.test(tag)) return true;
+    if (tag.includes("indoor") || tag.includes("busy") || INDOOR_CATEGORY_RE.test(tag)) return false;
+    if (tag.includes("studio") || tag.includes("white studio") || STUDIO_CATEGORY_RE.test(tag)) return true;
     return isStudioWhiteBackground(img);
   }
 
@@ -773,8 +773,8 @@
 
   async function loadCategories() {
     if (STORE.categories) return STORE.categories;
-    const res = await origFetch("/data/meesho-categories.json");
-    if (!res.ok) throw new Error("Categories file missing");
+    const res = await origFetch("/data/product-types.json");
+    if (!res.ok) throw new Error("Product types file missing");
     STORE.categories = await res.json();
     return STORE.categories;
   }
@@ -826,7 +826,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 37, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 38, platform: "cloudflare-static" },
       };
     }
 

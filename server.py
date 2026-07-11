@@ -16,7 +16,7 @@ PORT = 8000
 
 mimetypes.add_type("application/javascript", ".mjs")
 mimetypes.add_type("application/wasm", ".wasm")
-CATEGORIES_FILE = ROOT / "data" / "meesho-categories.json"
+CATEGORIES_FILE = ROOT / "data" / "product-types.json"
 OPTIMIZE_SCRIPT = REPO / "scripts" / "optimize-stdin.mjs"
 
 MOCK_REQUESTS: dict[str, dict] = {}
