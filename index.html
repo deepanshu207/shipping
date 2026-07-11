@@ -92,6 +92,13 @@
       background: linear-gradient(135deg, rgb(99 102 241 / 0.06), rgb(5 150 105 / 0.04));
     }
     .mode.auto-featured.selected { box-shadow: 0 0 0 3px rgb(99 102 241 / 0.2); }
+    .mode.lingerie-featured {
+      grid-column: 1 / -1;
+      border-color: #db2777;
+      background: linear-gradient(135deg, rgb(219 39 119 / 0.06), rgb(236 253 245 / 0.5));
+    }
+    .mode.lingerie-featured.selected { box-shadow: 0 0 0 3px rgb(219 39 119 / 0.2); }
+    .mode.lingerie .mode-tag { background: #fce7f3; color: #9d174d; }
     .mode-title { font-size: 0.92rem; font-weight: 800; margin: 0 0 0.3rem; line-height: 1.25; }
     .mode-for { font-size: 0.75rem; color: var(--muted); margin: 0; line-height: 1.35; }
     .mode-for b { color: var(--text); font-weight: 700; }
@@ -261,8 +268,13 @@
       <div class="modes">
         <button type="button" class="mode auto auto-featured selected" data-id="mo_auto" data-tag="Auto Lowest Shipping product photo" data-name="Auto Lowest Shipping" data-auto="1">
           <p class="mode-title">Auto Lowest Shipping</p>
-          <p class="mode-for"><b>Recommended:</b> Up to 30 variants — studio ₹20–40 first, then compact framed, ranked lowest ₹</p>
+          <p class="mode-for"><b>All products:</b> Up to 30 variants — studio first, then framed, ranked lowest ₹</p>
           <span class="mode-tag">Smart · 10–30 options · try #1 on Meesho first</span>
+        </button>
+        <button type="button" class="mode studio lingerie lingerie-featured" data-id="mo_lingerie" data-tag="Lingerie bra panty studio lowest shipping" data-name="Lingerie Lowest ₹" data-lingerie="1">
+          <p class="mode-title">Lingerie Lowest ₹</p>
+          <p class="mode-for"><b>For bra, panty, lingerie only:</b> White studio · full size · no orange frame · ranked lowest ₹</p>
+          <span class="mode-tag">Bra / lingerie · 14 studio picks · est. ₹16–40</span>
         </button>
         <button type="button" class="mode studio" data-id="mo_studio" data-tag="White studio product" data-name="Studio Compress">
           <p class="mode-title">Studio Compress</p>
@@ -302,7 +314,7 @@
       </div>
 
       <div class="framed-settings" id="framed-settings">
-        <p class="framed-note">Framed options apply to <b>Framed</b> modes and <b>Auto</b> when your photo is indoor/busy. Default border is classic orange.</p>
+        <p class="framed-note">Framed border settings apply to <b>Framed</b> modes and <b>Auto</b> only — not Lingerie (studio white, no frame).</p>
 
         <details class="accordion" id="accordion-border" open>
           <summary>Frame border color</summary>
@@ -392,7 +404,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=49"></script>
+  <script src="/own-api.js?v=50"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -619,8 +631,8 @@
         setProcessingProgress(0, "Preparing upload…");
       }
 
-      function poll(requestId, isAuto) {
-        var maxAttempts = isAuto ? 480 : 200;
+      function poll(requestId, isAuto, isLingerie) {
+        var maxAttempts = isAuto ? 480 : isLingerie ? 200 : 200;
         return new Promise(function (resolve, reject) {
           var attempts = 0;
           function tick() {
@@ -697,10 +709,17 @@
         }
         setError("");
         var isAuto = selected && selected.dataset.auto === "1";
-        processingTitle.textContent = isAuto ? "Auto — trying all strategies…" : "Running " + selected.dataset.name + "…";
+        var isLingerie = selected && selected.dataset.lingerie === "1";
+        processingTitle.textContent = isAuto
+          ? "Auto — trying all strategies…"
+          : isLingerie
+            ? "Lingerie — finding lowest ₹ studio picks…"
+            : "Running " + selected.dataset.name + "…";
         processingHint.textContent = isAuto
           ? "Testing every strategy (up to ~45 compressions, showing best 30). Usually 1–3 minutes on mobile."
-          : "Usually takes 10–30 seconds. Progress updates below.";
+          : isLingerie
+            ? "Studio only · full image size · 14 ranked JPEGs. Usually 30–90 seconds."
+            : "Usually takes 10–30 seconds. Progress updates below.";
         resetProcessingProgress();
         show("processing");
 
@@ -719,7 +738,7 @@
           .then(function (_ref) {
             if (!_ref.ok || !_ref.d.requestId) throw new Error((_ref.d && _ref.d.message) || "Upload failed");
             setProcessingProgress(3, "Upload complete — optimizing…");
-            return poll(_ref.d.requestId, isAuto);
+            return poll(_ref.d.requestId, isAuto, isLingerie);
           })
           .then(function (results) {
             showResults(results, selected.dataset.name);

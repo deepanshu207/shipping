@@ -76,6 +76,7 @@
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
   const AUTO_MIN_VARIANTS = 10;
   const AUTO_MAX_VARIANTS = 30;
+  const LINGERIE_MAX_VARIANTS = 14;
   const AUTO_PROCESS_TIMEOUT_MS = 540000;
   const PROCESS_TIMEOUT_MS = 180000;
   const STALE_BUFFER_MS = 30000;
@@ -409,13 +410,52 @@
     return out;
   }
 
-  function finalizeAutoVariants(variants) {
+  function lingerieProfiles() {
+    return [profileStudioUltra(), profileStudioBalanced(), profileStudio()];
+  }
+
+  function prepareLingerieCanvas(img) {
+    const c = prepareCanvas(img, true);
+    flattenBackgroundWhite(c);
+    return c;
+  }
+
+  /** Lingerie-only pipeline — studio compress, full size, no orange frame (pre-cleanup logic). */
+  async function optimizeLingerieAll(img, onProgress) {
+    const profiles = lingerieProfiles();
+    const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
+    const allVariants = [];
+    let done = 0;
+    const canvas = prepareLingerieCanvas(img);
+    const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
+    for (const profile of profiles) {
+      for (const tier of profile.tiers) {
+        if (onProgress) {
+          onProgress(
+            10 + (done / totalSteps) * 85,
+            `Lingerie · ${profile.modeName} · ${tier.label}`
+          );
+        }
+        allVariants.push(
+          await buildVariantForTier(canvas, whiteRatio, profile, tier, { showMode: true })
+        );
+        done += 1;
+        await yieldToMain();
+      }
+    }
+    return finalizeAutoVariants(allVariants, { maxVariants: LINGERIE_MAX_VARIANTS, minVariants: 1 });
+  }
+
+  function finalizeAutoVariants(variants, options = {}) {
+    const maxVariants = options.maxVariants ?? AUTO_MAX_VARIANTS;
+    const minVariants = options.minVariants ?? AUTO_MIN_VARIANTS;
     const sorted = dedupeAutoVariants(variants).sort(
       (a, b) => estimateMeeshoInr(a) - estimateMeeshoInr(b) || a.bytes - b.bytes
     );
-    const capped = sorted.slice(0, AUTO_MAX_VARIANTS);
-    const minCount = Math.min(AUTO_MIN_VARIANTS, sorted.length);
-    const results = capped.length >= minCount ? capped : sorted.slice(0, Math.max(minCount, capped.length));
+    const capped = sorted.slice(0, maxVariants);
+    const minCount = Math.min(minVariants, sorted.length);
+    const results =
+      capped.length >= minCount ? capped : sorted.slice(0, Math.max(minCount, capped.length));
     results.forEach((v, i) => {
       v.autoRank = i + 1;
       v.autoBest = i === 0;
@@ -807,6 +847,13 @@
 
     if (tag.includes("auto lowest") || tag.includes("auto detect") || tag.includes("auto shipping")) {
       return { id: "auto_all", auto: true, modeName: "Auto Lowest Shipping" };
+    }
+    if (
+      tag.includes("lingerie lowest") ||
+      tag.includes("lingerie bra") ||
+      (tag.includes("lingerie") && !tag.includes("framed"))
+    ) {
+      return { id: "lingerie_all", lingerie: true, modeName: "Lingerie Lowest ₹" };
     }
     if (tag.includes("studio ultra")) {
       return profileStudioUltra();
@@ -1451,6 +1498,9 @@
     if (profile.auto) {
       return optimizeAutoAll(img, frameStyle, onProgress);
     }
+    if (profile.lingerie) {
+      return optimizeLingerieAll(img, onProgress);
+    }
     if (onProgress) onProgress(15, `Running ${profile.modeName || profile.id}…`);
     const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide, frameStyle);
     const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
@@ -1559,7 +1609,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 44, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 50, platform: "cloudflare-static" },
       };
     }
 
