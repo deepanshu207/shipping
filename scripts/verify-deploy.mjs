@@ -1,6 +1,6 @@
 /**
  * Smoke-test a Cloudflare deployment.
- * Usage: node scripts/verify-deploy.mjs https://myshippings.pages.dev
+ * Usage: node scripts/verify-deploy.mjs https://shipping.example.workers.dev
  */
 const BASE = (process.argv[2] || process.env.DEPLOY_URL || "").replace(/\/$/, "");
 
@@ -22,8 +22,8 @@ async function run() {
 
   try {
     const { res, text } = await get("/");
-    if (res.ok && text.includes("Meesho Optimizer")) {
-      checks.push(["GET /", true, "home page"]);
+    if (res.ok && text.includes("Meesho Image Generator") && text.includes("app.js")) {
+      checks.push(["GET /", true, "generator index"]);
     } else {
       checks.push(["GET /", false, `status ${res.status}`]);
     }
@@ -34,12 +34,23 @@ async function run() {
   try {
     const { res, text } = await get("/own-api.js");
     if (res.ok && text.includes("__MEESHO_OWN_API__")) {
-      checks.push(["GET /own-api.js", true, "browser API shim"]);
+      checks.push(["GET /own-api.js", true, "browser API"]);
     } else {
       checks.push(["GET /own-api.js", false, `status ${res.status}`]);
     }
   } catch (e) {
     checks.push(["GET /own-api.js", false, e.message]);
+  }
+
+  try {
+    const { res, text } = await get("/app.js");
+    if (res.ok && text.includes("Studio Compress")) {
+      checks.push(["GET /app.js", true, "standalone UI"]);
+    } else {
+      checks.push(["GET /app.js", false, `status ${res.status}`]);
+    }
+  } catch (e) {
+    checks.push(["GET /app.js", false, e.message]);
   }
 
   try {
@@ -54,30 +65,20 @@ async function run() {
   }
 
   try {
-    const { res } = await get("/meesho-image-generator");
-    if (res.ok) {
-      checks.push(["GET /meesho-image-generator", true, "SPA route"]);
-    } else {
-      checks.push(["GET /meesho-image-generator", false, `status ${res.status}`]);
-    }
-  } catch (e) {
-    checks.push(["GET /meesho-image-generator", false, e.message]);
-  }
-
-  try {
-    const { res, text } = await get("/data/meesho-categories.json");
+    const { res, text } = await get("/data/product-types.json");
     if (res.ok) {
       const body = JSON.parse(text);
-      if (body.meeshoCategoryArray?.length) {
-        checks.push(["GET /data/meesho-categories.json", true, `${body.meeshoCategoryArray.length} groups`]);
+      const leaves = body.meeshoCategoryArray?.find((g) => g.type === "sub-sub-category")?.data?.length;
+      if (leaves === 2) {
+        checks.push(["GET /data/product-types.json", true, "2 compression modes"]);
       } else {
-        checks.push(["GET /data/meesho-categories.json", false, "empty categories"]);
+        checks.push(["GET /data/product-types.json", false, "expected 2 modes"]);
       }
     } else {
-      checks.push(["GET /data/meesho-categories.json", false, `status ${res.status}`]);
+      checks.push(["GET /data/product-types.json", false, `status ${res.status}`]);
     }
   } catch (e) {
-    checks.push(["GET /data/meesho-categories.json", false, e.message]);
+    checks.push(["GET /data/product-types.json", false, e.message]);
   }
 
   for (const [name, ok, detail] of checks) {

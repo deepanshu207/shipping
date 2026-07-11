@@ -77,7 +77,6 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.65rem;
-  text-decoration: none;
   color: var(--mo-text);
   font-weight: 800;
   font-size: 1.05rem;
@@ -142,23 +141,7 @@ body {
 }
 
 .mo-hero__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.35rem 0.85rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--mo-emerald-dark);
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-  margin-bottom: 1rem;
-}
-
-.dark .mo-hero__badge {
-  color: var(--mo-emerald-light);
-  background: rgb(6 78 59 / 0.35);
-  border-color: rgb(52 211 153 / 0.25);
+  display: none;
 }
 
 .mo-hero h1 {
@@ -167,6 +150,15 @@ body {
   font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1.15;
+}
+
+.mo-hero--compact {
+  margin-bottom: 1.25rem;
+}
+
+.mo-hero--compact h1 {
+  font-size: clamp(1.35rem, 4vw, 1.75rem);
+  margin-bottom: 0.35rem;
 }
 
 .mo-hero p {
@@ -618,20 +610,6 @@ body {
 
 .mo-download:hover {
   background: var(--mo-emerald-dark);
-}
-
-.mo-footer {
-  position: relative;
-  z-index: 1;
-  text-align: center;
-  padding: 1.25rem;
-  font-size: 0.75rem;
-  color: var(--mo-muted);
-  border-top: 1px solid var(--mo-border);
-}
-
-.mo-footer p {
-  margin: 0;
 }
 
 .mo-hidden {

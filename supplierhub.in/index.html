@@ -7,41 +7,37 @@
       if (localStorage.getItem("theme") === "dark") {
         document.documentElement.classList.add("dark");
       }
+      if (location.pathname !== "/" && location.pathname !== "") {
+        history.replaceState(null, "", "/");
+      }
     })();
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#059669" />
-  <title>Meesho Image Generator – Optimize Product Photos</title>
-  <meta name="description" content="Upload a Meesho product photo, pick Studio or Framed compression, and download optimized JPEGs for lowest shipping." />
+  <title>Meesho Image Generator</title>
+  <meta name="description" content="Upload a Meesho product photo, pick Studio or Framed compression, download optimized JPEGs." />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
-  <link rel="apple-touch-icon" href="/logo-mark.svg?v=2" />
   <link rel="modulepreload" href="/vendor/mozjpeg.mjs?v=3" />
   <link rel="preload" href="/vendor/jsquash/codec/enc/mozjpeg_enc.wasm" as="fetch" crossorigin />
   <script type="module" src="/vendor/mozjpeg-loader.mjs?v=3"></script>
-  <link rel="stylesheet" href="/app.css?v=1" />
+  <link rel="stylesheet" href="/app.css?v=2" />
   <script src="/own-api.js?v=39"></script>
-  <script src="/app.js?v=1" defer></script>
+  <script src="/app.js?v=2" defer></script>
 </head>
 <body>
   <div class="mo-bg" aria-hidden="true"></div>
 
   <header class="mo-header">
-    <a href="/" class="mo-logo">
+    <div class="mo-logo">
       <img src="/logo-mark.svg?v=2" width="36" height="36" alt="" />
-      <span>Meesho Optimizer</span>
-    </a>
+      <span>Meesho Image Generator</span>
+    </div>
     <button type="button" class="mo-theme" id="mo-theme" aria-label="Toggle dark mode">
       <svg class="mo-theme__sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
       <svg class="mo-theme__moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
     </button>
   </header>
 
-  <main class="mo-main" id="mo-app">
-    <!-- filled by app.js -->
-  </main>
-
-  <footer class="mo-footer">
-    <p>Verify final shipping ₹ on Meesho after upload. Estimates are based on file size only.</p>
-  </footer>
+  <main class="mo-main" id="mo-app"></main>
 </body>
 </html>
