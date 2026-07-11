@@ -60,6 +60,13 @@
     { slabKb: 68, label: "Balanced" },
     { slabKb: 71, label: "₹71 backup" },
   ];
+  /** Lingerie — AtraKit/SupplierDen band: 150–220 KB on 1:1 panel, not ultra 16 KB. */
+  const TIERS_LINGERIE = [
+    { targetKb: 165, label: "Lowest · 150–200 KB band · test on Meesho", lowest: true },
+    { targetKb: 185, label: "Recommended · low shipping sweet spot", recommended: true },
+    { targetKb: 205, label: "Standard · panel crop" },
+    { targetKb: 225, label: "Higher detail backup" },
+  ];
   /** Large framed files — same 1280px cap; Meesho may tier on dimensions not KB alone. */
   const TIERS_FRAMED_PRO = [
     { slabKb: 177, label: "Large file ~177 KB", lowest: true },
@@ -125,7 +132,10 @@
   const STUDIO_SQUARE_SIDE = 1200;
   /** Product fill on square canvas — 82% keeps bra large (68% was too small). */
   const STUDIO_SQUARE_COVERAGE = 0.82;
-  const WIDE_COLLAGE_RATIO = 1.42;
+  /** Square front+back bra collages are often 1:1 — not caught by wide-only check. */
+  const SPLIT_COLLAGE_MIN_W = 800;
+  const SPLIT_COLLAGE_ASPECT_MIN = 0.85;
+  const SPLIT_COLLAGE_ASPECT_MAX = 1.65;
   /** Draw stickers at 2× then downscale — sharper text after JPEG without changing frame size. */
   const OVERLAY_SUPERSAMPLE = 2;
 
@@ -249,7 +259,7 @@
     return Math.max(1, Math.ceil(bytes / 1024));
   }
 
-  /** Meesho shipping heuristic — framed cap tiers on dimensions; wide studio collages inflate ₹. */
+  /** Meesho shipping heuristic — framed cap tiers on dimensions; full collages inflate ₹. */
   function estimateMeeshoInr(variant) {
     const fileKb = kb(variant.bytes);
     const w = variant.width || 0;
@@ -259,11 +269,20 @@
     if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
       return Math.min(fileKb, 93);
     }
+    if (path === "studio_panel") {
+      if (fileKb >= 140 && fileKb <= 230) return 38;
+      if (fileKb < 140) return 42;
+      if (fileKb <= 280) return 48;
+      return 55;
+    }
     if (path === "studio_square" || (w > 0 && h > 0 && Math.abs(w - h) <= 4)) {
+      if (variant.profileId && String(variant.profileId).includes("full")) {
+        return Math.max(fileKb, 78);
+      }
       return fileKb;
     }
     const aspect = w / Math.max(1, h);
-    if (aspect >= WIDE_COLLAGE_RATIO && path.startsWith("studio")) {
+    if (aspect >= 1.42 && path.startsWith("studio")) {
       const volPenalty = Math.round(Math.min(48, (aspect - 1) * 32));
       return Math.max(fileKb, fileKb + volPenalty);
     }
@@ -302,6 +321,18 @@
       tiers: TIERS_STUDIO_ANY,
       path: "studio_any",
       modeName: "Any Photo → Studio ₹20–40",
+    };
+  }
+
+  function profileLingerie() {
+    return {
+      id: "lingerie_studio",
+      studio: true,
+      tiers: TIERS_LINGERIE,
+      path: "studio_panel",
+      modeName: "Lingerie Studio",
+      absMinQ: 72,
+      lingerie: true,
     };
   }
 
@@ -426,73 +457,154 @@
   }
 
   function lingerieProfiles() {
-    return [profileStudioUltra(), profileStudioBalanced(), profileStudio()];
+    return [profileLingerie()];
   }
 
   function isWideCollage(img) {
-    return img.width / Math.max(1, img.height) >= WIDE_COLLAGE_RATIO;
+    return img.width / Math.max(1, img.height) >= 1.42;
+  }
+
+  /** Square 1:1 front+back bra collages — split at center, not only wide 2:1 images. */
+  function isLingerieSplitCollage(img) {
+    const aspect = img.width / Math.max(1, img.height);
+    return (
+      img.width >= SPLIT_COLLAGE_MIN_W &&
+      aspect >= SPLIT_COLLAGE_ASPECT_MIN &&
+      aspect <= SPLIT_COLLAGE_ASPECT_MAX
+    );
   }
 
   function withLingerieLayout(profile, layout, priority, suffix = "") {
     const tag = suffix ? ` ${suffix}` : "";
+    const isPanel = layout === "panel_left" || layout === "panel_right";
     return {
       ...profile,
       id: `${profile.id}_${layout}`,
       modeName: `${profile.modeName}${tag}`.trim(),
-      path: layout === "full" ? profile.path : "studio_square",
+      path: isPanel ? "studio_panel" : layout === "full" ? "studio_full" : "studio_square",
       studioLayout: layout,
       lingeriePriority: priority,
-      absMinQ: Math.max(profile.absMinQ ?? 0, 22),
     };
   }
 
-  /** Lingerie layouts — square/panel first (SupplierDen-style), wide full as backup only. */
+  /** Lingerie — panel crops only for split collages; never flatten background (no patches). */
   function lingerieProfilesForImage(img) {
-    const wide = isWideCollage(img);
-    const ultra = { ...profileStudioUltra(), absMinQ: 22 };
-    const balanced = { ...profileStudioBalanced(), absMinQ: 24 };
-    const plans = wide
-      ? [
-          { layout: "panel_left", suffix: "· front panel", priority: 0, tierMode: "ultra" },
-          { layout: "panel_right", suffix: "· back panel", priority: 0, tierMode: "ultra" },
-          { layout: "square", suffix: "· 1:1 square", priority: 1, tierMode: "both" },
-          { layout: "panel_left", suffix: "· front · balanced", priority: 2, tierMode: "balanced" },
-          { layout: "panel_right", suffix: "· back · balanced", priority: 2, tierMode: "balanced" },
-          { layout: "full", suffix: "· wide backup", priority: 8, tierMode: "top2" },
-        ]
-      : [
-          { layout: "square", suffix: "· 1:1 square", priority: 0, tierMode: "both" },
-          { layout: "full", suffix: "", priority: 4, tierMode: "top2" },
-        ];
+    const split = isLingerieSplitCollage(img);
+    const base = profileLingerie();
+    if (split) {
+      return [
+        withLingerieLayout(base, "panel_left", 0, "· front panel"),
+        withLingerieLayout(base, "panel_right", 0, "· back panel"),
+      ];
+    }
+    return [withLingerieLayout(base, "square", 0, "· 1:1 square")];
+  }
 
-    const out = [];
-    for (const plan of plans) {
-      let baseProfiles = [];
-      if (plan.tierMode === "ultra") baseProfiles = [ultra];
-      else if (plan.tierMode === "balanced") baseProfiles = [balanced];
-      else if (plan.tierMode === "both") baseProfiles = [ultra, balanced];
-      else if (plan.tierMode === "top2") baseProfiles = [ultra];
-
-      for (const base of baseProfiles) {
-        const tiers =
-          plan.tierMode === "top2" ? base.tiers.slice(0, 2) : base.tiers;
-        out.push({
-          ...withLingerieLayout(base, plan.layout, plan.priority, plan.suffix),
-          tiers,
-        });
+  function trimContentMargins(canvas, padRatio = 0.02) {
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const { width, height } = canvas;
+    const { data } = ctx.getImageData(0, 0, width, height);
+    let minX = width;
+    let minY = height;
+    let maxX = 0;
+    let maxY = 0;
+    let found = false;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        if (nearWhiteAt(data, i)) continue;
+        found = true;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
       }
     }
-    return out.sort((a, b) => (a.lingeriePriority ?? 99) - (b.lingeriePriority ?? 99));
+    if (!found) return canvas;
+    const padX = Math.round(width * padRatio);
+    const padY = Math.round(height * padRatio);
+    minX = Math.max(0, minX - padX);
+    minY = Math.max(0, minY - padY);
+    maxX = Math.min(width - 1, maxX + padX);
+    maxY = Math.min(height - 1, maxY + padY);
+    const cw = maxX - minX + 1;
+    const ch = maxY - minY + 1;
+    if (cw < 8 || ch < 8) return canvas;
+    const c = document.createElement("canvas");
+    c.width = cw;
+    c.height = ch;
+    const nctx = c.getContext("2d");
+    nctx.fillStyle = "#ffffff";
+    nctx.fillRect(0, 0, cw, ch);
+    nctx.imageSmoothingEnabled = true;
+    nctx.imageSmoothingQuality = "high";
+    nctx.drawImage(canvas, minX, minY, cw, ch, 0, 0, cw, ch);
+    return c;
+  }
+
+  /** Lingerie canvas — white studio, no background flatten (prevents patch artifacts). */
+  function prepareLingerieSquareCanvas(source, options = {}) {
+    const side = options.side ?? STUDIO_SQUARE_SIDE;
+    const coverage = options.coverage ?? STUDIO_SQUARE_COVERAGE;
+    const c = document.createElement("canvas");
+    c.width = side;
+    c.height = side;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, side, side);
+    const fitScale = (side * coverage) / Math.max(source.width, source.height);
+    const dw = Math.round(source.width * fitScale);
+    const dh = Math.round(source.height * fitScale);
+    const dx = Math.round((side - dw) / 2);
+    const dy = Math.round((side - dh) / 2);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(source, 0, 0, source.width, source.height, dx, dy, dw, dh);
+    return c;
+  }
+
+  function prepareLingeriePanelCanvas(img, panel) {
+    const mid = Math.floor(img.width / 2);
+    const sx = panel === "left" ? 0 : mid;
+    const sw = panel === "left" ? mid : img.width - mid;
+    const panelCanvas = document.createElement("canvas");
+    panelCanvas.width = sw;
+    panelCanvas.height = img.height;
+    const pctx = panelCanvas.getContext("2d");
+    pctx.fillStyle = "#ffffff";
+    pctx.fillRect(0, 0, sw, img.height);
+    pctx.imageSmoothingEnabled = true;
+    pctx.imageSmoothingQuality = "high";
+    pctx.drawImage(img, sx, 0, sw, img.height, 0, 0, sw, img.height);
+    const trimmed = trimContentMargins(panelCanvas);
+    return prepareLingerieSquareCanvas(trimmed, { coverage: 0.88 });
   }
 
   function prepareLingerieLayoutCanvas(img, layout) {
-    if (layout === "square") return prepareStudioSquareCanvas(img);
-    if (layout === "panel_left") return prepareStudioPanelCanvas(img, "left");
-    if (layout === "panel_right") return prepareStudioPanelCanvas(img, "right");
-    return prepareStudioCanvasFull(img, { gentle: true });
+    if (layout === "panel_left") return prepareLingeriePanelCanvas(img, "left");
+    if (layout === "panel_right") return prepareLingeriePanelCanvas(img, "right");
+    if (layout === "square") return prepareLingerieSquareCanvas(img);
+    let w = img.width;
+    let h = img.height;
+    const max = Math.max(w, h);
+    if (max > MAX_SIDE) {
+      const scale = MAX_SIDE / max;
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+    }
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, w, h);
+    return c;
   }
 
-  /** Lingerie-only pipeline — multi-layout studio, no orange frame, ranked lowest ₹. */
+  /** Lingerie-only pipeline — front/back panel crops, no flatten, 150–220 KB band. */
   async function optimizeLingerieAll(img, onProgress) {
     const profiles = lingerieProfilesForImage(img);
     const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
@@ -522,7 +634,9 @@
     const maxVariants = options.maxVariants ?? AUTO_MAX_VARIANTS;
     const minVariants = options.minVariants ?? AUTO_MIN_VARIANTS;
     const sorted = dedupeAutoVariants(variants).sort(
-      (a, b) => estimateMeeshoInr(a) - estimateMeeshoInr(b) || a.bytes - b.bytes
+      (a, b) =>
+        estimateMeeshoInr(a) - estimateMeeshoInr(b) ||
+        a.bytes - b.bytes
     );
     const capped = sorted.slice(0, maxVariants);
     const minCount = Math.min(minVariants, sorted.length);
@@ -1745,7 +1859,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 51, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 52, platform: "cloudflare-static" },
       };
     }
 
