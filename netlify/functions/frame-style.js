@@ -3,7 +3,7 @@
 export const DEFAULT_BORDER_COLOR = "#FF7900";
 
 export const BORDER_PRESETS = [
-  { id: "supplierden", name: "SupplierDen Orange", color: "#FF7900" },
+  { id: "classic_orange", name: "Classic Orange", color: "#FF7900" },
   { id: "meesho_red", name: "Sale Red", color: "#E53935" },
   { id: "royal_blue", name: "Royal Blue", color: "#1565C0" },
   { id: "emerald", name: "Emerald Green", color: "#059669" },
@@ -13,7 +13,7 @@ export const BORDER_PRESETS = [
 ];
 
 export const STICKER_TEMPLATES = [
-  { id: "supplierden", name: "SupplierDen Classic", desc: "SPECIAL OFFER + HOT SALE burst" },
+  { id: "classic_promo", name: "Classic Promo", desc: "SPECIAL OFFER + HOT SALE burst" },
   { id: "none", name: "Frame only", desc: "Border color only — no stickers" },
   { id: "mega_sale", name: "Mega Sale", desc: "Large MEGA SALE badge top-right" },
   { id: "best_price", name: "Best Price", desc: "BEST PRICE ribbon corner" },
@@ -23,6 +23,8 @@ export const STICKER_TEMPLATES = [
 ];
 
 const TEMPLATE_IDS = new Set(STICKER_TEMPLATES.map((t) => t.id));
+const TEMPLATE_ALIASES = { supplierden: "classic_promo" };
+const PRESET_ALIASES = { supplierden: "classic_orange" };
 
 export function normalizeBorderColor(input) {
   const raw = String(input || "").trim();
@@ -63,8 +65,15 @@ export function hexToRgb(hex) {
 }
 
 export function normalizeStickerTemplate(input) {
-  const id = String(input || "supplierden").trim().toLowerCase();
-  return TEMPLATE_IDS.has(id) ? id : "supplierden";
+  let id = String(input || "classic_promo").trim().toLowerCase();
+  if (TEMPLATE_ALIASES[id]) id = TEMPLATE_ALIASES[id];
+  return TEMPLATE_IDS.has(id) ? id : "classic_promo";
+}
+
+export function normalizeBorderPreset(input) {
+  let id = String(input || "classic_orange").trim().toLowerCase();
+  if (PRESET_ALIASES[id]) id = PRESET_ALIASES[id];
+  return id;
 }
 
 export function parseFrameStyle(fields = {}) {
@@ -75,5 +84,5 @@ export function parseFrameStyle(fields = {}) {
 }
 
 export function defaultFrameStyle() {
-  return { borderColor: DEFAULT_BORDER_COLOR, stickerTemplate: "supplierden" };
+  return { borderColor: DEFAULT_BORDER_COLOR, stickerTemplate: "classic_promo" };
 }

@@ -2,11 +2,11 @@
  * Own API for Meesho Image Generator — runs entirely in the browser.
  */
 (function () {
-  /** Busy/indoor: SupplierDen format, then compress to Meesho slab sizes (empirical, not guaranteed ₹). */
+  /** Busy/indoor: orange frame format, then compress to Meesho slab sizes (empirical, not guaranteed ₹). */
   const TIERS_BUSY_BG = [
     { slabKb: 91, label: "Lowest · may beat ₹93 on Meesho", lowest: true },
     { slabKb: 92, label: "Balanced" },
-    { slabKb: 93, label: "Recommended · SupplierDen ₹93 match", recommended: true },
+    { slabKb: 93, label: "Recommended · ₹93 framed match", recommended: true },
     { slabKb: 94, label: "High detail backup" },
   ];
   const TIERS_WHITE_BG = [
@@ -36,12 +36,12 @@
     { slabKb: 68, label: "Balanced" },
     { slabKb: 71, label: "₹71 backup" },
   ];
-  /** SupplierDen parity — larger files, same 1280px framed cap; Meesho may still tier on dimensions. */
-  const TIERS_FRAMED_SUPPLIERDEN = [
-    { slabKb: 177, label: "SupplierDen ~177 KB", lowest: true },
+  /** Large framed files — same 1280px cap; Meesho may tier on dimensions not KB alone. */
+  const TIERS_FRAMED_PRO = [
+    { slabKb: 177, label: "Large file ~177 KB", lowest: true },
     { slabKb: 185, label: "Recommended · large file low ₹", recommended: true },
-    { slabKb: 193, label: "Standard SupplierDen" },
-    { slabKb: 200, label: "High detail · SupplierDen match" },
+    { slabKb: 193, label: "Standard large framed" },
+    { slabKb: 200, label: "High detail · pro framed match" },
   ];
 
   const WHITE_TOL = 42;
@@ -54,12 +54,12 @@
   const PROCESS_TIMEOUT_MS = 180000;
   const AUTO_PROCESS_TIMEOUT_MS = 360000;
   const MOZJPEG_URL = () => new URL("/vendor/mozjpeg.mjs", location.origin).href;
-  const SUPPLIERDEN_ORANGE = "#FF7900";
+  const FRAME_DEFAULT_ORANGE = "#FF7900";
   const FRAME_LS_BORDER = "meesho_frame_border_color";
   const FRAME_LS_TEMPLATE = "meesho_frame_sticker_template";
   const FRAME_LS_PRESET = "meesho_frame_border_preset";
   const BORDER_PRESETS = [
-    { id: "supplierden", name: "SupplierDen Orange", color: "#FF7900" },
+    { id: "classic_orange", name: "Classic Orange", color: "#FF7900" },
     { id: "meesho_red", name: "Sale Red", color: "#E53935" },
     { id: "royal_blue", name: "Royal Blue", color: "#1565C0" },
     { id: "emerald", name: "Emerald Green", color: "#059669" },
@@ -67,7 +67,7 @@
     { id: "black", name: "Black", color: "#111827" },
   ];
   const STICKER_TEMPLATE_META = [
-    { id: "supplierden", name: "SupplierDen Classic", desc: "SPECIAL OFFER + HOT SALE" },
+    { id: "classic_promo", name: "Classic Promo", desc: "SPECIAL OFFER + HOT SALE" },
     { id: "none", name: "Frame only", desc: "No promotion stickers" },
     { id: "mega_sale", name: "Mega Sale", desc: "Large MEGA SALE badge" },
     { id: "best_price", name: "Best Price", desc: "BEST PRICE corner ribbon" },
@@ -76,9 +76,19 @@
     { id: "super_offer", name: "Super Offer", desc: "SUPER OFFER + 50% OFF" },
   ];
   const STICKER_TEMPLATE_IDS = new Set(STICKER_TEMPLATE_META.map((t) => t.id));
-  const SUPPLIERDEN_BORDER_RATIO = 0.048;
-  const SUPPLIERDEN_MIN_BORDER = 34;
-  /** Meesho may tier on max framed side — SupplierDen outputs often cap near 1280px. */
+  const STICKER_TEMPLATE_ALIASES = { supplierden: "classic_promo" };
+  const BORDER_PRESET_ALIASES = { supplierden: "classic_orange" };
+  const FRAME_BORDER_RATIO = 0.048;
+  const FRAME_MIN_BORDER = 34;
+  const MEESHO_FRAMED_DIM_CAP_PATHS = new Set([
+    "framed_classic",
+    "framed_pro",
+    "framed_low",
+    "framed_compact",
+    "supplierden",
+    "supplierden_heavy",
+  ]);
+  /** Meesho may tier on max framed side — pro sellers often cap near 1280px. */
   const MEESHO_FRAMED_MAX_SIDE = 1280;
   /** Draw stickers at 2× then downscale — sharper text after JPEG without changing frame size. */
   const OVERLAY_SUPERSAMPLE = 2;
@@ -148,16 +158,23 @@
           .join("")
       ).toUpperCase();
     }
-    return SUPPLIERDEN_ORANGE;
+    return FRAME_DEFAULT_ORANGE;
   }
 
   function normalizeStickerTemplate(input) {
-    const id = String(input || "supplierden").trim().toLowerCase();
-    return STICKER_TEMPLATE_IDS.has(id) ? id : "supplierden";
+    let id = String(input || "classic_promo").trim().toLowerCase();
+    if (STICKER_TEMPLATE_ALIASES[id]) id = STICKER_TEMPLATE_ALIASES[id];
+    return STICKER_TEMPLATE_IDS.has(id) ? id : "classic_promo";
+  }
+
+  function normalizeBorderPreset(input) {
+    let id = String(input || "classic_orange").trim().toLowerCase();
+    if (BORDER_PRESET_ALIASES[id]) id = BORDER_PRESET_ALIASES[id];
+    return id;
   }
 
   function defaultFrameStyle() {
-    return { borderColor: SUPPLIERDEN_ORANGE, stickerTemplate: "supplierden" };
+    return { borderColor: FRAME_DEFAULT_ORANGE, stickerTemplate: "classic_promo" };
   }
 
   function parseFrameStyle(fields) {
@@ -201,7 +218,7 @@
     const fileKb = kb(variant.bytes);
     const maxSide = Math.max(variant.width || 0, variant.height || 0);
     const path = variant.processingPath || "";
-    if ((path === "supplierden" || path === "supplierden_heavy") && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
+    if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
       return Math.min(fileKb, 93);
     }
     return fileKb;
@@ -237,7 +254,7 @@
       id: "framed",
       studio: false,
       tiers: TIERS_BUSY_BG,
-      path: "supplierden",
+      path: "framed_classic",
       modeName: "Framed Compress",
       framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
     };
@@ -254,13 +271,13 @@
     };
   }
 
-  function profileFramedSupplierden() {
+  function profileFramedPro() {
     return {
-      id: "framed_supplierden",
+      id: "framed_pro",
       studio: false,
-      tiers: TIERS_FRAMED_SUPPLIERDEN,
-      path: "supplierden_heavy",
-      modeName: "Framed SupplierDen",
+      tiers: TIERS_FRAMED_PRO,
+      path: "framed_pro",
+      modeName: "Framed Pro",
       framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
     };
   }
@@ -269,7 +286,7 @@
     if (isStudioWhiteBackground(img)) {
       return [profileStudioUltra(), profileStudioBalanced(), profileStudio()];
     }
-    return [profileFramedLow(), profileFramed(), profileFramedSupplierden()];
+    return [profileFramedLow(), profileFramed(), profileFramedPro()];
   }
 
   function autoTierPick(tier) {
@@ -618,7 +635,7 @@
     return false;
   }
 
-  /** Category + vision — bra/lingerie never get SupplierDen orange frame. */
+  /** Category + vision — bra/lingerie never get orange promo frame. */
   function resolveStudioMode(img, tagName) {
     const tag = String(tagName || "").toLowerCase();
     if (tag.includes("indoor") || tag.includes("busy") || INDOOR_CATEGORY_RE.test(tag)) return false;
@@ -639,8 +656,14 @@
     if (tag.includes("studio balanced") || tag.includes("studio ₹20") || tag.includes("studio 20-40")) {
       return profileStudioBalanced();
     }
-    if (tag.includes("framed supplierden") || tag.includes("supplierden match")) {
-      return profileFramedSupplierden();
+    if (
+      tag.includes("framed pro") ||
+      tag.includes("framed large") ||
+      tag.includes("pro match") ||
+      tag.includes("framed supplierden") ||
+      tag.includes("supplierden match")
+    ) {
+      return profileFramedPro();
     }
     if (tag.includes("framed best") || tag.includes("framed low") || tag.includes("framed minimum")) {
       return profileFramedLow();
@@ -665,8 +688,8 @@
     return isStudioWhiteBackground(img) ? profileStudio() : profileFramed();
   }
 
-  function supplierDenBorderPx(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
-    let border = Math.max(SUPPLIERDEN_MIN_BORDER, Math.round(Math.min(w, h) * SUPPLIERDEN_BORDER_RATIO));
+  function framedBorderPx(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
+    let border = Math.max(FRAME_MIN_BORDER, Math.round(Math.min(w, h) * FRAME_BORDER_RATIO));
     const maxSide = Math.max(w, h);
     if (maxSide + border * 2 > framedMaxSide) {
       const capped = Math.floor((framedMaxSide - maxSide) / 2);
@@ -675,12 +698,12 @@
     return border;
   }
 
-  function supplierDenFramedMaxSide(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
-    return Math.max(w, h) + supplierDenBorderPx(w, h, framedMaxSide) * 2;
+  function framedOuterMaxSide(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
+    return Math.max(w, h) + framedBorderPx(w, h, framedMaxSide) * 2;
   }
 
   /** Proportional downscale only — keeps aspect ratio, no crop; Meesho tiers on framed max side (~1280). */
-  function fitSupplierDenPhotoDims(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
+  function fitFramedPhotoDims(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
     let nw = w;
     let nh = h;
     const max0 = Math.max(nw, nh);
@@ -689,8 +712,8 @@
       nw = Math.round(nw * scale);
       nh = Math.round(nh * scale);
     }
-    for (let i = 0; i < 12 && supplierDenFramedMaxSide(nw, nh, framedMaxSide) > framedMaxSide; i++) {
-      const framed = supplierDenFramedMaxSide(nw, nh, framedMaxSide);
+    for (let i = 0; i < 12 && framedOuterMaxSide(nw, nh, framedMaxSide) > framedMaxSide; i++) {
+      const framed = framedOuterMaxSide(nw, nh, framedMaxSide);
       const scale = (framedMaxSide - 1) / framed;
       nw = Math.max(1, Math.round(nw * scale));
       nh = Math.max(1, Math.round(nh * scale));
@@ -965,7 +988,7 @@
     return { canvas: c, width: d, height: d };
   }
 
-  function drawSupplierDenOverlays(ctx, border, photoW, photoH) {
+  function drawClassicPromoOverlays(ctx, border, photoW, photoH) {
     const scale = Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
     const badge = renderSpecialOfferBadge(scale);
     const burst = renderHotSaleBurst(scale * 1.05);
@@ -989,8 +1012,8 @@
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
 
-    if (template === "supplierden") {
-      drawSupplierDenOverlays(ctx, border, photoW, photoH);
+    if (template === "classic_promo") {
+      drawClassicPromoOverlays(ctx, border, photoW, photoH);
       return;
     }
 
@@ -1056,17 +1079,17 @@
       return;
     }
 
-    drawSupplierDenOverlays(ctx, border, photoW, photoH);
+    drawClassicPromoOverlays(ctx, border, photoW, photoH);
   }
 
-  /** SupplierDen-style frame + promotion stickers — photo scaled to Meesho framed cap. */
-  function prepareSupplierDenCanvas(img, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, frameStyle) {
+  /** Promo frame + stickers — photo scaled to Meesho framed cap. */
+  function prepareFramedCanvas(img, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, frameStyle) {
     const style = { ...defaultFrameStyle(), ...(frameStyle || {}) };
-    const fitted = fitSupplierDenPhotoDims(img.width, img.height, framedMaxSide);
+    const fitted = fitFramedPhotoDims(img.width, img.height, framedMaxSide);
     const w = fitted.w;
     const h = fitted.h;
 
-    const border = supplierDenBorderPx(w, h, framedMaxSide);
+    const border = framedBorderPx(w, h, framedMaxSide);
     const fw = w + border * 2;
     const fh = h + border * 2;
     const c = document.createElement("canvas");
@@ -1084,7 +1107,7 @@
 
   /** Exact upload dimensions — never upscale; cap max side at 2000 only. */
   function prepareCanvas(img, studio, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, frameStyle) {
-    if (!studio) return prepareSupplierDenCanvas(img, framedMaxSide, frameStyle);
+    if (!studio) return prepareFramedCanvas(img, framedMaxSide, frameStyle);
 
     let w = img.width;
     let h = img.height;
@@ -1470,6 +1493,7 @@
     defaultFrameStyle,
     normalizeBorderColor,
     normalizeStickerTemplate,
+    normalizeBorderPreset,
     hexToRgbComponents,
     STORAGE_KEYS: {
       border: FRAME_LS_BORDER,

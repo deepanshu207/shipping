@@ -273,15 +273,15 @@
           <p class="mode-for"><b>For:</b> Mid slabs — targets ₹66–₹71 tier</p>
           <span class="mode-tag">Orange frame · ~64–71 KB</span>
         </button>
-        <button type="button" class="mode framed" data-id="mo_framed_sd" data-tag="Framed SupplierDen Match indoor" data-name="Framed SupplierDen">
-          <p class="mode-title">Framed SupplierDen</p>
-          <p class="mode-for"><b>For:</b> SupplierDen pattern — large file, 1280px cap</p>
+        <button type="button" class="mode framed" data-id="mo_framed_sd" data-tag="Framed Pro Match indoor" data-name="Framed Pro">
+          <p class="mode-title">Framed Pro</p>
+          <p class="mode-for"><b>For:</b> Large framed file — 1280px cap, est. ₹93 tier</p>
           <span class="mode-tag">Full frame · ~177–200 KB · est. ₹93</span>
         </button>
       </div>
 
       <div class="framed-settings" id="framed-settings">
-        <p class="framed-note">Framed options apply to <b>Framed</b> modes and <b>Auto</b> when your photo is indoor/busy. Default border is SupplierDen orange.</p>
+        <p class="framed-note">Framed options apply to <b>Framed</b> modes and <b>Auto</b> when your photo is indoor/busy. Default border is classic orange.</p>
 
         <details class="accordion" id="accordion-border" open>
           <summary>Frame border color</summary>
@@ -289,7 +289,7 @@
             <div class="field">
               <label for="border-preset">Preset</label>
               <select id="border-preset">
-                <option value="supplierden">SupplierDen Orange (#FF7900)</option>
+                <option value="classic_orange">Classic Orange (#FF7900)</option>
                 <option value="meesho_red">Sale Red</option>
                 <option value="royal_blue">Royal Blue</option>
                 <option value="emerald">Emerald Green</option>
@@ -323,7 +323,7 @@
               <label for="sticker-template">Template</label>
               <select id="sticker-template"></select>
             </div>
-            <div class="template-preview" id="template-desc">SupplierDen classic stickers — SPECIAL OFFER + HOT SALE burst.</div>
+            <div class="template-preview" id="template-desc">Classic promo stickers — SPECIAL OFFER + HOT SALE burst.</div>
             <label class="save-default"><input type="checkbox" id="save-template-default" checked /> Save template as default (localStorage)</label>
           </div>
         </details>
@@ -362,7 +362,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=43"></script>
+  <script src="/own-api.js?v=44"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -438,8 +438,8 @@
 
       function loadFrameDefaults() {
         var savedColor = localStorage.getItem(FS.STORAGE_KEYS.border);
-        var savedPreset = localStorage.getItem(FS.STORAGE_KEYS.preset) || "supplierden";
-        var savedTemplate = localStorage.getItem(FS.STORAGE_KEYS.template) || "supplierden";
+        var savedPreset = FS.normalizeBorderPreset(localStorage.getItem(FS.STORAGE_KEYS.preset) || "classic_orange");
+        var savedTemplate = FS.normalizeStickerTemplate(localStorage.getItem(FS.STORAGE_KEYS.template) || "classic_promo");
         borderPreset.value = savedPreset;
         syncBorderUiFromHex(savedColor || "#FF7900");
         if (savedPreset !== "custom") setBorderFromPreset(savedPreset);

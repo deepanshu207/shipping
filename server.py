@@ -185,7 +185,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
             request_id = uuid.uuid4().hex[:12]
             frame_style = {
                 "frameBorderColor": form.get("frameBorderColor") or "#FF7900",
-                "frameStickerTemplate": form.get("frameStickerTemplate") or "supplierden",
+                "frameStickerTemplate": form.get("frameStickerTemplate") or "classic_promo",
             }
             MOCK_REQUESTS[request_id] = {
                 "created_at": time.time(),

@@ -4,7 +4,7 @@ import { parseFrameStyle, hexToRgb, normalizeStickerTemplate } from "./frame-sty
 const TIERS_BUSY_BG = [
   { slabKb: 91, label: "Lowest · may beat ₹93 on Meesho", lowest: true },
   { slabKb: 92, label: "Balanced" },
-  { slabKb: 93, label: "Recommended · SupplierDen ₹93 match", recommended: true },
+  { slabKb: 93, label: "Recommended · ₹93 framed match", recommended: true },
   { slabKb: 94, label: "High detail backup" },
 ];
 
@@ -36,20 +36,27 @@ const TIERS_FRAMED_LOW = [
   { slabKb: 71, label: "₹71 backup" },
 ];
 
-const TIERS_FRAMED_SUPPLIERDEN = [
-  { slabKb: 177, label: "SupplierDen ~177 KB", lowest: true },
+const TIERS_FRAMED_PRO = [
+  { slabKb: 177, label: "Large file ~177 KB", lowest: true },
   { slabKb: 185, label: "Recommended · large file low ₹", recommended: true },
-  { slabKb: 193, label: "Standard SupplierDen" },
-  { slabKb: 200, label: "High detail · SupplierDen match" },
+  { slabKb: 193, label: "Standard large framed" },
+  { slabKb: 200, label: "High detail · pro framed match" },
 ];
 
+const FRAME_BORDER_RATIO = 0.048;
+const FRAME_MIN_BORDER = 34;
+const MEESHO_FRAMED_DIM_CAP_PATHS = new Set([
+  "framed_classic",
+  "framed_pro",
+  "framed_low",
+  "framed_compact",
+  "supplierden",
+  "supplierden_heavy",
+]);
 const WHITE_TOL = 42;
 const WHITE_BG_THRESHOLD = 0.62;
 const ABS_MIN_Q = 18;
 const BUSY_MIN_Q = 15;
-const SUPPLIERDEN_ORANGE = { r: 255, g: 121, b: 0 };
-const SUPPLIERDEN_BORDER_RATIO = 0.048;
-const SUPPLIERDEN_MIN_BORDER = 34;
 const MEESHO_FRAMED_MAX_SIDE = 1280;
 const OVERLAY_SUPERSAMPLE = 2;
 
@@ -57,8 +64,8 @@ const STUDIO_CATEGORY_RE =
   /\b(bra|bras|lingerie|panty|panties|underwear|bikini|sports bra|feeding bra|shapewear|camisole|nighty|nightwear|blouse|petticoat)\b/i;
 const INDOOR_CATEGORY_RE = /\b(raincoat|rain coat|rainwear|men raincoat)\b/i;
 
-function supplierDenBorderPx(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
-  let border = Math.max(SUPPLIERDEN_MIN_BORDER, Math.round(Math.min(w, h) * SUPPLIERDEN_BORDER_RATIO));
+function framedBorderPx(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
+  let border = Math.max(FRAME_MIN_BORDER, Math.round(Math.min(w, h) * FRAME_BORDER_RATIO));
   const maxSide = Math.max(w, h);
   if (maxSide + border * 2 > framedMaxSide) {
     const capped = Math.floor((framedMaxSide - maxSide) / 2);
@@ -67,12 +74,12 @@ function supplierDenBorderPx(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
   return border;
 }
 
-function supplierDenFramedMaxSide(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
-  return Math.max(w, h) + supplierDenBorderPx(w, h, framedMaxSide) * 2;
+function framedOuterMaxSide(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
+  return Math.max(w, h) + framedBorderPx(w, h, framedMaxSide) * 2;
 }
 
 /** Proportional downscale — framed max side ≤ cap (Meesho shipping tier). */
-function fitSupplierDenPhotoDims(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
+function fitFramedPhotoDims(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
   let nw = w;
   let nh = h;
   const max0 = Math.max(nw, nh);
@@ -81,8 +88,8 @@ function fitSupplierDenPhotoDims(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
     nw = Math.round(nw * scale);
     nh = Math.round(nh * scale);
   }
-  for (let i = 0; i < 12 && supplierDenFramedMaxSide(nw, nh, framedMaxSide) > framedMaxSide; i++) {
-    const framed = supplierDenFramedMaxSide(nw, nh, framedMaxSide);
+  for (let i = 0; i < 12 && framedOuterMaxSide(nw, nh, framedMaxSide) > framedMaxSide; i++) {
+    const framed = framedOuterMaxSide(nw, nh, framedMaxSide);
     const scale = (framedMaxSide - 1) / framed;
     nw = Math.max(1, Math.round(nw * scale));
     nh = Math.max(1, Math.round(nh * scale));
@@ -210,9 +217,9 @@ function flatOffSvg(scale) {
   </svg>`);
 }
 
-async function prepareSupplierDenBuffer(buffer, width, height, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, frameStyleInput) {
+async function prepareFramedBuffer(buffer, width, height, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, frameStyleInput) {
   const style = parseFrameStyle(frameStyleInput || {});
-  const border = supplierDenBorderPx(width, height, framedMaxSide);
+  const border = framedBorderPx(width, height, framedMaxSide);
   const fw = width + border * 2;
   const fh = height + border * 2;
   const scale = Math.max(0.78, Math.min(1.35, Math.min(width, height) / 900));
@@ -229,7 +236,7 @@ async function prepareSupplierDenBuffer(buffer, width, height, framedMaxSide = M
     const burstTop = Math.round(border + height * 0.72 - (78 * burstScale * 2 + 28 * burstScale) / 2);
     const burstSize = 78 * burstScale * 2 + 28 * burstScale;
 
-    if (template === "supplierden") {
+    if (template === "classic_promo") {
       composites.push({ input: specialOfferSvg(scale), left: offerLeft, top: offerTop });
       composites.push({ input: hotSaleSvg(burstScale), left: burstLeft, top: burstTop });
     } else if (template === "mega_sale") {
@@ -282,7 +289,7 @@ function estimateMeeshoInr(item) {
   const fileKb = kbFromBytes(item.fileSizeBytes);
   const maxSide = Math.max(item.width || 0, item.height || 0);
   const path = item.processingPath || "";
-  if ((path === "supplierden" || path === "supplierden_heavy") && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
+  if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
     return Math.min(fileKb, 93);
   }
   return fileKb;
@@ -318,7 +325,7 @@ function profileFramed() {
     id: "framed",
     studio: false,
     tiers: TIERS_BUSY_BG,
-    path: "supplierden",
+    path: "framed_classic",
     modeName: "Framed Compress",
     framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
   };
@@ -335,13 +342,13 @@ function profileFramedLow() {
   };
 }
 
-function profileFramedSupplierden() {
+function profileFramedPro() {
   return {
-    id: "framed_supplierden",
+    id: "framed_pro",
     studio: false,
-    tiers: TIERS_FRAMED_SUPPLIERDEN,
-    path: "supplierden_heavy",
-    modeName: "Framed SupplierDen",
+    tiers: TIERS_FRAMED_PRO,
+    path: "framed_pro",
+    modeName: "Framed Pro",
     framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
   };
 }
@@ -552,8 +559,14 @@ function resolveProcessingProfile(buffer, categoryName) {
   if (tag.includes("studio balanced") || tag.includes("studio ₹20") || tag.includes("studio 20-40")) {
     return profileStudioBalanced();
   }
-  if (tag.includes("framed supplierden") || tag.includes("supplierden match")) {
-    return profileFramedSupplierden();
+  if (
+    tag.includes("framed pro") ||
+    tag.includes("framed large") ||
+    tag.includes("pro match") ||
+    tag.includes("framed supplierden") ||
+    tag.includes("supplierden match")
+  ) {
+    return profileFramedPro();
   }
   if (tag.includes("framed best") || tag.includes("framed low") || tag.includes("framed minimum")) {
     return profileFramedLow();
@@ -687,7 +700,7 @@ export async function prepareInput(imageBuffer, profile, frameStyleInput) {
     );
   } else {
     buffer = await sharp(buffer).flatten({ background: { r: 255, g: 255, b: 255 } }).toBuffer();
-    const fitted = fitSupplierDenPhotoDims(w, h, framedMaxSide);
+    const fitted = fitFramedPhotoDims(w, h, framedMaxSide);
     if (fitted.w !== w || fitted.h !== h) {
       buffer = await sharp(buffer)
         .resize(fitted.w, fitted.h, { fit: "fill" })
@@ -695,7 +708,7 @@ export async function prepareInput(imageBuffer, profile, frameStyleInput) {
       w = fitted.w;
       h = fitted.h;
     }
-    const framed = await prepareSupplierDenBuffer(buffer, w, h, framedMaxSide, frameStyleInput);
+    const framed = await prepareFramedBuffer(buffer, w, h, framedMaxSide, frameStyleInput);
     buffer = framed.buffer;
     w = framed.width;
     h = framed.height;
@@ -755,7 +768,7 @@ async function buildVariant(prepared, tier, showMode = false) {
 async function autoProfilesForBuffer(buffer) {
   return (await isStudioWhiteBackground(buffer))
     ? [profileStudioUltra(), profileStudioBalanced(), profileStudio()]
-    : [profileFramedLow(), profileFramed(), profileFramedSupplierden()];
+    : [profileFramedLow(), profileFramed(), profileFramedPro()];
 }
 
 async function generateAutoVariants(imageBuffer, categoryName, frameStyleInput) {
