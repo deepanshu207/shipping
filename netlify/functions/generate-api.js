@@ -29,12 +29,12 @@ function loadCategories() {
   if (categoriesCache) return categoriesCache;
 
   const candidates = [
+    join(FUNCTION_DIR, "data/product-types.json"),
+    join(FUNCTION_DIR, "../../data/product-types.json"),
+    join(process.cwd(), "data/product-types.json"),
     join(FUNCTION_DIR, "supplierhub.in/data/product-types.json"),
     join(FUNCTION_DIR, "../../supplierhub.in/data/product-types.json"),
     join(process.cwd(), "supplierhub.in/data/product-types.json"),
-    join(FUNCTION_DIR, "supplierhub.in/data/meesho-categories.json"),
-    join(FUNCTION_DIR, "../../supplierhub.in/data/meesho-categories.json"),
-    join(process.cwd(), "supplierhub.in/data/meesho-categories.json"),
   ];
 
   for (const path of candidates) {

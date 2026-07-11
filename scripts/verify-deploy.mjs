@@ -22,7 +22,7 @@ async function run() {
 
   try {
     const { res, text } = await get("/");
-    if (res.ok && text.includes("Meesho Image Generator") && text.includes("Studio Compress")) {
+    if (res.ok && text.includes("Meesho Image Generator") && text.includes("Auto Lowest Shipping")) {
       checks.push(["GET /", true, "single-page generator"]);
     } else {
       checks.push(["GET /", false, `status ${res.status}`]);
@@ -45,7 +45,7 @@ async function run() {
   try {
     const { res, text } = await get("/");
     if (res.ok && text.includes("Framed Compress") && text.includes("own-api.js")) {
-      checks.push(["GET / embedded UI", true, "Studio + Framed in single HTML"]);
+      checks.push(["GET / embedded UI", true, "Auto + Studio + Framed in single HTML"]);
     } else {
       checks.push(["GET / embedded UI", false, "missing modes or api"]);
     }
@@ -69,10 +69,10 @@ async function run() {
     if (res.ok) {
       const body = JSON.parse(text);
       const leaves = body.meeshoCategoryArray?.find((g) => g.type === "sub-sub-category")?.data?.length;
-      if (leaves === 2) {
-        checks.push(["GET /data/product-types.json", true, "2 compression modes"]);
+      if (leaves >= 7) {
+        checks.push(["GET /data/product-types.json", true, `${leaves} compression modes`]);
       } else {
-        checks.push(["GET /data/product-types.json", false, "expected 2 modes"]);
+        checks.push(["GET /data/product-types.json", false, `expected 7 modes, got ${leaves}`]);
       }
     } else {
       checks.push(["GET /data/product-types.json", false, `status ${res.status}`]);

@@ -11,7 +11,7 @@ from http.server import SimpleHTTPRequestHandler
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
-ROOT = REPO / "supplierhub.in"
+ROOT = REPO
 PORT = 8000
 
 mimetypes.add_type("application/javascript", ".mjs")
@@ -105,12 +105,13 @@ class SPAHandler(SimpleHTTPRequestHandler):
         return parsed
 
     def _optimize_image(self, image_bytes: bytes, tag_name: str) -> list[dict]:
+        is_auto = "auto" in str(tag_name or "").lower()
         proc = subprocess.run(
             ["node", str(OPTIMIZE_SCRIPT), tag_name],
             input=image_bytes,
             capture_output=True,
             cwd=str(REPO),
-            timeout=120,
+            timeout=300 if is_auto else 120,
         )
         if proc.returncode != 0:
             err = proc.stderr.decode("utf-8", errors="replace")
@@ -314,6 +315,6 @@ if __name__ == "__main__":
         print("Close other terminals using port 8000, then run:  python server.py\n")
         raise SystemExit(1)
     print(f"\n  Meesho Image Generator running")
-    print(f"  Open: http://localhost:{PORT}/meesho-image-generator\n")
+    print(f"  Open: http://localhost:{PORT}/\n")
     with httpd:
         httpd.serve_forever()

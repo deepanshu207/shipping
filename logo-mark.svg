@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Meesho Optimizer">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#0891b2"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" rx="14" fill="url(#bg)"/>
+  <rect width="48" height="48" rx="14" fill="url(#shine)"/>
+  <rect x="11" y="13" width="20" height="16" rx="3" fill="none" stroke="#fff" stroke-width="2.2"/>
+  <circle cx="16" cy="17.5" r="1.8" fill="#fff"/>
+  <path d="M13 25l4-4 3 3 5-6 4 4" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30 11v4.5M28 13.25h4" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+  <path d="M33 28l3 3-3 3" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M36 31H28" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+</svg>
