@@ -22,8 +22,8 @@ async function run() {
 
   try {
     const { res, text } = await get("/");
-    if (res.ok && text.includes("Meesho Image Generator") && text.includes("app.js")) {
-      checks.push(["GET /", true, "generator index"]);
+    if (res.ok && text.includes("Meesho Image Generator") && text.includes("Studio Compress")) {
+      checks.push(["GET /", true, "single-page generator"]);
     } else {
       checks.push(["GET /", false, `status ${res.status}`]);
     }
@@ -43,14 +43,14 @@ async function run() {
   }
 
   try {
-    const { res, text } = await get("/app.js");
-    if (res.ok && text.includes("Studio Compress")) {
-      checks.push(["GET /app.js", true, "standalone UI"]);
+    const { res, text } = await get("/");
+    if (res.ok && text.includes("Framed Compress") && text.includes("own-api.js")) {
+      checks.push(["GET / embedded UI", true, "Studio + Framed in single HTML"]);
     } else {
-      checks.push(["GET /app.js", false, `status ${res.status}`]);
+      checks.push(["GET / embedded UI", false, "missing modes or api"]);
     }
   } catch (e) {
-    checks.push(["GET /app.js", false, e.message]);
+    checks.push(["GET / embedded UI", false, e.message]);
   }
 
   try {

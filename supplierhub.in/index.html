@@ -2,42 +2,422 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <script>
-    (function () {
-      if (localStorage.getItem("theme") === "dark") {
-        document.documentElement.classList.add("dark");
-      }
-      if (location.pathname !== "/" && location.pathname !== "") {
-        history.replaceState(null, "", "/");
-      }
-    })();
-  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#059669" />
   <title>Meesho Image Generator</title>
-  <meta name="description" content="Upload a Meesho product photo, pick Studio or Framed compression, download optimized JPEGs." />
+  <meta name="description" content="Upload a Meesho product photo. Pick Studio or Framed compression. Download optimized JPEGs." />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="modulepreload" href="/vendor/mozjpeg.mjs?v=3" />
   <link rel="preload" href="/vendor/jsquash/codec/enc/mozjpeg_enc.wasm" as="fetch" crossorigin />
   <script type="module" src="/vendor/mozjpeg-loader.mjs?v=3"></script>
-  <link rel="stylesheet" href="/app.css?v=3" />
-  <script src="/own-api.js?v=39"></script>
-  <script src="/app.js?v=3" defer></script>
+  <style>
+    :root {
+      --emerald: #059669;
+      --emerald-dark: #047857;
+      --orange: #ff7900;
+      --bg: #f8fafc;
+      --surface: #fff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --shadow: 0 20px 50px rgb(15 23 42 / 0.08);
+    }
+    .dark {
+      --bg: #09090b;
+      --surface: #18181b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --border: rgb(255 255 255 / 0.1);
+      --shadow: 0 20px 50px rgb(0 0 0 / 0.4);
+    }
+    * { box-sizing: border-box; }
+    html { font-family: "Plus Jakarta Sans", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text); }
+    .bg-glow {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background: radial-gradient(ellipse 70% 45% at 50% -15%, rgb(5 150 105 / 0.12), transparent);
+    }
+    .header {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border);
+      background: rgb(255 255 255 / 0.85); backdrop-filter: blur(10px);
+    }
+    .dark .header { background: rgb(9 9 11 / 0.85); }
+    .brand { display: flex; align-items: center; gap: 0.6rem; font-weight: 800; font-size: 1.05rem; }
+    .brand img { width: 36px; height: 36px; border-radius: 0.6rem; }
+    .theme-btn {
+      width: 2.5rem; height: 2.5rem; border-radius: 0.7rem; border: 1px solid var(--border);
+      background: var(--surface); color: var(--muted); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .theme-btn svg { width: 1.1rem; height: 1.1rem; }
+    .theme-btn .moon { display: none; }
+    .dark .theme-btn .sun { display: none; }
+    .dark .theme-btn .moon { display: block; }
+    .main {
+      position: relative; z-index: 1; max-width: 720px; margin: 0 auto;
+      padding: 1.75rem 1.15rem 2.5rem;
+    }
+    .subtitle {
+      text-align: center; color: var(--muted); font-size: 0.95rem; line-height: 1.5;
+      margin: 0 0 1.5rem;
+    }
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 1.25rem;
+      padding: 1.35rem; box-shadow: var(--shadow);
+    }
+    .label {
+      font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--muted); margin: 0 0 0.85rem;
+    }
+    .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    @media (max-width: 520px) { .modes { grid-template-columns: 1fr; } }
+    .mode {
+      text-align: left; font: inherit; color: inherit; cursor: pointer;
+      border: 2px solid var(--border); border-radius: 1rem; padding: 1rem;
+      background: var(--surface); transition: 0.15s ease;
+    }
+    .mode:hover { transform: translateY(-1px); }
+    .mode.selected.studio { border-color: var(--emerald); box-shadow: 0 0 0 3px rgb(5 150 105 / 0.15); }
+    .mode.selected.framed { border-color: var(--orange); box-shadow: 0 0 0 3px rgb(255 121 0 / 0.15); }
+    .mode-title { font-size: 1rem; font-weight: 800; margin: 0 0 0.35rem; }
+    .mode-for { font-size: 0.8125rem; color: var(--muted); margin: 0; line-height: 1.4; }
+    .mode-for b { color: var(--text); font-weight: 700; }
+    .mode-tag {
+      display: inline-block; margin-top: 0.65rem; font-size: 0.65rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.04em; padding: 0.3rem 0.55rem; border-radius: 999px;
+    }
+    .mode.studio .mode-tag { background: #ecfdf5; color: var(--emerald-dark); }
+    .mode.framed .mode-tag { background: #fff7ed; color: #c2410c; }
+    .upload { margin-top: 1.35rem; }
+    .drop {
+      border: 2px dashed var(--border); border-radius: 1rem; min-height: 11rem;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+      background: rgb(248 250 252 / 0.8); transition: 0.15s; overflow: hidden;
+    }
+    .dark .drop { background: rgb(255 255 255 / 0.03); }
+    .drop:hover, .drop.drag { border-color: var(--emerald); background: rgb(236 253 245 / 0.5); }
+    .drop.has-img { border-style: solid; padding: 0.5rem; }
+    .drop img { max-width: 100%; max-height: 13rem; object-fit: contain; border-radius: 0.5rem; }
+    .drop-empty { text-align: center; padding: 1.25rem; pointer-events: none; color: var(--muted); }
+    .drop-empty svg { width: 2.25rem; height: 2.25rem; margin-bottom: 0.5rem; }
+    .drop-empty strong { display: block; color: var(--text); font-size: 0.9rem; margin-bottom: 0.25rem; }
+    .drop-empty span { font-size: 0.8rem; }
+    .generate {
+      width: 100%; margin-top: 1.15rem; border: none; border-radius: 0.9rem;
+      padding: 1rem; font: inherit; font-size: 1rem; font-weight: 800; color: #fff;
+      background: linear-gradient(135deg, var(--emerald), #0d9488);
+      box-shadow: 0 8px 24px rgb(5 150 105 / 0.3); cursor: pointer;
+    }
+    .generate:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+    .generate:not(:disabled):hover { transform: translateY(-1px); }
+    .error {
+      margin-top: 0.75rem; padding: 0.7rem 0.9rem; border-radius: 0.65rem;
+      background: #fef2f2; color: #b91c1c; font-size: 0.875rem; font-weight: 600;
+    }
+    .dark .error { background: rgb(127 29 29 / 0.3); color: #fca5a5; }
+    .hidden { display: none !important; }
+    .processing { text-align: center; padding: 2.5rem 1rem; }
+    .spinner {
+      width: 2.75rem; height: 2.75rem; margin: 0 auto 1rem;
+      border: 3px solid var(--border); border-top-color: var(--emerald);
+      border-radius: 999px; animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .results-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .results-head h2 { margin: 0; font-size: 1.2rem; }
+    .btn-secondary {
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      font: inherit; font-size: 0.875rem; font-weight: 700; padding: 0.5rem 0.9rem;
+      border-radius: 0.65rem; cursor: pointer;
+    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.85rem; }
+    .result {
+      border: 1px solid var(--border); border-radius: 0.85rem; overflow: hidden; background: var(--surface);
+      display: flex; flex-direction: column;
+    }
+    .result-img {
+      aspect-ratio: 4/3; background: #f1f5f9; display: flex; align-items: center; justify-content: center; padding: 0.25rem;
+    }
+    .dark .result-img { background: #27272a; }
+    .result-img img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .result-body { padding: 0.75rem; display: flex; flex-direction: column; gap: 0.4rem; flex: 1; }
+    .badge {
+      font-size: 0.6rem; font-weight: 800; text-transform: uppercase;
+      background: #ecfdf5; color: var(--emerald-dark); padding: 0.15rem 0.4rem;
+      border-radius: 0.3rem; width: fit-content;
+    }
+    .result-label { font-size: 0.8rem; font-weight: 700; line-height: 1.35; }
+    .result-meta { font-size: 0.72rem; color: var(--muted); }
+    .download {
+      margin-top: auto; text-align: center; text-decoration: none;
+      background: var(--emerald); color: #fff; font-size: 0.8rem; font-weight: 800;
+      padding: 0.55rem; border-radius: 0.55rem;
+    }
+    .download:hover { background: var(--emerald-dark); }
+  </style>
+  <script>
+    (function () {
+      if (localStorage.getItem("theme") === "dark") document.documentElement.classList.add("dark");
+      if (location.pathname !== "/") history.replaceState(null, "", "/");
+    })();
+  </script>
 </head>
 <body>
-  <div class="mo-bg" aria-hidden="true"></div>
+  <div class="bg-glow" aria-hidden="true"></div>
 
-  <header class="mo-header">
-    <div class="mo-logo">
-      <img src="/logo-mark.svg?v=2" width="36" height="36" alt="" />
+  <header class="header">
+    <div class="brand">
+      <img src="/logo-mark.svg?v=2" alt="" />
       <span>Meesho Image Generator</span>
     </div>
-    <button type="button" class="mo-theme" id="mo-theme" aria-label="Toggle dark mode">
-      <svg class="mo-theme__sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-      <svg class="mo-theme__moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+    <button type="button" class="theme-btn" id="theme-btn" aria-label="Toggle theme">
+      <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/></svg>
+      <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
     </button>
   </header>
 
-  <main class="mo-main" id="mo-app"></main>
+  <main class="main">
+    <p class="subtitle">Choose Studio or Framed, upload your product photo, download optimized JPEGs.</p>
+
+    <!-- FORM -->
+    <section class="card" id="panel-form">
+      <p class="label">1 · Choose compression mode</p>
+      <div class="modes">
+        <button type="button" class="mode studio selected" data-id="mo_studio" data-tag="White studio product" data-name="Studio Compress">
+          <p class="mode-title">Studio Compress</p>
+          <p class="mode-for"><b>For:</b> White / plain background (bra, lingerie)</p>
+          <span class="mode-tag">White canvas · ~20–26 KB</span>
+        </button>
+        <button type="button" class="mode framed" data-id="mo_indoor" data-tag="Indoor busy background" data-name="Framed Compress">
+          <p class="mode-title">Framed Compress</p>
+          <p class="mode-for"><b>For:</b> Indoor / busy background (raincoat, jacket)</p>
+          <span class="mode-tag">Orange frame · ~91–93 KB</span>
+        </button>
+      </div>
+
+      <div class="upload">
+        <p class="label">2 · Upload image</p>
+        <div class="drop" id="drop">
+          <div class="drop-empty" id="drop-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <strong>Tap to upload or drop image here</strong>
+            <span>JPG, PNG, WEBP</span>
+          </div>
+        </div>
+        <input type="file" id="file" accept="image/png,image/jpeg,image/webp" hidden />
+      </div>
+
+      <button type="button" class="generate" id="generate" disabled>Generate optimized images</button>
+      <div class="error hidden" id="error"></div>
+    </section>
+
+    <!-- PROCESSING -->
+    <section class="card processing hidden" id="panel-processing">
+      <div class="spinner"></div>
+      <h2 id="processing-title">Optimizing…</h2>
+      <p style="color:var(--muted);margin:0">Usually takes 10–30 seconds. Please wait.</p>
+    </section>
+
+    <!-- RESULTS -->
+    <section class="card hidden" id="panel-results">
+      <div class="results-head">
+        <h2 id="results-title">Your images</h2>
+        <button type="button" class="btn-secondary" id="btn-new">← New image</button>
+      </div>
+      <div class="grid" id="results-grid"></div>
+    </section>
+  </main>
+
+  <script src="/own-api.js?v=39"></script>
+  <script>
+    (function () {
+      var selected = document.querySelector(".mode.selected");
+      var imageFile = null;
+      var previewUrl = null;
+
+      var panelForm = document.getElementById("panel-form");
+      var panelProcessing = document.getElementById("panel-processing");
+      var panelResults = document.getElementById("panel-results");
+      var drop = document.getElementById("drop");
+      var dropEmpty = document.getElementById("drop-empty");
+      var fileInput = document.getElementById("file");
+      var generateBtn = document.getElementById("generate");
+      var errorEl = document.getElementById("error");
+      var resultsGrid = document.getElementById("results-grid");
+      var processingTitle = document.getElementById("processing-title");
+      var resultsTitle = document.getElementById("results-title");
+
+      function show(panel) {
+        panelForm.classList.toggle("hidden", panel !== "form");
+        panelProcessing.classList.toggle("hidden", panel !== "processing");
+        panelResults.classList.toggle("hidden", panel !== "results");
+      }
+
+      function setError(msg) {
+        if (msg) {
+          errorEl.textContent = msg;
+          errorEl.classList.remove("hidden");
+        } else {
+          errorEl.classList.add("hidden");
+        }
+      }
+
+      function updateGenerate() {
+        generateBtn.disabled = !(selected && imageFile);
+      }
+
+      document.querySelectorAll(".mode").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          document.querySelectorAll(".mode").forEach(function (b) {
+            b.classList.remove("selected");
+          });
+          btn.classList.add("selected");
+          selected = btn;
+          setError("");
+          updateGenerate();
+        });
+      });
+
+      function setImage(file) {
+        if (!file || !file.type.startsWith("image/")) {
+          setError("Please upload JPG, PNG, or WEBP.");
+          return;
+        }
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        imageFile = file;
+        previewUrl = URL.createObjectURL(file);
+        drop.classList.add("has-img");
+        dropEmpty.classList.add("hidden");
+        var img = drop.querySelector("img");
+        if (!img) {
+          img = document.createElement("img");
+          drop.appendChild(img);
+        }
+        img.src = previewUrl;
+        img.alt = "Preview";
+        setError("");
+        updateGenerate();
+      }
+
+      drop.addEventListener("click", function () { fileInput.click(); });
+      fileInput.addEventListener("change", function () {
+        if (fileInput.files[0]) setImage(fileInput.files[0]);
+      });
+      drop.addEventListener("dragover", function (e) { e.preventDefault(); drop.classList.add("drag"); });
+      drop.addEventListener("dragleave", function () { drop.classList.remove("drag"); });
+      drop.addEventListener("drop", function (e) {
+        e.preventDefault();
+        drop.classList.remove("drag");
+        if (e.dataTransfer.files[0]) setImage(e.dataTransfer.files[0]);
+      });
+
+      function sleep(ms) {
+        return new Promise(function (r) { setTimeout(r, ms); });
+      }
+
+      function poll(requestId) {
+        return new Promise(function (resolve, reject) {
+          var attempts = 0;
+          function tick() {
+            fetch("/api/meesho/request-status/" + requestId, { credentials: "include" })
+              .then(function (r) { return r.json(); })
+              .then(function (d) {
+                if (d.status === "completed" && d.results && d.results.length) return resolve(d.results);
+                if (d.status === "failed") return reject(new Error("Optimization failed. Try another photo or mode."));
+                if (++attempts >= 180) return reject(new Error("Timed out. Please try again."));
+                setTimeout(tick, 1500);
+              })
+              .catch(reject);
+          }
+          tick();
+        });
+      }
+
+      function esc(s) {
+        return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+      }
+
+      function showResults(results, modeName) {
+        resultsTitle.textContent = modeName + " · " + results.length + " variants";
+        resultsGrid.innerHTML = results.map(function (r, i) {
+          var fname = "meesho-" + r.fileSizeKb + "kb-" + (i + 1) + ".jpg";
+          return (
+            '<article class="result">' +
+              '<div class="result-img"><img src="' + r.imageUrl + '" alt="Variant ' + (i + 1) + '" loading="lazy" /></div>' +
+              '<div class="result-body">' +
+                (r.recommended ? '<span class="badge">Recommended</span>' : "") +
+                (r.lowest ? '<span class="badge">Smallest</span>' : "") +
+                '<div class="result-label">' + esc(r.tagName || "Variant " + (i + 1)) + '</div>' +
+                '<div class="result-meta">Est. ~₹' + (r.estimatedShippingInr || r.fileSizeKb) + " · " + r.fileSizeKb + " KB</div>" +
+                '<a class="download" href="' + r.imageUrl + '" download="' + fname + '">Download JPEG</a>' +
+              '</div></article>'
+          );
+        }).join("");
+        show("results");
+      }
+
+      function resetForm() {
+        selected = document.querySelector(".mode.selected") || document.querySelector(".mode.studio");
+        if (selected && !selected.classList.contains("selected")) {
+          document.querySelectorAll(".mode").forEach(function (b) { b.classList.remove("selected"); });
+          selected.classList.add("selected");
+        }
+        imageFile = null;
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        previewUrl = null;
+        drop.classList.remove("has-img");
+        dropEmpty.classList.remove("hidden");
+        var oldImg = drop.querySelector("img");
+        if (oldImg) oldImg.remove();
+        fileInput.value = "";
+        setError("");
+        updateGenerate();
+        show("form");
+      }
+
+      generateBtn.addEventListener("click", function () {
+        if (!selected || !imageFile) {
+          setError(!selected ? "Choose Studio or Framed first." : "Upload an image first.");
+          return;
+        }
+        setError("");
+        processingTitle.textContent = "Running " + selected.dataset.name + "…";
+        show("processing");
+
+        var form = new FormData();
+        form.append("tagId", selected.dataset.id);
+        form.append("tagName", selected.dataset.tag);
+        form.append("image", imageFile);
+
+        fetch("/api/meesho/getLowestShippingCharge", { method: "POST", body: form, credentials: "include" })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (_ref) {
+            if (!_ref.ok || !_ref.d.requestId) throw new Error((_ref.d && _ref.d.message) || "Upload failed");
+            return poll(_ref.d.requestId);
+          })
+          .then(function (results) {
+            showResults(results, selected.dataset.name);
+          })
+          .catch(function (err) {
+            show("form");
+            setError(err.message || "Something went wrong.");
+          });
+      });
+
+      document.getElementById("btn-new").addEventListener("click", resetForm);
+
+      document.getElementById("theme-btn").addEventListener("click", function () {
+        var dark = document.documentElement.classList.toggle("dark");
+        localStorage.setItem("theme", dark ? "dark" : "light");
+      });
+
+      updateGenerate();
+    })();
+  </script>
 </body>
 </html>
