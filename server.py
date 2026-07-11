@@ -104,10 +104,11 @@ class SPAHandler(SimpleHTTPRequestHandler):
                 parsed[key] = field.value
         return parsed
 
-    def _optimize_image(self, image_bytes: bytes, tag_name: str) -> list[dict]:
+    def _optimize_image(self, image_bytes: bytes, tag_name: str, frame_style: dict | None = None) -> list[dict]:
         is_auto = "auto" in str(tag_name or "").lower()
+        style_json = json.dumps(frame_style or {})
         proc = subprocess.run(
-            ["node", str(OPTIMIZE_SCRIPT), tag_name],
+            ["node", str(OPTIMIZE_SCRIPT), tag_name, style_json],
             input=image_bytes,
             capture_output=True,
             cwd=str(REPO),
@@ -124,7 +125,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
             return
         req["processing"] = True
         try:
-            req["results"] = self._optimize_image(req["image_bytes"], req["tag_name"])
+            req["results"] = self._optimize_image(req["image_bytes"], req["tag_name"], req.get("frame_style"))
             req["status"] = "completed"
             req["image_bytes"] = None
         except Exception as exc:
@@ -182,10 +183,15 @@ class SPAHandler(SimpleHTTPRequestHandler):
                 self._json_response(400, {"message": "Image is required"})
                 return True
             request_id = uuid.uuid4().hex[:12]
+            frame_style = {
+                "frameBorderColor": form.get("frameBorderColor") or "#FF7900",
+                "frameStickerTemplate": form.get("frameStickerTemplate") or "supplierden",
+            }
             MOCK_REQUESTS[request_id] = {
                 "created_at": time.time(),
                 "tag_id": form.get("tagId", ""),
                 "tag_name": form.get("tagName", "Product"),
+                "frame_style": frame_style,
                 "image_bytes": image["bytes"],
                 "status": "processing",
                 "results": [],

@@ -55,6 +55,27 @@
   const AUTO_PROCESS_TIMEOUT_MS = 360000;
   const MOZJPEG_URL = () => new URL("/vendor/mozjpeg.mjs", location.origin).href;
   const SUPPLIERDEN_ORANGE = "#FF7900";
+  const FRAME_LS_BORDER = "meesho_frame_border_color";
+  const FRAME_LS_TEMPLATE = "meesho_frame_sticker_template";
+  const FRAME_LS_PRESET = "meesho_frame_border_preset";
+  const BORDER_PRESETS = [
+    { id: "supplierden", name: "SupplierDen Orange", color: "#FF7900" },
+    { id: "meesho_red", name: "Sale Red", color: "#E53935" },
+    { id: "royal_blue", name: "Royal Blue", color: "#1565C0" },
+    { id: "emerald", name: "Emerald Green", color: "#059669" },
+    { id: "purple", name: "Purple", color: "#7C3AED" },
+    { id: "black", name: "Black", color: "#111827" },
+  ];
+  const STICKER_TEMPLATE_META = [
+    { id: "supplierden", name: "SupplierDen Classic", desc: "SPECIAL OFFER + HOT SALE" },
+    { id: "none", name: "Frame only", desc: "No promotion stickers" },
+    { id: "mega_sale", name: "Mega Sale", desc: "Large MEGA SALE badge" },
+    { id: "best_price", name: "Best Price", desc: "BEST PRICE corner ribbon" },
+    { id: "limited_time", name: "Limited Time", desc: "LIMITED TIME urgency tag" },
+    { id: "flash_deal", name: "Flash Deal", desc: "FLASH DEAL star burst" },
+    { id: "super_offer", name: "Super Offer", desc: "SUPER OFFER + 50% OFF" },
+  ];
+  const STICKER_TEMPLATE_IDS = new Set(STICKER_TEMPLATE_META.map((t) => t.id));
   const SUPPLIERDEN_BORDER_RATIO = 0.048;
   const SUPPLIERDEN_MIN_BORDER = 34;
   /** Meesho may tier on max framed side — SupplierDen outputs often cap near 1280px. */
@@ -100,6 +121,76 @@
   const REQ_INDEX = "meesho:req-index";
   const REQ_LIMIT = 20;
   const origFetch = window.fetch.bind(window);
+
+  function normalizeBorderColor(input) {
+    const raw = String(input || "").trim();
+    if (/^#[0-9A-Fa-f]{6}$/.test(raw)) return raw.toUpperCase();
+    const hex3 = raw.match(/^#([0-9A-Fa-f]{3})$/);
+    if (hex3) {
+      const h = hex3[1];
+      return `#${h[0]}${h[0]}${h[1]}${h[1]}${h[2]}${h[2]}`.toUpperCase();
+    }
+    const rgb = raw.match(/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i);
+    if (rgb) {
+      return (
+        "#" +
+        [rgb[1], rgb[2], rgb[3]]
+          .map((n) => Math.min(255, Math.max(0, parseInt(n, 10))).toString(16).padStart(2, "0"))
+          .join("")
+      ).toUpperCase();
+    }
+    const parts = raw.match(/^(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})$/);
+    if (parts) {
+      return (
+        "#" +
+        [parts[1], parts[2], parts[3]]
+          .map((n) => Math.min(255, Math.max(0, parseInt(n, 10))).toString(16).padStart(2, "0"))
+          .join("")
+      ).toUpperCase();
+    }
+    return SUPPLIERDEN_ORANGE;
+  }
+
+  function normalizeStickerTemplate(input) {
+    const id = String(input || "supplierden").trim().toLowerCase();
+    return STICKER_TEMPLATE_IDS.has(id) ? id : "supplierden";
+  }
+
+  function defaultFrameStyle() {
+    return { borderColor: SUPPLIERDEN_ORANGE, stickerTemplate: "supplierden" };
+  }
+
+  function parseFrameStyle(fields) {
+    if (!fields) return defaultFrameStyle();
+    return {
+      borderColor: normalizeBorderColor(fields.frameBorderColor || fields.borderColor),
+      stickerTemplate: normalizeStickerTemplate(fields.frameStickerTemplate || fields.stickerTemplate),
+    };
+  }
+
+  function getFieldFromBody(body, key) {
+    if (body instanceof FormData) {
+      const v = body.get(key);
+      return v == null ? "" : String(v);
+    }
+    return "";
+  }
+
+  function parseFrameStyleFromBody(body) {
+    return parseFrameStyle({
+      frameBorderColor: getFieldFromBody(body, "frameBorderColor"),
+      frameStickerTemplate: getFieldFromBody(body, "frameStickerTemplate"),
+    });
+  }
+
+  function hexToRgbComponents(hex) {
+    const h = normalizeBorderColor(hex).slice(1);
+    return {
+      r: parseInt(h.slice(0, 2), 16),
+      g: parseInt(h.slice(2, 4), 16),
+      b: parseInt(h.slice(4, 6), 16),
+    };
+  }
 
   function kb(bytes) {
     return Math.max(1, Math.ceil(bytes / 1024));
@@ -722,6 +813,158 @@
     return { canvas: c, width: size, height: size };
   }
 
+  function renderLimitedTimeBadge(scale) {
+    const w = 108 * scale;
+    const h = 48 * scale;
+    const pad = 8 * scale;
+    const bw = w + pad * 2;
+    const bh = h + pad * 2;
+    const ss = OVERLAY_SUPERSAMPLE;
+    const c = document.createElement("canvas");
+    c.width = Math.ceil(bw * ss);
+    c.height = Math.ceil(bh * ss);
+    const ctx = c.getContext("2d");
+    ctx.scale(ss, ss);
+    ctx.translate(pad, pad);
+    ctx.rotate(0.1);
+    roundRectPath(ctx, 0, 0, w, h, 8 * scale);
+    ctx.fillStyle = "#4527A0";
+    ctx.fill();
+    ctx.strokeStyle = "#FFD600";
+    ctx.lineWidth = 2.5 * scale;
+    ctx.stroke();
+    drawStickerText(ctx, "LIMITED", w / 2, h * 0.36, 11, scale, { fill: "#FFD600", stroke: "#311B92" });
+    drawStickerText(ctx, "TIME", w / 2, h * 0.72, 11, scale, { fill: "#FFFFFF", stroke: "#311B92" });
+    return { canvas: c, width: bw, height: bh };
+  }
+
+  function renderBestPriceRibbon(scale) {
+    const size = 130 * scale;
+    const ss = OVERLAY_SUPERSAMPLE;
+    const c = document.createElement("canvas");
+    c.width = Math.ceil(size * ss);
+    c.height = Math.ceil(size * ss);
+    const ctx = c.getContext("2d");
+    ctx.scale(ss, ss);
+    ctx.translate(size * 0.12, size * 0.38);
+    ctx.rotate(-0.55);
+    ctx.fillStyle = "#C62828";
+    ctx.fillRect(0, 0, size * 0.95, 34 * scale);
+    ctx.strokeStyle = "#FFD600";
+    ctx.lineWidth = 2 * scale;
+    ctx.strokeRect(0, 0, size * 0.95, 34 * scale);
+    drawStickerText(ctx, "BEST PRICE", size * 0.47, 17 * scale, 13, scale, { fill: "#FFD600", stroke: "#7F0000", strokeWidth: 1.2 });
+    return { canvas: c, width: size, height: size };
+  }
+
+  function renderMegaSaleBadge(scale) {
+    const w = 118 * scale;
+    const h = 58 * scale;
+    const pad = 8 * scale;
+    const bw = w + pad * 2;
+    const bh = h + pad * 2;
+    const ss = OVERLAY_SUPERSAMPLE;
+    const c = document.createElement("canvas");
+    c.width = Math.ceil(bw * ss);
+    c.height = Math.ceil(bh * ss);
+    const ctx = c.getContext("2d");
+    ctx.scale(ss, ss);
+    ctx.translate(pad, pad);
+    ctx.rotate(-0.12);
+    roundRectPath(ctx, 0, 0, w, h, 8 * scale);
+    const g = ctx.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, "#FF5722");
+    g.addColorStop(1, "#D32F2F");
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.strokeStyle = "#FFEB3B";
+    ctx.lineWidth = 3 * scale;
+    ctx.stroke();
+    drawStickerText(ctx, "MEGA", w / 2, h * 0.35, 14, scale, { fill: "#FFEB3B", stroke: "#B71C1C" });
+    drawStickerText(ctx, "SALE", w / 2, h * 0.72, 14, scale, { fill: "#FFFFFF", stroke: "#B71C1C" });
+    return { canvas: c, width: bw, height: bh };
+  }
+
+  function renderFlashDealBurst(scale) {
+    const spikes = 12;
+    const outer = 72 * scale;
+    const inner = 30 * scale;
+    const pad = 12 * scale;
+    const size = outer * 2 + pad * 2;
+    const center = size / 2;
+    const ss = OVERLAY_SUPERSAMPLE;
+    const c = document.createElement("canvas");
+    c.width = Math.ceil(size * ss);
+    c.height = Math.ceil(size * ss);
+    const ctx = c.getContext("2d");
+    ctx.scale(ss, ss);
+    ctx.translate(center, center);
+    ctx.beginPath();
+    for (let i = 0; i < spikes * 2; i++) {
+      const angle = (Math.PI * i) / spikes - Math.PI / 2;
+      const radius = i % 2 === 0 ? outer : inner;
+      const px = Math.cos(angle) * radius;
+      const py = Math.sin(angle) * radius;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    const grad = ctx.createRadialGradient(0, 0, inner * 0.15, 0, 0, outer);
+    grad.addColorStop(0, "#FFEE58");
+    grad.addColorStop(0.6, "#FF7043");
+    grad.addColorStop(1, "#D84315");
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = "#BF360C";
+    ctx.lineWidth = 2.2 * scale;
+    ctx.stroke();
+    drawStickerText(ctx, "FLASH", 0, -10 * scale, 12, scale, { strokeWidth: 1.4 });
+    drawStickerText(ctx, "DEAL", 0, 8 * scale, 12, scale, { strokeWidth: 1.4 });
+    return { canvas: c, width: size, height: size };
+  }
+
+  function renderSuperOfferBadge(scale) {
+    const w = 96 * scale;
+    const h = 50 * scale;
+    const pad = 8 * scale;
+    const ss = OVERLAY_SUPERSAMPLE;
+    const c = document.createElement("canvas");
+    c.width = Math.ceil((w + pad * 2) * ss);
+    c.height = Math.ceil((h + pad * 2) * ss);
+    const ctx = c.getContext("2d");
+    ctx.scale(ss, ss);
+    ctx.translate(pad, pad);
+    roundRectPath(ctx, 0, 0, w, h, 7 * scale);
+    ctx.fillStyle = "#00897B";
+    ctx.fill();
+    ctx.strokeStyle = "#FFD600";
+    ctx.lineWidth = 2.5 * scale;
+    ctx.stroke();
+    drawStickerText(ctx, "SUPER", w / 2, h * 0.34, 12, scale, { fill: "#FFD600", stroke: "#004D40" });
+    drawStickerText(ctx, "OFFER", w / 2, h * 0.72, 12, scale, { fill: "#FFFFFF", stroke: "#004D40" });
+    return { canvas: c, width: w + pad * 2, height: h + pad * 2 };
+  }
+
+  function renderFlatOffBadge(scale) {
+    const d = 72 * scale;
+    const ss = OVERLAY_SUPERSAMPLE;
+    const c = document.createElement("canvas");
+    c.width = Math.ceil(d * ss);
+    c.height = Math.ceil(d * ss);
+    const ctx = c.getContext("2d");
+    ctx.scale(ss, ss);
+    ctx.beginPath();
+    ctx.arc(d / 2, d / 2, d / 2 - 2 * scale, 0, Math.PI * 2);
+    ctx.fillStyle = "#F57C00";
+    ctx.fill();
+    ctx.strokeStyle = "#FFFFFF";
+    ctx.lineWidth = 2.5 * scale;
+    ctx.stroke();
+    drawStickerText(ctx, "50%", d / 2, d / 2 - 6 * scale, 16, scale, { fill: "#FFFFFF", stroke: "#E65100", strokeWidth: 1.5 });
+    drawStickerText(ctx, "OFF", d / 2, d / 2 + 12 * scale, 11, scale, { fill: "#FFEB3B", stroke: "#E65100", strokeWidth: 1.2 });
+    return { canvas: c, width: d, height: d };
+  }
+
   function drawSupplierDenOverlays(ctx, border, photoW, photoH) {
     const scale = Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
     const badge = renderSpecialOfferBadge(scale);
@@ -738,8 +981,87 @@
     );
   }
 
-  /** SupplierDen-style orange frame + sale stickers — photo scaled to Meesho framed cap. */
-  function prepareSupplierDenCanvas(img, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
+  function drawFramedOverlays(ctx, border, photoW, photoH, templateId) {
+    const template = normalizeStickerTemplate(templateId);
+    if (template === "none") return;
+
+    const scale = Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+
+    if (template === "supplierden") {
+      drawSupplierDenOverlays(ctx, border, photoW, photoH);
+      return;
+    }
+
+    if (template === "mega_sale") {
+      const badge = renderMegaSaleBadge(scale * 1.08);
+      ctx.drawImage(badge.canvas, border + photoW * 0.62, border + photoH * 0.04, badge.width, badge.height);
+      return;
+    }
+
+    if (template === "best_price") {
+      const ribbon = renderBestPriceRibbon(scale);
+      ctx.drawImage(ribbon.canvas, border + photoW * 0.02, border + photoH * 0.02, ribbon.width * 0.55, ribbon.height * 0.55);
+      const burst = renderHotSaleBurst(scale * 0.85);
+      ctx.drawImage(
+        burst.canvas,
+        border + photoW * 0.78 - burst.width / 2,
+        border + photoH * 0.68 - burst.height / 2,
+        burst.width,
+        burst.height
+      );
+      return;
+    }
+
+    if (template === "limited_time") {
+      const badge = renderLimitedTimeBadge(scale);
+      ctx.drawImage(badge.canvas, border + photoW * 0.58, border + photoH * 0.06, badge.width, badge.height);
+      const burst = renderFlashDealBurst(scale * 0.75);
+      ctx.drawImage(
+        burst.canvas,
+        border + photoW * 0.12 - burst.width / 2,
+        border + photoH * 0.7 - burst.height / 2,
+        burst.width,
+        burst.height
+      );
+      return;
+    }
+
+    if (template === "flash_deal") {
+      const burst = renderFlashDealBurst(scale * 1.05);
+      ctx.drawImage(
+        burst.canvas,
+        border + photoW * 0.14 - burst.width / 2,
+        border + photoH * 0.68 - burst.height / 2,
+        burst.width,
+        burst.height
+      );
+      const badge = renderSpecialOfferBadge(scale * 0.92);
+      ctx.drawImage(badge.canvas, border + photoW * 0.64, border + photoH * 0.05, badge.width, badge.height);
+      return;
+    }
+
+    if (template === "super_offer") {
+      const top = renderSuperOfferBadge(scale);
+      const off = renderFlatOffBadge(scale * 0.95);
+      ctx.drawImage(top.canvas, border + photoW * 0.62, border + photoH * 0.05, top.width, top.height);
+      ctx.drawImage(
+        off.canvas,
+        border + photoW * 0.1 - off.width / 2,
+        border + photoH * 0.72 - off.height / 2,
+        off.width,
+        off.height
+      );
+      return;
+    }
+
+    drawSupplierDenOverlays(ctx, border, photoW, photoH);
+  }
+
+  /** SupplierDen-style frame + promotion stickers — photo scaled to Meesho framed cap. */
+  function prepareSupplierDenCanvas(img, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, frameStyle) {
+    const style = { ...defaultFrameStyle(), ...(frameStyle || {}) };
     const fitted = fitSupplierDenPhotoDims(img.width, img.height, framedMaxSide);
     const w = fitted.w;
     const h = fitted.h;
@@ -751,18 +1073,18 @@
     c.width = fw;
     c.height = fh;
     const ctx = c.getContext("2d");
-    ctx.fillStyle = SUPPLIERDEN_ORANGE;
+    ctx.fillStyle = normalizeBorderColor(style.borderColor);
     ctx.fillRect(0, 0, fw, fh);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(img, 0, 0, img.width, img.height, border, border, w, h);
-    drawSupplierDenOverlays(ctx, border, w, h);
+    drawFramedOverlays(ctx, border, w, h, style.stickerTemplate);
     return c;
   }
 
   /** Exact upload dimensions — never upscale; cap max side at 2000 only. */
-  function prepareCanvas(img, studio, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
-    if (!studio) return prepareSupplierDenCanvas(img, framedMaxSide);
+  function prepareCanvas(img, studio, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, frameStyle) {
+    if (!studio) return prepareSupplierDenCanvas(img, framedMaxSide, frameStyle);
 
     let w = img.width;
     let h = img.height;
@@ -875,11 +1197,11 @@
     return built;
   }
 
-  async function optimizeAutoAll(img) {
+  async function optimizeAutoAll(img, frameStyle) {
     const profiles = autoProfilesForImage(img);
     const allVariants = [];
     for (const profile of profiles) {
-      const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide);
+      const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide, frameStyle);
       const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
       const tiers = profile.tiers.filter(autoTierPick);
       for (const tier of tiers) {
@@ -894,14 +1216,14 @@
     return allVariants;
   }
 
-  async function optimizeToVariants(source, tagName) {
+  async function optimizeToVariants(source, tagName, frameStyle) {
     await loadMozjpeg();
     const img = source instanceof File ? await loadImageFromFile(source) : await loadImageFromUrl(source);
     const profile = resolveProcessingProfile(img, tagName);
     if (profile.auto) {
-      return optimizeAutoAll(img);
+      return optimizeAutoAll(img, frameStyle);
     }
-    const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide);
+    const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide, frameStyle);
     const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
     return buildVariants(canvas, whiteRatio, profile);
   }
@@ -957,13 +1279,15 @@
     return Math.random().toString(16).slice(2, 14);
   }
 
-  async function processImage(id, imageFile, tagName) {
+  async function processImage(id, imageFile, tagName, frameStyle) {
     const req = STORE.requests.get(id);
     if (!req) return;
     const isAuto = String(tagName || "").toLowerCase().includes("auto");
     const timeoutMs = isAuto ? AUTO_PROCESS_TIMEOUT_MS : PROCESS_TIMEOUT_MS;
     const work = (async () => {
-      req.results = await optimizeToVariants(imageFile, tagName).then((v) => variantsToResults(v, tagName));
+      req.results = await optimizeToVariants(imageFile, tagName, frameStyle).then((v) =>
+        variantsToResults(v, tagName)
+      );
       req.status = "completed";
     })();
     try {
@@ -990,19 +1314,11 @@
     return null;
   }
 
-  function getFieldFromBody(body, key) {
-    if (body instanceof FormData) {
-      const v = body.get(key);
-      return v == null ? "" : String(v);
-    }
-    return "";
-  }
-
   async function handleRoute(method, path, body) {
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 39, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 43, platform: "cloudflare-static" },
       };
     }
 
@@ -1039,6 +1355,7 @@
     if (path === "/api/meesho/getLowestShippingCharge" && method === "POST") {
       const image = getImageFromBody(body);
       const tagName = getFieldFromBody(body, "tagName") || "Product";
+      const frameStyle = parseFrameStyleFromBody(body);
       if (!image) {
         return { status: 400, body: { message: "Image is required" } };
       }
@@ -1047,12 +1364,13 @@
       const req = {
         createdAt: Date.now(),
         tagName,
+        frameStyle,
         status: "processing",
         results: [],
       };
       STORE.requests.set(id, req);
       persistRequest(id, req);
-      await processImage(id, image, tagName);
+      await processImage(id, image, tagName, frameStyle);
       return { status: 200, body: { requestId: id } };
     }
 
@@ -1146,5 +1464,18 @@
   window.XMLHttpRequest = OwnXHR;
 
   window.__MEESHO_OWN_API__ = true;
+  window.MeeshoFrameSettings = {
+    BORDER_PRESETS,
+    STICKER_TEMPLATES: STICKER_TEMPLATE_META,
+    defaultFrameStyle,
+    normalizeBorderColor,
+    normalizeStickerTemplate,
+    hexToRgbComponents,
+    STORAGE_KEYS: {
+      border: FRAME_LS_BORDER,
+      template: FRAME_LS_TEMPLATE,
+      preset: FRAME_LS_PRESET,
+    },
+  };
   console.info("[own-api] browser API with local persistence; deploy via Cloudflare");
 })();

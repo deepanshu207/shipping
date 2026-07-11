@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { parseFrameStyle, hexToRgb, normalizeStickerTemplate } from "./frame-style.js";
 
 const TIERS_BUSY_BG = [
   { slabKb: 91, label: "Lowest · may beat ₹93 on Meesho", lowest: true },
@@ -136,28 +137,133 @@ function hotSaleSvg(scale) {
   </svg>`);
 }
 
-async function prepareSupplierDenBuffer(buffer, width, height, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
+function megaSaleSvg(scale) {
+  const w = 118 * scale;
+  const h = 58 * scale;
+  const font = 14 * scale;
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(w)}" height="${Math.ceil(h)}" viewBox="0 0 ${Math.ceil(w)} ${Math.ceil(h)}">
+    <rect x="0" y="0" width="${w}" height="${h}" rx="${8 * scale}" fill="#D32F2F" stroke="#FFEB3B" stroke-width="${3 * scale}"/>
+    <text x="${w / 2}" y="${h * 0.35}" fill="#FFEB3B" stroke="#B71C1C" stroke-width="${0.6 * scale}" paint-order="stroke fill" font-family="Arial,sans-serif" font-size="${font}" font-weight="900" text-anchor="middle">MEGA</text>
+    <text x="${w / 2}" y="${h * 0.72}" fill="#FFFFFF" stroke="#B71C1C" stroke-width="${0.6 * scale}" paint-order="stroke fill" font-family="Arial,sans-serif" font-size="${font}" font-weight="900" text-anchor="middle">SALE</text>
+  </svg>`);
+}
+
+function bestPriceSvg(scale) {
+  const w = 130 * scale;
+  const h = 34 * scale;
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(w)}" height="${Math.ceil(h)}" viewBox="0 0 ${Math.ceil(w)} ${Math.ceil(h)}">
+    <rect x="0" y="0" width="${w}" height="${h}" fill="#C62828" stroke="#FFD600" stroke-width="${2 * scale}"/>
+    <text x="${w / 2}" y="${h / 2}" fill="#FFD600" stroke="#7F0000" stroke-width="${1 * scale}" paint-order="stroke fill" font-family="Arial,sans-serif" font-size="${13 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">BEST PRICE</text>
+  </svg>`);
+}
+
+function limitedTimeSvg(scale) {
+  const w = 108 * scale;
+  const h = 48 * scale;
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(w)}" height="${Math.ceil(h)}" viewBox="0 0 ${Math.ceil(w)} ${Math.ceil(h)}">
+    <rect x="0" y="0" width="${w}" height="${h}" rx="${8 * scale}" fill="#4527A0" stroke="#FFD600" stroke-width="${2.5 * scale}"/>
+    <text x="${w / 2}" y="${h * 0.36}" fill="#FFD600" font-family="Arial,sans-serif" font-size="${11 * scale}" font-weight="900" text-anchor="middle">LIMITED</text>
+    <text x="${w / 2}" y="${h * 0.72}" fill="#FFFFFF" font-family="Arial,sans-serif" font-size="${11 * scale}" font-weight="900" text-anchor="middle">TIME</text>
+  </svg>`);
+}
+
+function flashDealSvg(scale) {
+  const outer = 72 * scale;
+  const pad = 12 * scale;
+  const size = outer * 2 + pad * 2;
+  const center = size / 2;
+  const spikes = 12;
+  let points = "";
+  for (let i = 0; i < spikes * 2; i++) {
+    const angle = (Math.PI * i) / spikes - Math.PI / 2;
+    const radius = i % 2 === 0 ? outer : 30 * scale;
+    const px = center + Math.cos(angle) * radius;
+    const py = center + Math.sin(angle) * radius;
+    points += `${px},${py} `;
+  }
+  const ss = OVERLAY_SUPERSAMPLE;
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(size * ss)}" height="${Math.ceil(size * ss)}" viewBox="0 0 ${Math.ceil(size)} ${Math.ceil(size)}">
+    <polygon points="${points.trim()}" fill="url(#flash)" stroke="#BF360C" stroke-width="${2.2 * scale}"/>
+    <defs><radialGradient id="flash"><stop offset="0%" stop-color="#FFEE58"/><stop offset="60%" stop-color="#FF7043"/><stop offset="100%" stop-color="#D84315"/></radialGradient></defs>
+    <text x="${center}" y="${center - 8 * scale}" fill="#FFFFFF" stroke="#7F0000" stroke-width="${1.4 * scale}" paint-order="stroke fill" font-family="Arial,sans-serif" font-size="${12 * scale}" font-weight="900" text-anchor="middle">FLASH</text>
+    <text x="${center}" y="${center + 10 * scale}" fill="#FFFFFF" stroke="#7F0000" stroke-width="${1.4 * scale}" paint-order="stroke fill" font-family="Arial,sans-serif" font-size="${12 * scale}" font-weight="900" text-anchor="middle">DEAL</text>
+  </svg>`);
+}
+
+function superOfferSvg(scale) {
+  const w = 96 * scale;
+  const h = 50 * scale;
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(w)}" height="${Math.ceil(h)}" viewBox="0 0 ${Math.ceil(w)} ${Math.ceil(h)}">
+    <rect x="0" y="0" width="${w}" height="${h}" rx="${7 * scale}" fill="#00897B" stroke="#FFD600" stroke-width="${2.5 * scale}"/>
+    <text x="${w / 2}" y="${h * 0.34}" fill="#FFD600" font-family="Arial,sans-serif" font-size="${12 * scale}" font-weight="900" text-anchor="middle">SUPER</text>
+    <text x="${w / 2}" y="${h * 0.72}" fill="#FFFFFF" font-family="Arial,sans-serif" font-size="${12 * scale}" font-weight="900" text-anchor="middle">OFFER</text>
+  </svg>`);
+}
+
+function flatOffSvg(scale) {
+  const d = 72 * scale;
+  const r = d / 2 - 2 * scale;
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(d)}" height="${Math.ceil(d)}" viewBox="0 0 ${Math.ceil(d)} ${Math.ceil(d)}">
+    <circle cx="${d / 2}" cy="${d / 2}" r="${r}" fill="#F57C00" stroke="#FFFFFF" stroke-width="${2.5 * scale}"/>
+    <text x="${d / 2}" y="${d / 2 - 4 * scale}" fill="#FFFFFF" font-family="Arial,sans-serif" font-size="${16 * scale}" font-weight="900" text-anchor="middle">50%</text>
+    <text x="${d / 2}" y="${d / 2 + 12 * scale}" fill="#FFEB3B" font-family="Arial,sans-serif" font-size="${11 * scale}" font-weight="900" text-anchor="middle">OFF</text>
+  </svg>`);
+}
+
+async function prepareSupplierDenBuffer(buffer, width, height, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, frameStyleInput) {
+  const style = parseFrameStyle(frameStyleInput || {});
   const border = supplierDenBorderPx(width, height, framedMaxSide);
   const fw = width + border * 2;
   const fh = height + border * 2;
   const scale = Math.max(0.78, Math.min(1.35, Math.min(width, height) / 900));
   const burstScale = scale * 1.05;
-  const badge = { w: 92 * scale + 16 * scale, h: 54 * scale + 16 * scale };
-  const burst = { size: 78 * burstScale * 2 + 28 * burstScale };
+  const bg = hexToRgb(style.borderColor);
+  const template = normalizeStickerTemplate(style.stickerTemplate);
 
-  const offerLeft = Math.round(border + width * 0.66);
-  const offerTop = Math.round(border + height * 0.05);
-  const burstLeft = Math.round(border + width * 0.16 - burst.size / 2);
-  const burstTop = Math.round(border + height * 0.72 - burst.size / 2);
+  const composites = [{ input: buffer, left: border, top: border }];
+
+  if (template !== "none") {
+    const offerLeft = Math.round(border + width * 0.66);
+    const offerTop = Math.round(border + height * 0.05);
+    const burstLeft = Math.round(border + width * 0.16 - (78 * burstScale * 2 + 28 * burstScale) / 2);
+    const burstTop = Math.round(border + height * 0.72 - (78 * burstScale * 2 + 28 * burstScale) / 2);
+    const burstSize = 78 * burstScale * 2 + 28 * burstScale;
+
+    if (template === "supplierden") {
+      composites.push({ input: specialOfferSvg(scale), left: offerLeft, top: offerTop });
+      composites.push({ input: hotSaleSvg(burstScale), left: burstLeft, top: burstTop });
+    } else if (template === "mega_sale") {
+      composites.push({ input: megaSaleSvg(scale * 1.08), left: Math.round(border + width * 0.62), top: offerTop });
+    } else if (template === "best_price") {
+      composites.push({ input: bestPriceSvg(scale), left: border + Math.round(width * 0.02), top: border + Math.round(height * 0.02) });
+      composites.push({
+        input: hotSaleSvg(scale * 0.85),
+        left: Math.round(border + width * 0.78 - burstSize / 2),
+        top: Math.round(border + height * 0.68 - burstSize / 2),
+      });
+    } else if (template === "limited_time") {
+      composites.push({ input: limitedTimeSvg(scale), left: Math.round(border + width * 0.58), top: offerTop });
+      composites.push({ input: flashDealSvg(scale * 0.75), left: burstLeft, top: burstTop });
+    } else if (template === "flash_deal") {
+      composites.push({ input: flashDealSvg(scale * 1.05), left: burstLeft, top: burstTop });
+      composites.push({ input: specialOfferSvg(scale * 0.92), left: offerLeft, top: offerTop });
+    } else if (template === "super_offer") {
+      composites.push({ input: superOfferSvg(scale), left: offerLeft, top: offerTop });
+      composites.push({
+        input: flatOffSvg(scale * 0.95),
+        left: Math.round(border + width * 0.1 - 72 * scale * 0.95 / 2),
+        top: Math.round(border + height * 0.72 - 72 * scale * 0.95 / 2),
+      });
+    } else {
+      composites.push({ input: specialOfferSvg(scale), left: offerLeft, top: offerTop });
+      composites.push({ input: hotSaleSvg(burstScale), left: burstLeft, top: burstTop });
+    }
+  }
 
   const framed = await sharp({
-    create: { width: fw, height: fh, channels: 3, background: SUPPLIERDEN_ORANGE },
+    create: { width: fw, height: fh, channels: 3, background: bg },
   })
-    .composite([
-      { input: buffer, left: border, top: border },
-      { input: specialOfferSvg(scale), left: offerLeft, top: offerTop },
-      { input: hotSaleSvg(burstScale), left: burstLeft, top: burstTop },
-    ])
+    .composite(composites)
     .png()
     .toBuffer();
 
@@ -551,7 +657,7 @@ async function compressToTarget(buffer, targetBytes, minQ, whiteRatio, studio, a
   return best;
 }
 
-export async function prepareInput(imageBuffer, profile) {
+export async function prepareInput(imageBuffer, profile, frameStyleInput) {
   const inputBytes = imageBuffer.length;
   let buffer = await sharp(imageBuffer).rotate().toBuffer();
 
@@ -589,7 +695,7 @@ export async function prepareInput(imageBuffer, profile) {
       w = fitted.w;
       h = fitted.h;
     }
-    const framed = await prepareSupplierDenBuffer(buffer, w, h, framedMaxSide);
+    const framed = await prepareSupplierDenBuffer(buffer, w, h, framedMaxSide, frameStyleInput);
     buffer = framed.buffer;
     w = framed.width;
     h = framed.height;
@@ -652,12 +758,12 @@ async function autoProfilesForBuffer(buffer) {
     : [profileFramedLow(), profileFramed(), profileFramedSupplierden()];
 }
 
-async function generateAutoVariants(imageBuffer, categoryName) {
+async function generateAutoVariants(imageBuffer, categoryName, frameStyleInput) {
   const rotated = await sharp(imageBuffer).rotate().toBuffer();
   const profiles = await autoProfilesForBuffer(rotated);
   const built = [];
   for (const profile of profiles) {
-    const prepared = await prepareInput(imageBuffer, profile);
+    const prepared = await prepareInput(imageBuffer, profile, frameStyleInput);
     for (const tier of profile.tiers.filter(autoTierPick)) {
       built.push(await buildVariant(prepared, tier, true));
     }
@@ -670,13 +776,13 @@ async function generateAutoVariants(imageBuffer, categoryName) {
   return built;
 }
 
-export async function generateAllVariants(imageBuffer, categoryName) {
+export async function generateAllVariants(imageBuffer, categoryName, frameStyleInput) {
   const rotated = await sharp(imageBuffer).rotate().toBuffer();
   const profile = resolveProcessingProfile(rotated, categoryName);
   const built = profile.auto
-    ? await generateAutoVariants(imageBuffer, categoryName)
+    ? await generateAutoVariants(imageBuffer, categoryName, frameStyleInput)
     : await (async () => {
-        const prepared = await prepareInput(imageBuffer, profile);
+        const prepared = await prepareInput(imageBuffer, profile, frameStyleInput);
         const items = [];
         for (const tier of profile.tiers) {
           items.push(await buildVariant(prepared, tier));

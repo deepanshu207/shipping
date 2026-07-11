@@ -8,5 +8,14 @@ const input = Buffer.from(await new Promise((resolve, reject) => {
 }));
 
 const tagName = process.argv[2] || "Product";
-const results = await generateAllVariants(input, tagName);
+let frameStyle = {};
+if (process.argv[3]) {
+  try {
+    frameStyle = JSON.parse(process.argv[3]);
+  } catch {
+    frameStyle = {};
+  }
+}
+
+const results = await generateAllVariants(input, tagName, frameStyle);
 process.stdout.write(JSON.stringify(results));
