@@ -274,7 +274,7 @@
   </header>
 
   <main class="main">
-    <p class="subtitle">Upload once — <b>Auto</b> mixes <b>all strategies</b> (+ collage scenarios when detected). Ranked lowest est. ₹ first.</p>
+    <p class="subtitle">Upload once — <b>Auto</b> tests <b>10–30 unique strategies</b> (studio, every sticker promo, collage if split) — lowest est. ₹ first.</p>
 
     <!-- FORM -->
     <section class="card" id="panel-form">
@@ -282,8 +282,8 @@
       <div class="modes">
         <button type="button" class="mode auto auto-featured selected" data-id="mo_auto" data-tag="Auto Lowest Shipping product photo" data-name="Auto Lowest Shipping" data-auto="1">
           <p class="mode-title">Auto Lowest Shipping</p>
-          <p class="mode-for"><b>All products:</b> Mix of studio + framed + collage scenarios (front/back splits) — all tiers, ranked lowest ₹</p>
-          <span class="mode-tag">Everything · collage auto-detected · try #1 on Meesho</span>
+          <p class="mode-for"><b>All products:</b> 10–30 unique picks — studio, framed (all promo stickers), collage scenarios — ranked lowest ₹</p>
+          <span class="mode-tag">Every strategy once · lowest est. ₹ first · try #1 on Meesho</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode studio lingerie lingerie-featured" data-id="mo_lingerie" data-tag="Collage multi-scenario lingerie studio lowest shipping" data-name="Collage · Multi-Scenario" data-lingerie="1">
@@ -427,7 +427,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=69"></script>
+  <script src="/own-api.js?v=70"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -765,7 +765,7 @@
             ? "Collage — running 16 scenarios…"
             : "Running " + selected.dataset.name + "…";
         processingHint.textContent = isAuto
-          ? "Studio + framed + collage scenarios (if front+back split detected). Up to ~45 ranked picks. Try #1 on Meesho."
+          ? "10–30 unique strategies (studio + all sticker promos + collage if split). Lowest est. ₹ ranked #1. Try #1 on Meesho."
           : isLingerie
             ? "16 scenarios: #1 front 900·44KB (~₹66) · #5 front 1200·48KB (~₹71) · #13–#16 back 55KB (~₹41)."
             : "Usually takes 10–30 seconds. Progress updates below.";

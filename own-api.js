@@ -100,8 +100,7 @@
   const MAX_SIDE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 1200 : 2000;
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
   const AUTO_MIN_VARIANTS = 10;
-  const AUTO_MAX_VARIANTS = 35;
-  const AUTO_MAX_COLLAGE_VARIANTS = 45;
+  const AUTO_MAX_VARIANTS = 30;
   const LINGERIE_MAX_VARIANTS = 16;
   const AUTO_PROCESS_TIMEOUT_MS = 540000;
   const PROCESS_TIMEOUT_MS = 180000;
@@ -416,53 +415,144 @@
     };
   }
 
-  /** All auto strategies — studio first (lowest ₹), then compact framed, then standard framed. */
-  function autoProfilesForImage(_img) {
-    return [
-      { ...profileStudioUltra(), autoPriority: 1 },
-      { ...profileStudioBalanced(), autoPriority: 2 },
-      { ...profileStudioAnyPhoto(), autoPriority: 3 },
-      { ...profileStudio(), autoPriority: 4 },
-      profileFramedAuto({
-        id: "framed_mini_ns",
-        path: "framed_mini",
-        modeName: "Framed 960 · no stickers",
-        tiers: TIERS_FRAMED_MID,
-        framedMaxSide: 960,
-        frameStyleOverride: { stickerTemplate: "none" },
-        autoPriority: 10,
-      }),
-      profileFramedAuto({
-        id: "framed_compact_ns",
-        path: "framed_compact",
-        modeName: "Framed 1024 · no stickers",
-        tiers: TIERS_FRAMED_MID,
-        framedMaxSide: 1024,
-        frameStyleOverride: { stickerTemplate: "none" },
-        autoPriority: 11,
-      }),
-      profileFramedAuto({
-        id: "framed_compact",
-        path: "framed_compact",
-        modeName: "Framed 1024 · promo stickers",
-        tiers: TIERS_FRAMED_MID,
-        framedMaxSide: 1024,
-        autoPriority: 12,
-      }),
-      { ...profileFramedLow(), autoPriority: 20 },
-      profileFramedAuto({
-        id: "framed_classic_low",
-        path: "framed_classic",
-        modeName: "Framed · lower slabs",
-        tiers: TIERS_FRAMED_CLASSIC_LOW,
-        framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
-        autoPriority: 30,
-      }),
-      { ...profileFramed(), autoPriority: 31 },
-    ];
+  function tierLowest(tiers) {
+    if (!tiers || !tiers.length) return null;
+    return tiers.find((t) => t.lowest) || tiers[0];
   }
 
-  /** Auto — all tiers per strategy (mix of everything, ranked lowest ₹). */
+  function stickerMeta(id) {
+    return STICKER_TEMPLATE_META.find((t) => t.id === id) || { id, name: id };
+  }
+
+  function autoFramedProfile({ id, path, sizeLabel, maxSide, sticker, tiers, priority }) {
+    const s = stickerMeta(sticker);
+    const pick = tierLowest(tiers);
+    return profileFramedAuto({
+      id,
+      path,
+      modeName: `Framed ${sizeLabel} · ${s.name}`,
+      tiers: pick ? [pick] : [],
+      framedMaxSide: maxSide,
+      frameStyleOverride: { stickerTemplate: sticker },
+      autoPriority: priority,
+    });
+  }
+
+  /**
+   * Auto — every strategy type once (lowest tier each): studio, all sticker promos, sizes, collage when split.
+   * Ranked 10–30 unique picks by lowest est. ₹.
+   */
+  function autoProfilesForImage(_img) {
+    const profiles = [
+      { ...profileStudioUltra(), autoPriority: 1, tiers: [tierLowest(TIERS_STUDIO_ULTRA)].filter(Boolean) },
+      {
+        ...profileStudioBalanced(),
+        autoPriority: 2,
+        tiers: [tierLowest(TIERS_STUDIO_BALANCED)].filter(Boolean),
+      },
+      { ...profileStudioAnyPhoto(), autoPriority: 3, tiers: [tierLowest(TIERS_STUDIO_ANY)].filter(Boolean) },
+      { ...profileStudio(), autoPriority: 4, tiers: [tierLowest(TIERS_WHITE_BG)].filter(Boolean) },
+    ];
+    let priority = 10;
+    for (const sticker of STICKER_TEMPLATE_META.map((t) => t.id)) {
+      profiles.push(
+        autoFramedProfile({
+          id: `auto_fcompact_${sticker}`,
+          path: "framed_compact",
+          sizeLabel: "1024",
+          maxSide: 1024,
+          sticker,
+          tiers: TIERS_FRAMED_MID,
+          priority: priority++,
+        })
+      );
+    }
+    for (const sticker of STICKER_TEMPLATE_META.map((t) => t.id)) {
+      profiles.push(
+        autoFramedProfile({
+          id: `auto_flow_${sticker}`,
+          path: "framed_low",
+          sizeLabel: "1280 · ₹66 band",
+          maxSide: MEESHO_FRAMED_MAX_SIDE,
+          sticker,
+          tiers: TIERS_FRAMED_LOW,
+          priority: priority++,
+        })
+      );
+    }
+    profiles.push(
+      autoFramedProfile({
+        id: "auto_fmini_none",
+        path: "framed_mini",
+        sizeLabel: "960",
+        maxSide: 960,
+        sticker: "none",
+        tiers: TIERS_FRAMED_MID,
+        priority: priority++,
+      }),
+      autoFramedProfile({
+        id: "auto_fmini_classic",
+        path: "framed_mini",
+        sizeLabel: "960",
+        maxSide: 960,
+        sticker: "classic_promo",
+        tiers: TIERS_FRAMED_MID,
+        priority: priority++,
+      }),
+      autoFramedProfile({
+        id: "auto_fclassic_low",
+        path: "framed_classic",
+        sizeLabel: "1280 · low slab",
+        maxSide: MEESHO_FRAMED_MAX_SIDE,
+        sticker: "classic_promo",
+        tiers: TIERS_FRAMED_CLASSIC_LOW,
+        priority: priority++,
+      }),
+      {
+        ...profileFramedPro(),
+        autoPriority: priority++,
+        tiers: [tierLowest(TIERS_FRAMED_PRO)].filter(Boolean),
+      }
+    );
+    return profiles;
+  }
+
+  /** Collage scenarios for Auto — all front boxes + best back tier only (one per scenario). */
+  function autoCollageProfilesForImage(img) {
+    if (!isLingerieSplitCollage(img)) return [];
+    const base = profileLingerie();
+    const frontProfiles = LINGERIE_FRONT_SPECS.map((spec, i) =>
+      withLingerieLayout(
+        {
+          ...base,
+          id: `lingerie_${spec.layout}`,
+          tiers: [
+            {
+              targetKb: spec.targetKb,
+              label: spec.tag,
+              lowest: i === 0,
+              recommended: i < 3,
+            },
+          ],
+        },
+        spec.layout,
+        spec.priority,
+        `· ${spec.tag}`
+      )
+    );
+    const backProfile = withLingerieLayout(
+      { ...base, id: "lingerie_back", tiers: [TIERS_LINGERIE_BACK[0]] },
+      "panel_right",
+      20,
+      "· back panel"
+    );
+    return [...frontProfiles, backProfile].map((p) => ({
+      ...p,
+      modeName: `Collage ${p.modeName}`,
+    }));
+  }
+
+  /** Auto uses pre-picked single tier per profile (all different strategies). */
   function autoTiersForProfile(profile) {
     return profile.tiers || [];
   }
@@ -476,13 +566,7 @@
     const seen = new Set();
     const out = [];
     for (const v of variants) {
-      const key = [
-        v.profileId,
-        v.processingPath,
-        v.width,
-        v.height,
-        v.label,
-      ].join("|");
+      const key = [v.profileId, v.processingPath, v.width, v.height, v.modeName || "", v.label].join("|");
       if (seen.has(key)) continue;
       seen.add(key);
       out.push(v);
@@ -1801,12 +1885,7 @@
   async function optimizeAutoAll(img, frameStyle, onProgress) {
     const collage = isLingerieSplitCollage(img);
     const profiles = autoProfilesForImage(img).sort((a, b) => (a.autoPriority ?? 99) - (b.autoPriority ?? 99));
-    const collageProfiles = collage
-      ? lingerieProfilesForImage(img).map((p) => ({
-          ...p,
-          modeName: `Collage ${p.modeName}`,
-        }))
-      : [];
+    const collageProfiles = collage ? autoCollageProfilesForImage(img) : [];
     const autoSteps = profiles.reduce((sum, p) => sum + autoTiersForProfile(p).length, 0);
     const collageSteps = collageProfiles.reduce((sum, p) => sum + p.tiers.length, 0);
     const totalSteps = autoSteps + collageSteps;
@@ -1845,7 +1924,7 @@
       );
     }
     return finalizeAutoVariants(allVariants, {
-      maxVariants: collage ? AUTO_MAX_COLLAGE_VARIANTS : AUTO_MAX_VARIANTS,
+      maxVariants: AUTO_MAX_VARIANTS,
       minVariants: AUTO_MIN_VARIANTS,
     });
   }
