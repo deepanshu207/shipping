@@ -100,7 +100,7 @@
   const MAX_SIDE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 1200 : 2000;
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
   const AUTO_MIN_VARIANTS = 10;
-  const AUTO_MAX_VARIANTS = 30;
+  const AUTO_MAX_VARIANTS = 20;
   const LINGERIE_MAX_VARIANTS = 16;
   const AUTO_PROCESS_TIMEOUT_MS = 540000;
   const PROCESS_TIMEOUT_MS = 180000;
@@ -461,8 +461,17 @@
     ];
   }
 
-  function autoTiersForProfile(_profile) {
-    return _profile.tiers;
+  /** One distinct strategy per profile (lowest + optional recommended) — 10–20 unique auto picks. */
+  function autoTiersForProfile(profile) {
+    const tiers = profile.tiers || [];
+    if (!tiers.length) return [];
+    const picks = [];
+    const lowest = tiers.find((t) => t.lowest);
+    const recommended = tiers.find((t) => t.recommended);
+    if (lowest) picks.push(lowest);
+    if (recommended && recommended !== lowest) picks.push(recommended);
+    if (!picks.length) picks.push(tiers[0]);
+    return picks;
   }
 
   function mergeFrameStyle(base, override) {
@@ -479,7 +488,6 @@
         v.processingPath,
         v.width,
         v.height,
-        kb(v.bytes),
         v.label,
       ].join("|");
       if (seen.has(key)) continue;
@@ -1129,11 +1137,13 @@
       return { id: "auto_all", auto: true, modeName: "Auto Lowest Shipping" };
     }
     if (
+      tag.includes("bra collage") ||
+      tag.includes("multi-scenario") ||
       tag.includes("lingerie lowest") ||
       tag.includes("lingerie bra") ||
       (tag.includes("lingerie") && !tag.includes("framed"))
     ) {
-      return { id: "lingerie_all", lingerie: true, modeName: "Lingerie Lowest ₹" };
+      return { id: "lingerie_all", lingerie: true, modeName: "Bra Collage · Multi-Scenario" };
     }
     if (tag.includes("studio ultra")) {
       return profileStudioUltra();

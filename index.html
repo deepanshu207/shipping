@@ -86,6 +86,14 @@
     .mode.selected { border-color: var(--emerald); box-shadow: 0 0 0 3px rgb(5 150 105 / 0.15); }
     .mode.selected.framed { border-color: var(--orange); box-shadow: 0 0 0 3px rgb(255 121 0 / 0.15); }
     .mode.selected.auto { border-color: #6366f1; box-shadow: 0 0 0 3px rgb(99 102 241 / 0.15); }
+    .mode.selected.lingerie {
+      border-color: #db2777;
+      box-shadow: 0 0 0 3px rgb(219 39 119 / 0.22);
+      background: linear-gradient(135deg, rgb(219 39 119 / 0.12), rgb(253 242 248 / 0.95));
+    }
+    .dark .mode.selected.lingerie {
+      background: linear-gradient(135deg, rgb(219 39 119 / 0.18), rgb(24 24 27 / 0.95));
+    }
     .mode.auto-featured {
       grid-column: 1 / -1;
       border-color: #6366f1;
@@ -97,7 +105,16 @@
       border-color: #db2777;
       background: linear-gradient(135deg, rgb(219 39 119 / 0.06), rgb(236 253 245 / 0.5));
     }
-    .mode.lingerie-featured.selected { box-shadow: 0 0 0 3px rgb(219 39 119 / 0.2); }
+    .mode.lingerie-featured.selected { border-color: #db2777; box-shadow: 0 0 0 3px rgb(219 39 119 / 0.25); }
+    .mode .mode-selected-pill {
+      display: none; margin-top: 0.5rem; font-size: 0.62rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.05em; color: inherit; opacity: 0.9;
+    }
+    .mode.selected .mode-selected-pill { display: inline-block; }
+    .mode.selected.auto .mode-selected-pill { color: #4338ca; }
+    .mode.selected.lingerie .mode-selected-pill { color: #be185d; }
+    .mode.selected.framed .mode-selected-pill { color: #c2410c; }
+    .mode.selected.studio:not(.lingerie):not(.auto) .mode-selected-pill { color: var(--emerald-dark); }
     .mode.lingerie .mode-tag { background: #fce7f3; color: #9d174d; }
     .mode-title { font-size: 0.92rem; font-weight: 800; margin: 0 0 0.3rem; line-height: 1.25; }
     .mode-for { font-size: 0.75rem; color: var(--muted); margin: 0; line-height: 1.35; }
@@ -260,7 +277,7 @@
   </header>
 
   <main class="main">
-    <p class="subtitle">Upload once — <b>Auto</b> generates up to <b>30 ranked JPEGs</b> (lowest est. ₹ first). Studio strategies run before framed — download #1–#3 and verify on Meesho Seller Panel.</p>
+    <p class="subtitle">Upload once — <b>Auto</b> tests <b>10–20 unique strategies</b> (lowest est. ₹ first). Download #1–#3 and verify on Meesho Seller Panel.</p>
 
     <!-- FORM -->
     <section class="card" id="panel-form">
@@ -268,48 +285,57 @@
       <div class="modes">
         <button type="button" class="mode auto auto-featured selected" data-id="mo_auto" data-tag="Auto Lowest Shipping product photo" data-name="Auto Lowest Shipping" data-auto="1">
           <p class="mode-title">Auto Lowest Shipping</p>
-          <p class="mode-for"><b>All products:</b> Up to 30 variants — studio first, then framed, ranked lowest ₹</p>
-          <span class="mode-tag">Smart · 10–30 options · try #1 on Meesho first</span>
+          <p class="mode-for"><b>All products:</b> 10–20 unique strategies — studio first, then framed, ranked lowest ₹</p>
+          <span class="mode-tag">Smart · 1 tier per strategy · try #1 on Meesho</span>
+          <span class="mode-selected-pill">✓ Selected</span>
         </button>
-        <button type="button" class="mode studio lingerie lingerie-featured" data-id="mo_lingerie" data-tag="Lingerie bra panty studio lowest shipping" data-name="Lingerie Lowest ₹" data-lingerie="1">
-          <p class="mode-title">Lingerie Lowest ₹</p>
-          <p class="mode-for"><b>Bra collage:</b> 12 front variants · 4 back (#13–#16 · 55KB ~₹41)</p>
-          <span class="mode-tag">No ultra/flatten · 52KB removed · v67</span>
+        <button type="button" class="mode studio lingerie lingerie-featured" data-id="mo_lingerie" data-tag="Bra collage multi-scenario lingerie studio lowest shipping" data-name="Bra Collage · Multi-Scenario" data-lingerie="1">
+          <p class="mode-title">Bra Collage · Multi-Scenario</p>
+          <p class="mode-for"><b>Square front+back collage:</b> 16 ranked scenarios — 12 front KB/canvas boxes · 4 back (~₹41)</p>
+          <span class="mode-tag">16 scenarios · no 52KB slab · test #1 on Meesho</span>
+          <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode studio" data-id="mo_studio" data-tag="White studio product" data-name="Studio Compress">
           <p class="mode-title">Studio Compress</p>
           <p class="mode-for"><b>For:</b> White / plain background (bra, lingerie)</p>
           <span class="mode-tag">Full size · ~20–26 KB · ₹20–40</span>
+          <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode framed" data-id="mo_indoor" data-tag="Indoor busy background" data-name="Framed Compress">
           <p class="mode-title">Framed Compress</p>
           <p class="mode-for"><b>For:</b> Indoor / busy background (raincoat)</p>
           <span class="mode-tag">Orange frame · ~91–93 KB</span>
+          <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode studio" data-id="mo_studio_ultra" data-tag="Studio Ultra white background" data-name="Studio Ultra">
           <p class="mode-title">Studio Ultra</p>
           <p class="mode-for"><b>For:</b> Minimum white-studio shipping</p>
           <span class="mode-tag">Full size · ~16–22 KB</span>
+          <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode studio" data-id="mo_studio_balanced" data-tag="Studio Balanced white product" data-name="Studio ₹20–40">
           <p class="mode-title">Studio ₹20–40</p>
           <p class="mode-for"><b>For:</b> White / plain background — targets ₹20–40 band</p>
           <span class="mode-tag">Full size · ~20–40 KB · best quality in band</span>
+          <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode studio" data-id="mo_studio_any" data-tag="Any photo studio ₹20-40 no frame" data-name="Any Photo → Studio ₹20–40">
           <p class="mode-title">Any Photo → Studio ₹20–40</p>
           <p class="mode-for"><b>For:</b> Indoor / busy photos — no orange frame, studio compress only</p>
           <span class="mode-tag">Try ₹20–40 without frame · verify on Meesho</span>
+          <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode framed" data-id="mo_framed_low" data-tag="Framed Best Rate indoor" data-name="Framed Best Rate">
           <p class="mode-title">Framed Best Rate</p>
           <p class="mode-for"><b>For:</b> Mid slabs — targets ₹66–₹71 tier</p>
           <span class="mode-tag">Orange frame · ~64–71 KB</span>
+          <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode framed" data-id="mo_framed_sd" data-tag="Framed Pro Match indoor" data-name="Framed Pro">
           <p class="mode-title">Framed Pro</p>
           <p class="mode-for"><b>For:</b> Large framed file — 1280px cap, est. ₹93 tier</p>
           <span class="mode-tag">Full frame · ~177–200 KB · est. ₹93</span>
+          <span class="mode-selected-pill">✓ Selected</span>
         </button>
       </div>
 
@@ -404,7 +430,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=67"></script>
+  <script src="/own-api.js?v=68"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -575,12 +601,15 @@
         btn.addEventListener("click", function () {
           document.querySelectorAll(".mode").forEach(function (b) {
             b.classList.remove("selected");
+            b.setAttribute("aria-pressed", "false");
           });
           btn.classList.add("selected");
+          btn.setAttribute("aria-pressed", "true");
           selected = btn;
           setError("");
           updateGenerate();
         });
+        btn.setAttribute("aria-pressed", btn.classList.contains("selected") ? "true" : "false");
       });
 
       function setImage(file) {
@@ -702,8 +731,14 @@
 
       function resetForm() {
         selected = document.querySelector(".mode.auto") || document.querySelector(".mode.selected");
-        document.querySelectorAll(".mode").forEach(function (b) { b.classList.remove("selected"); });
-        if (selected) selected.classList.add("selected");
+        document.querySelectorAll(".mode").forEach(function (b) {
+          b.classList.remove("selected");
+          b.setAttribute("aria-pressed", "false");
+        });
+        if (selected) {
+          selected.classList.add("selected");
+          selected.setAttribute("aria-pressed", "true");
+        }
         imageFile = null;
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         previewUrl = null;
@@ -726,14 +761,14 @@
         var isAuto = selected && selected.dataset.auto === "1";
         var isLingerie = selected && selected.dataset.lingerie === "1";
         processingTitle.textContent = isAuto
-          ? "Auto — trying all strategies…"
+          ? "Auto — trying unique strategies…"
           : isLingerie
-            ? "Lingerie — finding lowest ₹ studio picks…"
+            ? "Bra Collage — running 16 scenarios…"
             : "Running " + selected.dataset.name + "…";
         processingHint.textContent = isAuto
-          ? "Testing every strategy (up to ~45 compressions, showing best 30). Usually 1–3 minutes on mobile."
+          ? "Testing 10–20 unique strategies (1–2 tiers each). Usually 1–2 minutes. Try #1 on Meesho first."
           : isLingerie
-            ? "#1 front 900·44KB (~₹66). #5 front 1200·48KB (~₹71). #13–#16 back 55KB (~₹41). No 52KB — hits ₹146."
+            ? "16 scenarios: #1 front 900·44KB (~₹66) · #5 front 1200·48KB (~₹71) · #13–#16 back 55KB (~₹41)."
             : "Usually takes 10–30 seconds. Progress updates below.";
         resetProcessingProgress();
         show("processing");
