@@ -273,8 +273,8 @@
         </button>
         <button type="button" class="mode studio lingerie lingerie-featured" data-id="mo_lingerie" data-tag="Lingerie bra panty studio lowest shipping" data-name="Lingerie Lowest ₹" data-lingerie="1">
           <p class="mode-title">Lingerie Lowest ₹</p>
-          <p class="mode-for"><b>Bra collage:</b> #1–#2 front (no trim) · #3 smaller scale · #4–#5 back (~₹41)</p>
-          <span class="mode-tag">No arm/body crop · test front picks on Meesho · v65</span>
+          <p class="mode-for"><b>Bra collage:</b> #1–#4 front strategies (no trim) · #5–#7 back (~₹41)</p>
+          <span class="mode-tag">Ultra KB + compact canvas · test #1 on Meesho first · v66</span>
         </button>
         <button type="button" class="mode studio" data-id="mo_studio" data-tag="White studio product" data-name="Studio Compress">
           <p class="mode-title">Studio Compress</p>
@@ -404,7 +404,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=65"></script>
+  <script src="/own-api.js?v=66"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -670,10 +670,12 @@
           var tag = String(r.tagName || "");
           var lingerieBadge = "";
           if (isLingerie) {
-            if (tag.indexOf("front · no trim") >= 0 || (tag.indexOf("front") >= 0 && rank <= 2))
-              lingerieBadge = '<span class="badge try-first">#' + rank + " · FRONT · no trim</span>";
-            else if (tag.indexOf("smaller on white") >= 0)
-              lingerieBadge = '<span class="badge try-first">#' + rank + " · FRONT · scale only</span>";
+            if (tag.indexOf("front ultra") >= 0)
+              lingerieBadge = '<span class="badge try-first">#' + rank + " · FRONT ultra · try first</span>";
+            else if (tag.indexOf("900px") >= 0 || tag.indexOf("mini on white") >= 0)
+              lingerieBadge = '<span class="badge try-first">#' + rank + " · FRONT · compact</span>";
+            else if (tag.indexOf("front standard") >= 0)
+              lingerieBadge = '<span class="badge">#' + rank + " · FRONT · may be ₹146</span>";
             else if (tag.indexOf("back panel") >= 0)
               lingerieBadge = '<span class="badge rank">#' + rank + " · BACK · ~₹41</span>";
           }
@@ -729,7 +731,7 @@
         processingHint.textContent = isAuto
           ? "Testing every strategy (up to ~45 compressions, showing best 30). Usually 1–3 minutes on mobile."
           : isLingerie
-            ? "#1–#2 front (full frame, no trim). #3 smaller on white. #4–#5 back. Test each on Meesho."
+            ? "#1 front ultra (16 KB · 1000px). #2–#4 more front strategies. #5 may be ₹146. #6–#7 back."
             : "Usually takes 10–30 seconds. Progress updates below.";
         resetProcessingProgress();
         show("processing");
