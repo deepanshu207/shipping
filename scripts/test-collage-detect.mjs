@@ -101,8 +101,13 @@ async function run() {
       }
 
       const tags = (pollBody?.results || []).map((r) => r.tagName || "");
+      const estimates = (pollBody?.results || []).map((r) => Number(r.estimatedShippingInr || r.shippingCharge || 0));
       const hasFront = tags.some((t) => /front/i.test(t));
       const hasBack = tags.some((t) => /back/i.test(t));
+      const backResults = (pollBody?.results || []).filter((r) => /back/i.test(r.tagName || ""));
+      const lowestBackEst = backResults.length
+        ? Math.min(...backResults.map((r) => Number(r.estimatedShippingInr || r.shippingCharge || 99)))
+        : 99;
       const hasSquareOnly = tags.length <= 4 && tags.every((t) => !/front|back/i.test(t));
 
       return {
@@ -112,11 +117,14 @@ async function run() {
           pollBody.results?.length >= 8 &&
           hasFront &&
           hasBack &&
+          lowestBackEst <= 41 &&
           !hasSquareOnly,
         status: pollBody?.status,
         resultCount: pollBody?.results?.length || 0,
         hasFront,
         hasBack,
+        lowestBackEst,
+        lowestEst: estimates.length ? Math.min(...estimates) : null,
         sampleTags: tags.slice(0, 6),
         message: pollBody?.message,
       };
@@ -127,7 +135,9 @@ async function run() {
         process.exit(1);
       }
 
-      console.log(`OK  ${label}: variants=${result.resultCount} front=${result.hasFront} back=${result.hasBack}`);
+      console.log(
+        `OK  ${label}: variants=${result.resultCount} front=${result.hasFront} back=${result.hasBack} lowestBack=₹${result.lowestBackEst}`
+      );
     }
   } finally {
     await browser.close();
