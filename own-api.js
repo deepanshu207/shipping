@@ -305,6 +305,39 @@
   const REQ_INDEX = "meesho:req-index";
   const REQ_LIMIT = 20;
   const origFetch = window.fetch.bind(window);
+  let useServerProcessing = false;
+
+  function isProcessingRoute(path) {
+    return (
+      path === "/api/meesho/getLowestShippingCharge" ||
+      /^\/api\/meesho\/request(?:-status)?\/[^/]+$/.test(path)
+    );
+  }
+
+  async function initApiMode() {
+    if (window.__MEESHO_FORCE_CLIENT__) return;
+    if (window.__MEESHO_PROCESSOR_ORIGIN__) {
+      useServerProcessing = true;
+      return;
+    }
+    try {
+      const res = await origFetch("/api/health", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.processing === "server") useServerProcessing = true;
+    } catch {
+      /* client fallback */
+    }
+  }
+
+  async function optimizeForServer(imageDataUrl, tagName, frameStyleInput, onProgress) {
+    await loadMozjpeg();
+    const frameStyle = parseFrameStyle(frameStyleInput || {});
+    const blob = await fetch(imageDataUrl).then((r) => r.blob());
+    const file = new File([blob], "upload.jpg", { type: blob.type || "image/jpeg" });
+    const variants = await optimizeToVariants(file, tagName, frameStyle, onProgress || (() => {}));
+    return variantsToResults(variants, tagName);
+  }
 
   function normalizeBorderColor(input) {
     const raw = String(input || "").trim();
@@ -1214,6 +1247,7 @@
   }
 
   function isOwnRoute(path) {
+    if (useServerProcessing && (isProcessingRoute(path) || path === "/api/health")) return false;
     return (
       path === "/api/health" ||
       path === "/auth/me" ||
@@ -2592,7 +2626,14 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 62, platform: "cloudflare-static" },
+        body: {
+          ok: true,
+          api: "own",
+          service: "own-api.js",
+          processing: "client",
+          version: 87,
+          platform: "cloudflare-static",
+        },
       };
     }
 
@@ -2729,53 +2770,83 @@
     xhr.dispatchEvent(new Event("loadend"));
   }
 
-  window.fetch = async function (input, init) {
+  function resolveApiUrl(input) {
     const url = typeof input === "string" ? input : input?.url || "";
     const path = pathOf(url);
-    if (!isOwnRoute(path)) return origFetch(input, init);
-    const method = (init?.method || "GET").toUpperCase();
-    const { status, body } = await handleRoute(method, path, init?.body);
-    return new Response(JSON.stringify(body), {
-      status,
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-    });
-  };
-
-  const NativeXHR = window.XMLHttpRequest;
-  function OwnXHR() {
-    const xhr = new NativeXHR();
-    let _method = "GET";
-    let _path = "";
-    let _intercept = false;
-
-    const origOpen = xhr.open.bind(xhr);
-    xhr.open = function (method, url, async, user, password) {
-      _method = (method || "GET").toUpperCase();
-      _path = pathOf(url);
-      _intercept = isOwnRoute(_path);
-      if (_intercept) {
-        return origOpen(method, SHIM_URL, async !== false, user, password);
-      }
-      return origOpen(method, url, async, user, password);
-    };
-
-    const origSend = xhr.send.bind(xhr);
-    xhr.send = function (body) {
-      if (!_intercept) return origSend(body);
-      handleRoute(_method, _path, body)
-        .then(({ status, body: data }) => finishXhr(xhr, status, data))
-        .catch((err) => {
-          console.error("[own-api] XHR route error:", err);
-          finishXhr(xhr, 500, { message: err.message || "Error" });
-        });
-    };
-
-    return xhr;
+    if (!useServerProcessing || (!isProcessingRoute(path) && path !== "/api/health")) return null;
+    const origin = String(window.__MEESHO_PROCESSOR_ORIGIN__ || location.origin).replace(/\/$/, "");
+    try {
+      const parsed = new URL(url, location.origin);
+      return origin + parsed.pathname + parsed.search;
+    } catch {
+      return origin + path;
+    }
   }
-  OwnXHR.prototype = NativeXHR.prototype;
-  window.XMLHttpRequest = OwnXHR;
+
+  function installNetworkShims() {
+    window.fetch = async function (input, init) {
+      const remoteUrl = resolveApiUrl(input);
+      if (remoteUrl) return origFetch(remoteUrl, init);
+      const url = typeof input === "string" ? input : input?.url || "";
+      const path = pathOf(url);
+      if (!isOwnRoute(path)) return origFetch(input, init);
+      const method = (init?.method || "GET").toUpperCase();
+      const { status, body } = await handleRoute(method, path, init?.body);
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+      });
+    };
+
+    const NativeXHR = window.XMLHttpRequest;
+    function OwnXHR() {
+      const xhr = new NativeXHR();
+      let _method = "GET";
+      let _path = "";
+      let _remoteUrl = null;
+      let _intercept = false;
+
+      const origOpen = xhr.open.bind(xhr);
+      xhr.open = function (method, url, async, user, password) {
+        _method = (method || "GET").toUpperCase();
+        _path = pathOf(url);
+        _remoteUrl = resolveApiUrl(url);
+        _intercept = !_remoteUrl && isOwnRoute(_path);
+        if (_remoteUrl) return origOpen(method, _remoteUrl, async !== false, user, password);
+        if (_intercept) return origOpen(method, SHIM_URL, async !== false, user, password);
+        return origOpen(method, url, async, user, password);
+      };
+
+      const origSend = xhr.send.bind(xhr);
+      xhr.send = function (body) {
+        if (_remoteUrl || !_intercept) return origSend(body);
+        handleRoute(_method, _path, body)
+          .then(({ status, body: data }) => finishXhr(xhr, status, data))
+          .catch((err) => {
+            console.error("[own-api] XHR route error:", err);
+            finishXhr(xhr, 500, { message: err.message || "Error" });
+          });
+      };
+
+      return xhr;
+    }
+    OwnXHR.prototype = NativeXHR.prototype;
+    window.XMLHttpRequest = OwnXHR;
+  }
+
+  window.__MEESHO_API_READY__ = initApiMode().then(() => {
+    installNetworkShims();
+    window.__MEESHO_USE_SERVER__ = useServerProcessing;
+    console.info(
+      useServerProcessing
+        ? "[own-api] server processing — runs in background, tab can stay open"
+        : "[own-api] client processing — keep this tab active for fastest runs"
+    );
+    return useServerProcessing;
+  });
 
   window.__MEESHO_OWN_API__ = true;
+  window.MeeshoProcessor = { optimize: optimizeForServer };
   window.MeeshoReframe = {
     renderCustomVariant,
     blobToDataUrl,

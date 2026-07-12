@@ -1,10 +1,12 @@
 """Serve the Meesho Image Generator SPA with own local API."""
+import base64
 import json
 import mimetypes
 import os
 import re
 import socketserver
 import subprocess
+import threading
 import time
 import uuid
 from http.server import SimpleHTTPRequestHandler
@@ -18,6 +20,7 @@ mimetypes.add_type("application/javascript", ".mjs")
 mimetypes.add_type("application/wasm", ".wasm")
 CATEGORIES_FILE = ROOT / "data" / "product-types.json"
 OPTIMIZE_SCRIPT = REPO / "scripts" / "optimize-stdin.mjs"
+BROWSER_OPTIMIZE_SCRIPT = REPO / "scripts" / "browser-optimize.mjs"
 
 MOCK_REQUESTS: dict[str, dict] = {}
 GUEST_USER = {
@@ -67,6 +70,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
         body = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -106,13 +110,39 @@ class SPAHandler(SimpleHTTPRequestHandler):
 
     def _optimize_image(self, image_bytes: bytes, tag_name: str, frame_style: dict | None = None) -> list[dict]:
         is_auto = "auto" in str(tag_name or "").lower()
-        style_json = json.dumps(frame_style or {})
+        is_lingerie = "collage" in str(tag_name or "").lower() or "multi-scenario" in str(tag_name or "").lower()
+        timeout = 600 if is_auto or is_lingerie else 180
+        style = frame_style or {}
+        payload = json.dumps(
+            {
+                "imageBase64": "data:image/jpeg;base64," + base64.b64encode(image_bytes).decode("ascii"),
+                "tagName": tag_name,
+                "frameStyle": {
+                    "frameBorderColor": style.get("frameBorderColor") or style.get("borderColor") or "#7C3AED",
+                    "frameStickerTemplate": style.get("frameStickerTemplate")
+                    or style.get("stickerTemplate")
+                    or "limited_time",
+                },
+            }
+        ).encode("utf-8")
+
+        if BROWSER_OPTIMIZE_SCRIPT.exists() and os.environ.get("MEESHO_USE_SHARP") != "1":
+            proc = subprocess.run(
+                ["node", str(BROWSER_OPTIMIZE_SCRIPT), str(PORT)],
+                input=payload,
+                capture_output=True,
+                cwd=str(REPO),
+                timeout=timeout,
+            )
+            if proc.returncode == 0:
+                return json.loads(proc.stdout.decode("utf-8"))
+
         proc = subprocess.run(
-            ["node", str(OPTIMIZE_SCRIPT), tag_name, style_json],
+            ["node", str(OPTIMIZE_SCRIPT), tag_name, json.dumps(style)],
             input=image_bytes,
             capture_output=True,
             cwd=str(REPO),
-            timeout=300 if is_auto else 120,
+            timeout=timeout,
         )
         if proc.returncode != 0:
             err = proc.stderr.decode("utf-8", errors="replace")
@@ -121,24 +151,45 @@ class SPAHandler(SimpleHTTPRequestHandler):
 
     def _process_request(self, request_id: str) -> None:
         req = MOCK_REQUESTS.get(request_id)
-        if not req or req.get("status") == "completed" or req.get("processing"):
+        if not req or req.get("status") != "processing":
             return
         req["processing"] = True
+        req["progress"] = 5
+        req["progressLabel"] = "Server received image…"
         try:
+            req["progress"] = 12
+            req["progressLabel"] = "Server optimizing (same logic as browser)…"
             req["results"] = self._optimize_image(req["image_bytes"], req["tag_name"], req.get("frame_style"))
             req["status"] = "completed"
+            req["progress"] = 100
+            req["progressLabel"] = "Done"
             req["image_bytes"] = None
         except Exception as exc:
             req["status"] = "failed"
             req["error"] = str(exc)
+            req["progressLabel"] = "Failed"
         finally:
             req["processing"] = False
+
+    def _start_process(self, request_id: str) -> None:
+        thread = threading.Thread(target=self._process_request, args=(request_id,), daemon=True)
+        thread.start()
 
     def _handle_api(self) -> bool:
         path = self._api_path()
 
         if path == "/api/health" and self.command == "GET":
-            self._json_response(200, {"ok": True, "api": "own", "service": "server.py"})
+            self._json_response(
+                200,
+                {
+                    "ok": True,
+                    "api": "own",
+                    "service": "server.py",
+                    "processing": "server",
+                    "engine": "browser-headless",
+                    "version": 87,
+                },
+            )
             return True
 
         if path == "/auth/me" and self.command == "GET":
@@ -196,7 +247,10 @@ class SPAHandler(SimpleHTTPRequestHandler):
                 "status": "processing",
                 "results": [],
                 "processing": False,
+                "progress": 2,
+                "progressLabel": "Queued on server…",
             }
+            self._start_process(request_id)
             self._json_response(200, {"requestId": request_id})
             return True
 
@@ -207,15 +261,40 @@ class SPAHandler(SimpleHTTPRequestHandler):
             if not req:
                 self._json_response(404, {"message": "Request not found"})
                 return True
-            if req.get("status") != "completed" and not req.get("processing"):
-                self._process_request(request_id)
             if req.get("status") == "failed":
-                self._json_response(200, {"status": "failed", "results": []})
+                self._json_response(
+                    200,
+                    {
+                        "status": "failed",
+                        "progress": req.get("progress", 0),
+                        "progressLabel": req.get("progressLabel") or req.get("error") or "Failed",
+                        "results": [],
+                        "message": req.get("error"),
+                    },
+                )
                 return True
-            if time.time() - req["created_at"] < 3 or req.get("status") != "completed":
-                self._json_response(200, {"status": "processing", "results": []})
+            if req.get("status") != "completed":
+                if not req.get("processing") and req.get("status") == "processing":
+                    self._start_process(request_id)
+                self._json_response(
+                    200,
+                    {
+                        "status": "processing",
+                        "progress": req.get("progress", 10),
+                        "progressLabel": req.get("progressLabel", "Server optimizing…"),
+                        "results": [],
+                    },
+                )
                 return True
-            self._json_response(200, {"status": "completed", "results": req.get("results", [])})
+            self._json_response(
+                200,
+                {
+                    "status": "completed",
+                    "progress": 100,
+                    "progressLabel": req.get("progressLabel") or "Done",
+                    "results": req.get("results", []),
+                },
+            )
             return True
 
         self._json_response(404, {"message": "Not found", "route": path})

@@ -55,7 +55,8 @@ print(f"API verification @ {BASE}\n")
 try:
     data = json.loads(get("/api/health").read())
     if data.get("api") == "own":
-        ok("GET /api/health", "own API")
+        mode = data.get("processing", "client")
+        ok("GET /api/health", f"own API, processing={mode}")
     else:
         fail("GET /api/health", "unexpected response")
 except Exception as e:
