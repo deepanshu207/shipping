@@ -1147,7 +1147,14 @@
           );
         }
         allVariants.push(
-          await buildVariantForTier(canvas, whiteRatio, profile, tier, { showMode: true })
+          await buildVariantForTier(canvas, whiteRatio, profile, tier, {
+            showMode: true,
+            reframeMeta: buildReframeMeta(profile, tier, {
+              frameStyle: profile.collageFramed ? frameStyle : null,
+              studioLayout: profile.studioLayout,
+              whiteRatio,
+            }),
+          })
         );
         done += 1;
         await yieldToMain();
@@ -1260,7 +1267,7 @@
       status: req.status,
       progress: typeof req.progress === "number" ? req.progress : 0,
       progressLabel: req.progressLabel || "",
-      results: req.results || [],
+      results: (req.results || []).map(stripReframeMeta),
       error: req.error || null,
     };
     try {
@@ -2230,10 +2237,123 @@
       width: canvas.width,
       height: canvas.height,
       lingeriePriority: profile.lingeriePriority,
+      reframeMeta: options.reframeMeta || null,
     };
   }
 
-  async function buildVariants(canvas, whiteRatio, profile, onProgress, progressBase, progressSpan) {
+  function buildReframeMeta(profile, tier, options = {}) {
+    const layout = options.studioLayout ?? profile.studioLayout ?? null;
+    let kind = "studio";
+    if (layout && profile.collageFramed) kind = "collage_framed";
+    else if (layout && profile.studio) kind = "collage_studio";
+    else if (options.framedFromStudio) kind = "studio_framed_extra";
+    else if (!profile.studio) kind = "framed_slab";
+
+    const style = options.frameStyle;
+    return {
+      kind,
+      profileId: profile.id,
+      processingPath: profile.path,
+      studioLayout: layout,
+      studioBase: profile.studio,
+      framedMaxSide: profile.framedMaxSide ?? MEESHO_FRAMED_MAX_SIDE,
+      tier:
+        tier.targetKb != null ? { targetKb: tier.targetKb } : { slabKb: tier.slabKb },
+      whiteRatio: options.whiteRatio ?? null,
+      absMinQ: profile.absMinQ ?? null,
+      frameStyle: style
+        ? {
+            borderColor: style.borderColor,
+            stickerTemplate: style.stickerTemplate,
+          }
+        : null,
+    };
+  }
+
+  function resolveReframeBaseCanvas(sourceImg, meta) {
+    if (meta.studioLayout) {
+      return prepareLingerieLayoutCanvas(sourceImg, meta.studioLayout);
+    }
+    const useStudio = meta.studioBase !== false && meta.kind !== "framed_slab";
+    return prepareCanvas(
+      sourceImg,
+      useStudio,
+      meta.framedMaxSide ?? MEESHO_FRAMED_MAX_SIDE,
+      null
+    );
+  }
+
+  /** Re-render one result — studio (no frame) or framed with new border/sticker. */
+  async function renderCustomVariant(sourceImg, meta, displayMode, frameStyle) {
+    await loadMozjpeg();
+    let canvas = resolveReframeBaseCanvas(sourceImg, meta);
+    let whiteRatio =
+      meta.whiteRatio ?? Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
+
+    if (displayMode === "framed") {
+      const style = parseFrameStyle(frameStyle);
+      canvas = prepareFramedCanvas(canvas, meta.framedMaxSide ?? MEESHO_FRAMED_MAX_SIDE, style);
+      whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
+    }
+
+    const usesTargetKb = meta.tier.targetKb != null;
+    const profile = {
+      id: meta.profileId,
+      path: meta.processingPath,
+      studio: displayMode === "studio" && usesTargetKb,
+      collageFramed: displayMode === "framed" && usesTargetKb,
+      absMinQ: meta.absMinQ ?? undefined,
+    };
+    const tier = usesTargetKb
+      ? { targetKb: meta.tier.targetKb, label: "custom" }
+      : { slabKb: meta.tier.slabKb, label: "custom" };
+    return buildVariantForTier(canvas, whiteRatio, profile, tier);
+  }
+
+  /** Studio-only modes — append framed copies (border + stickers) without changing studio outputs. */
+  async function appendStudioFramedExtras(img, profile, frameStyle, onProgress) {
+    if (!profile.studio) return [];
+    const studioCanvas = prepareCanvas(img, true, profile.framedMaxSide, frameStyle);
+    const framedProfile = {
+      id: `${profile.id}_framed_extra`,
+      studio: false,
+      path: "framed_low",
+      modeName: `${profile.modeName} · framed`,
+      framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+    };
+    const tier = TIERS_FRAMED_LOW.find((t) => t.recommended) || TIERS_FRAMED_LOW[0];
+    const combos = [
+      { suffix: "promo", style: frameStyle },
+      { suffix: "frame only", style: mergeFrameStyle(frameStyle, { stickerTemplate: "none" }) },
+    ];
+    const out = [];
+    for (const combo of combos) {
+      if (onProgress) onProgress(92, `Framed extra · ${combo.suffix}…`);
+      const framedCanvas = prepareFramedCanvas(
+        studioCanvas,
+        MEESHO_FRAMED_MAX_SIDE,
+        combo.style
+      );
+      const whiteRatio = Math.max(
+        measureNearWhiteRatio(framedCanvas),
+        measureWhiteRatio(framedCanvas)
+      );
+      out.push(
+        await buildVariantForTier(framedCanvas, whiteRatio, framedProfile, tier, {
+          showMode: true,
+          reframeMeta: buildReframeMeta(framedProfile, tier, {
+            frameStyle: combo.style,
+            whiteRatio,
+            framedFromStudio: true,
+          }),
+        })
+      );
+      await yieldToMain();
+    }
+    return out;
+  }
+
+  async function buildVariants(canvas, whiteRatio, profile, onProgress, progressBase, progressSpan, options = {}) {
     const built = [];
     const tiers = profile.tiers;
     for (let i = 0; i < tiers.length; i++) {
@@ -2244,7 +2364,15 @@
           `Compressing ${profile.modeName || profile.id} · ${tier.label}`
         );
       }
-      built.push(await buildVariantForTier(canvas, whiteRatio, profile, tier));
+      built.push(
+        await buildVariantForTier(canvas, whiteRatio, profile, tier, {
+          reframeMeta: buildReframeMeta(profile, tier, {
+            frameStyle: options.frameStyle,
+            studioLayout: options.studioLayout,
+            whiteRatio,
+          }),
+        })
+      );
       if (onProgress) {
         onProgress(
           progressBase + ((i + 1) / tiers.length) * progressSpan,
@@ -2282,7 +2410,16 @@
             `#${done + 1}/${totalSteps} · ${profile.modeName} · ${tier.label}`
           );
         }
-        allVariants.push(await buildVariantForTier(canvas, whiteRatio, profile, tier, { showMode: true }));
+        allVariants.push(
+          await buildVariantForTier(canvas, whiteRatio, profile, tier, {
+            showMode: true,
+            reframeMeta: buildReframeMeta(profile, tier, {
+              frameStyle: profile.studio ? null : style,
+              whiteRatio,
+              framedFromStudio: false,
+            }),
+          })
+        );
         done += 1;
         if (onProgress) {
           onProgress(
@@ -2325,7 +2462,20 @@
     if (onProgress) onProgress(15, `Running ${profile.modeName || profile.id}…`);
     const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide, frameStyle);
     const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
-    return buildVariants(canvas, whiteRatio, profile, onProgress, 15, 80);
+    const studioVariants = await buildVariants(
+      canvas,
+      whiteRatio,
+      profile,
+      onProgress,
+      15,
+      75,
+      { frameStyle }
+    );
+    if (profile.studio) {
+      const framedExtras = await appendStudioFramedExtras(img, profile, frameStyle, onProgress);
+      return [...studioVariants, ...framedExtras];
+    }
+    return studioVariants;
   }
 
   function blobToDataUrl(blob) {
@@ -2335,6 +2485,12 @@
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
+  }
+
+  function stripReframeMeta(result) {
+    if (!result || !result.reframeMeta) return result;
+    const { reframeMeta, ...rest } = result;
+    return rest;
   }
 
   async function variantsToResults(variants, tagName) {
@@ -2361,6 +2517,7 @@
         recommended: v.recommended,
         autoBest: !!v.autoBest,
         autoRank: v.autoRank || null,
+        reframeMeta: v.reframeMeta || null,
         [OPT_FLAG]: true,
         categoryName: tagName,
       });
@@ -2619,6 +2776,13 @@
   window.XMLHttpRequest = OwnXHR;
 
   window.__MEESHO_OWN_API__ = true;
+  window.MeeshoReframe = {
+    renderCustomVariant,
+    blobToDataUrl,
+    estimateMeeshoInr,
+    kb,
+    loadMozjpeg,
+  };
   window.MeeshoFrameSettings = {
     BORDER_PRESETS,
     STICKER_TEMPLATES: STICKER_TEMPLATE_META,

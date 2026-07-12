@@ -221,6 +221,52 @@
       padding: 0.55rem; border-radius: 0.55rem;
     }
     .download:hover { background: var(--emerald-dark); }
+    .result--clickable { cursor: pointer; transition: box-shadow 0.15s, border-color 0.15s; }
+    .result--clickable:hover { border-color: var(--emerald); box-shadow: 0 0 0 2px rgb(5 150 105 / 0.12); }
+    .result-edit-hint {
+      font-size: 0.65rem; font-weight: 700; color: var(--emerald-dark); text-align: center;
+      padding: 0.35rem 0.5rem 0; line-height: 1.3;
+    }
+    .reframe-backdrop {
+      position: fixed; inset: 0; background: rgb(15 23 42 / 0.55); z-index: 50;
+      display: flex; align-items: flex-end; justify-content: center; padding: 0.75rem;
+    }
+    .reframe-backdrop.hidden { display: none; }
+    .reframe-panel {
+      width: min(100%, 520px); max-height: min(92vh, 720px); overflow: auto;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 1rem 1rem 0.75rem 0.75rem;
+      box-shadow: 0 20px 50px rgb(0 0 0 / 0.2); padding: 1rem;
+    }
+    @media (min-width: 640px) {
+      .reframe-backdrop { align-items: center; }
+      .reframe-panel { border-radius: 1rem; }
+    }
+    .reframe-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .reframe-head h3 { margin: 0; font-size: 1rem; }
+    .reframe-close {
+      border: 1px solid var(--border); background: var(--surface); border-radius: 0.5rem;
+      width: 2rem; height: 2rem; font-size: 1.1rem; cursor: pointer; color: var(--muted);
+    }
+    .reframe-preview {
+      border: 1px solid var(--border); border-radius: 0.75rem; background: #f8fafc;
+      min-height: 140px; display: flex; align-items: center; justify-content: center; padding: 0.5rem; margin-bottom: 0.75rem;
+    }
+    .dark .reframe-preview { background: #27272a; }
+    .reframe-preview img { max-width: 100%; max-height: 220px; object-fit: contain; }
+    .reframe-mode-row { display: flex; gap: 0.45rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+    .reframe-mode-btn {
+      flex: 1; min-width: 7rem; border: 1.5px solid var(--border); background: var(--surface);
+      border-radius: 0.65rem; padding: 0.55rem 0.65rem; font: inherit; font-size: 0.78rem; font-weight: 800; cursor: pointer;
+    }
+    .reframe-mode-btn.selected { border-color: var(--emerald); background: #ecfdf5; color: var(--emerald-dark); }
+    .dark .reframe-mode-btn.selected { background: rgb(5 150 105 / 0.15); }
+    .reframe-actions { display: flex; gap: 0.5rem; margin-top: 0.85rem; flex-wrap: wrap; }
+    .reframe-apply {
+      flex: 1; min-width: 8rem; border: none; border-radius: 0.65rem; padding: 0.65rem 1rem;
+      background: var(--emerald); color: #fff; font: inherit; font-weight: 800; cursor: pointer;
+    }
+    .reframe-apply:disabled { opacity: 0.55; cursor: not-allowed; }
+    .reframe-note { font-size: 0.72rem; color: var(--muted); margin: 0 0 0.65rem; line-height: 1.4; }
     .framed-settings { margin-top: 1.15rem; display: flex; flex-direction: column; gap: 0.65rem; }
     .framed-settings--inactive .accordion { opacity: 0.72; }
     .framed-note { font-size: 0.75rem; color: var(--muted); margin: 0 0 0.25rem; line-height: 1.4; }
@@ -531,14 +577,62 @@
       </div>
       <div class="grid" id="results-grid"></div>
     </section>
+
+    <div class="reframe-backdrop hidden" id="reframe-backdrop" aria-hidden="true">
+      <div class="reframe-panel" role="dialog" aria-labelledby="reframe-title">
+        <div class="reframe-head">
+          <h3 id="reframe-title">Customize frame</h3>
+          <button type="button" class="reframe-close" id="reframe-close" aria-label="Close">×</button>
+        </div>
+        <p class="reframe-note" id="reframe-note">Change border color, promotion sticker, or switch to studio white (no frame).</p>
+        <div class="reframe-preview"><img id="reframe-preview-img" alt="Preview" /></div>
+        <div class="reframe-mode-row">
+          <button type="button" class="reframe-mode-btn selected" data-mode="framed" id="reframe-mode-framed">Border + sticker</button>
+          <button type="button" class="reframe-mode-btn" data-mode="studio" id="reframe-mode-studio">No frame (studio)</button>
+        </div>
+        <div id="reframe-frame-controls">
+          <details class="accordion" open>
+            <summary>Border color</summary>
+            <div class="accordion-body">
+              <div class="swatches" id="reframe-border-swatches" aria-label="Border presets"></div>
+              <div class="color-row">
+                <input type="color" id="reframe-border-color" value="#7C3AED" aria-label="Border color" />
+                <div class="field" style="flex:1;min-width:140px">
+                  <label for="reframe-border-hex">Hex</label>
+                  <input type="text" id="reframe-border-hex" value="#7C3AED" maxlength="7" spellcheck="false" />
+                </div>
+              </div>
+              <div class="frame-preview-bar" id="reframe-border-preview" style="background:#7C3AED"></div>
+            </div>
+          </details>
+          <details class="accordion" open style="margin-top:0.5rem">
+            <summary>Promotion sticker</summary>
+            <div class="accordion-body">
+              <div class="field">
+                <label for="reframe-sticker-template">Template</label>
+                <select id="reframe-sticker-template"></select>
+              </div>
+              <div class="template-preview" id="reframe-template-desc"></div>
+            </div>
+          </details>
+        </div>
+        <div class="reframe-actions">
+          <button type="button" class="reframe-apply" id="reframe-apply">Apply to this image</button>
+        </div>
+      </div>
+    </div>
   </main>
 
-  <script src="/own-api.js?v=84"></script>
+  <script src="/own-api.js?v=85"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
       var imageFile = null;
       var previewUrl = null;
+      var lastResults = [];
+      var lastUploadDataUrl = null;
+      var reframeIndex = -1;
+      var reframeDisplayMode = "framed";
 
       var panelForm = document.getElementById("panel-form");
       var panelProcessing = document.getElementById("panel-processing");
@@ -577,6 +671,20 @@
       var templateDesc = document.getElementById("template-desc");
       var saveBorderDefault = document.getElementById("save-border-default");
       var saveTemplateDefault = document.getElementById("save-template-default");
+      var reframeBackdrop = document.getElementById("reframe-backdrop");
+      var reframeClose = document.getElementById("reframe-close");
+      var reframePreviewImg = document.getElementById("reframe-preview-img");
+      var reframeBorderSwatches = document.getElementById("reframe-border-swatches");
+      var reframeBorderColor = document.getElementById("reframe-border-color");
+      var reframeBorderHex = document.getElementById("reframe-border-hex");
+      var reframeBorderPreview = document.getElementById("reframe-border-preview");
+      var reframeStickerTemplate = document.getElementById("reframe-sticker-template");
+      var reframeTemplateDesc = document.getElementById("reframe-template-desc");
+      var reframeApply = document.getElementById("reframe-apply");
+      var reframeFrameControls = document.getElementById("reframe-frame-controls");
+      var reframeModeFramed = document.getElementById("reframe-mode-framed");
+      var reframeModeStudio = document.getElementById("reframe-mode-studio");
+      var MR = window.MeeshoReframe;
       var RECOMMENDED_BORDER = "purple";
       var RECOMMENDED_STICKER = "limited_time";
       var DEFAULT_BORDER_COLOR = "#7C3AED";
@@ -673,8 +781,140 @@
         });
       }
 
+      function populateReframeStickerSelect() {
+        if (!FS || !reframeStickerTemplate) return;
+        reframeStickerTemplate.innerHTML = "";
+        FS.STICKER_TEMPLATES.forEach(function (t) {
+          var opt = document.createElement("option");
+          opt.value = t.id;
+          opt.textContent = t.name;
+          reframeStickerTemplate.appendChild(opt);
+        });
+      }
+
+      function syncReframeBorderUi(hex) {
+        if (!FS) return;
+        var norm = FS.normalizeBorderColor(hex);
+        reframeBorderHex.value = norm;
+        reframeBorderColor.value = norm;
+        reframeBorderPreview.style.background = norm;
+        reframeBorderSwatches.querySelectorAll(".swatch").forEach(function (s) {
+          s.classList.toggle("selected", s.dataset.color === norm);
+        });
+      }
+
+      function updateReframeTemplateDesc() {
+        if (!FS) return;
+        var t = FS.STICKER_TEMPLATES.find(function (x) { return x.id === reframeStickerTemplate.value; });
+        reframeTemplateDesc.textContent = t ? t.name + " — " + t.desc + "." : "";
+      }
+
+      function getReframeSettingsFromUi() {
+        if (!FS) return { borderColor: DEFAULT_BORDER_COLOR, stickerTemplate: RECOMMENDED_STICKER };
+        return {
+          borderColor: FS.normalizeBorderColor(reframeBorderHex.value),
+          stickerTemplate: FS.normalizeStickerTemplate(reframeStickerTemplate.value),
+        };
+      }
+
+      function syncReframeModeUi() {
+        var framed = reframeDisplayMode === "framed";
+        reframeModeFramed.classList.toggle("selected", framed);
+        reframeModeStudio.classList.toggle("selected", !framed);
+        reframeFrameControls.classList.toggle("hidden", !framed);
+      }
+
+      function loadImageFromDataUrl(dataUrl) {
+        return new Promise(function (resolve, reject) {
+          var img = new Image();
+          img.onload = function () { resolve(img); };
+          img.onerror = reject;
+          img.src = dataUrl;
+        });
+      }
+
+      function closeReframeEditor() {
+        reframeBackdrop.classList.add("hidden");
+        reframeBackdrop.setAttribute("aria-hidden", "true");
+        reframeIndex = -1;
+      }
+
+      function openReframeEditor(index) {
+        if (!MR || !lastUploadDataUrl) return;
+        var r = lastResults[index];
+        if (!r || !r.reframeMeta) return;
+        reframeIndex = index;
+        reframePreviewImg.src = r.imageUrl;
+        var meta = r.reframeMeta;
+        const isStudioKind = meta.kind === "collage_studio" || meta.kind === "studio";
+        reframeDisplayMode = isStudioKind ? "studio" : "framed";
+        if (meta.frameStyle) {
+          syncReframeBorderUi(meta.frameStyle.borderColor || DEFAULT_BORDER_COLOR);
+          reframeStickerTemplate.value = FS.normalizeStickerTemplate(meta.frameStyle.stickerTemplate || RECOMMENDED_STICKER);
+        } else {
+          var defaults = getFrameSettingsFromUi();
+          syncReframeBorderUi(defaults.borderColor);
+          reframeStickerTemplate.value = defaults.stickerTemplate;
+        }
+        updateReframeTemplateDesc();
+        syncReframeModeUi();
+        reframeBackdrop.classList.remove("hidden");
+        reframeBackdrop.setAttribute("aria-hidden", "false");
+      }
+
+      async function applyReframeEdit() {
+        if (!MR || reframeIndex < 0 || !lastUploadDataUrl) return;
+        var r = lastResults[reframeIndex];
+        if (!r || !r.reframeMeta) return;
+        reframeApply.disabled = true;
+        reframeApply.textContent = "Applying…";
+        try {
+          await MR.loadMozjpeg();
+          var sourceImg = await loadImageFromDataUrl(lastUploadDataUrl);
+          var frame = getReframeSettingsFromUi();
+          var variant = await MR.renderCustomVariant(
+            sourceImg,
+            r.reframeMeta,
+            reframeDisplayMode,
+            frame
+          );
+          var imageUrl = await MR.blobToDataUrl(variant.blob);
+          var fileSizeKb = MR.kb(variant.bytes);
+          var estimatedShippingInr = MR.estimateMeeshoInr(variant);
+          r.imageUrl = imageUrl;
+          r.fileSizeKb = fileSizeKb;
+          r.estimatedShippingInr = estimatedShippingInr;
+          r.shippingCharge = String(estimatedShippingInr);
+          r.width = variant.width;
+          r.height = variant.height;
+          r.tagName = variant.label + " · " + fileSizeKb + " KB · customized";
+          if (r.reframeMeta) {
+            r.reframeMeta.frameStyle = {
+              borderColor: frame.borderColor,
+              stickerTemplate: frame.stickerTemplate,
+            };
+          }
+          var card = resultsGrid.querySelector('[data-result-index="' + reframeIndex + '"]');
+          if (card) {
+            card.querySelector(".result-img img").src = imageUrl;
+            card.querySelector(".result-label").textContent = r.tagName;
+            card.querySelector(".result-meta").textContent =
+              "Est. ~₹" + estimatedShippingInr + " · " + fileSizeKb + " KB · " + variant.width + "×" + variant.height;
+            card.querySelector(".download").href = imageUrl;
+          }
+          reframePreviewImg.src = imageUrl;
+          closeReframeEditor();
+        } catch (err) {
+          setError(err.message || "Could not apply frame changes.");
+        } finally {
+          reframeApply.disabled = false;
+          reframeApply.textContent = "Apply to this image";
+        }
+      }
+
       populateBorderPresetSelect();
       populateStickerTemplateSelect();
+      populateReframeStickerSelect();
 
       FS && FS.BORDER_PRESETS.forEach(function (p) {
         if (!p.color) return;
@@ -691,6 +931,20 @@
           persistFrameDefaults();
         });
         borderSwatches.appendChild(btn);
+      });
+
+      FS && FS.BORDER_PRESETS.forEach(function (p) {
+        if (!p.color) return;
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "swatch";
+        btn.style.background = p.color;
+        btn.title = p.name;
+        btn.dataset.color = p.color;
+        btn.addEventListener("click", function () {
+          syncReframeBorderUi(p.color);
+        });
+        reframeBorderSwatches.appendChild(btn);
       });
 
       borderPreset.addEventListener("change", function () {
@@ -744,10 +998,13 @@
       }
 
       function frameSettingsApplyToRun() {
+        return true;
+      }
+
+      function isStudioOnlyMode() {
         if (!selected) return false;
-        if (selected.dataset.lingerie === "1") return true;
-        if (selected.dataset.auto === "1") return true;
-        return selected.classList.contains("framed");
+        if (selected.dataset.lingerie === "1" || selected.dataset.auto === "1") return false;
+        return selected.classList.contains("studio");
       }
 
       function syncFramedSettingsUI() {
@@ -759,23 +1016,23 @@
           if (accordionBorder) accordionBorder.open = false;
           if (accordionStickers) accordionStickers.open = false;
         }
-        framedSettings.classList.toggle("framed-settings--inactive", !frameSettingsApplyToRun());
+        framedSettings.classList.toggle("framed-settings--inactive", false);
         if (framedNote) {
           if (isCollage) {
             framedNote.innerHTML =
               "Generates <b>studio white</b> scenarios plus <b>framed copies</b> using your border color and sticker template.";
           } else if (selected && selected.dataset.auto === "1") {
             framedNote.innerHTML =
-              "Border &amp; stickers apply to <b>framed variants</b> in this Auto run.";
+              "Border &amp; stickers apply to <b>framed variants</b> in this Auto run. Tap any result to change frame after generation.";
           } else if (selected && selected.classList.contains("framed")) {
             framedNote.innerHTML =
-              "Border &amp; stickers apply to this <b>Framed</b> run.";
-          } else if (selected && selected.classList.contains("studio")) {
+              "Border &amp; stickers apply to this <b>Framed</b> run. Tap any result to customize after generation.";
+          } else if (isStudioOnlyMode()) {
             framedNote.innerHTML =
-              "Studio modes skip the frame. Settings below save as your default for <b>Auto</b> and <b>Framed</b>.";
+              "Studio output stays white. We also <b>append framed copies</b> with your border &amp; stickers. Tap results to edit frame.";
           } else {
             framedNote.innerHTML =
-              "Border &amp; stickers apply to <b>Auto</b> and <b>Framed</b> runs.";
+              "Border &amp; stickers apply where relevant. <b>Tap any result</b> after generation to change border, sticker, or remove frame.";
           }
         }
       }
@@ -895,14 +1152,17 @@
       }
 
       function showResults(results, modeName, isLingerie) {
+        lastResults = results.slice();
         resultsTitle.textContent = modeName + " · " + results.length + " ranked pick" + (results.length === 1 ? "" : "s");
+        var canEdit = !!(MR && lastUploadDataUrl);
         resultsGrid.innerHTML = results.map(function (r, i) {
           var fname = "meesho-" + r.fileSizeKb + "kb-" + (i + 1) + ".jpg";
           var rank = r.autoRank || (i + 1);
           var tag = String(r.tagName || "");
           var lingerieBadge = "";
+          var editable = canEdit && r.reframeMeta;
           if (isLingerie) {
-            if (tag.indexOf("back panel") >= 0 || tag.indexOf("Back ·") >= 0) {
+            if (tag.indexOf("back panel") >= 0 || tag.indexOf("Back ·") >= 0 || tag.indexOf("back ") >= 0) {
               lingerieBadge = tag.indexOf("framed") >= 0
                 ? '<span class="badge rank">#' + rank + " · FRAMED BACK</span>"
                 : '<span class="badge rank">#' + rank + " · BACK · ~₹41 band</span>";
@@ -920,7 +1180,7 @@
             lingerieBadge = '<span class="badge rank">#' + rank + " · Collage scenario</span>";
           }
           return (
-            '<article class="result">' +
+            '<article class="result' + (editable ? " result--clickable" : "") + '" data-result-index="' + i + '">' +
               '<div class="result-img"><img src="' + r.imageUrl + '" alt="Variant ' + rank + '" loading="lazy" /></div>' +
               '<div class="result-body">' +
                 (lingerieBadge ||
@@ -931,10 +1191,16 @@
                   (!r.autoRank && r.lowest ? '<span class="badge">Lowest est.</span>' : "")) +
                 '<div class="result-label">' + esc(r.tagName || "Variant " + rank) + '</div>' +
                 '<div class="result-meta">Est. ~₹' + (r.estimatedShippingInr || r.fileSizeKb) + " · " + r.fileSizeKb + " KB · " + (r.width || "?") + "×" + (r.height || "?") + "</div>" +
-                '<a class="download" href="' + r.imageUrl + '" download="' + fname + '">Download JPEG</a>' +
+                (editable ? '<p class="result-edit-hint">Tap to change border / sticker / no frame</p>' : "") +
+                '<a class="download" href="' + r.imageUrl + '" download="' + fname + '" onclick="event.stopPropagation()">Download JPEG</a>' +
               '</div></article>'
           );
         }).join("");
+        resultsGrid.querySelectorAll(".result--clickable").forEach(function (card) {
+          card.addEventListener("click", function () {
+            openReframeEditor(parseInt(card.getAttribute("data-result-index"), 10));
+          });
+        });
         show("results");
       }
 
@@ -950,6 +1216,9 @@
         }
         if (accordionModes) accordionModes.open = false;
         syncModeUI();
+        closeReframeEditor();
+        lastResults = [];
+        lastUploadDataUrl = null;
         imageFile = null;
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         previewUrl = null;
@@ -971,6 +1240,7 @@
         setError("");
         var isAuto = selected && selected.dataset.auto === "1";
         var isLingerie = selected && selected.dataset.lingerie === "1";
+        lastUploadDataUrl = previewUrl;
         processingTitle.textContent = isAuto
           ? "Auto — trying all strategies…"
           : isLingerie
@@ -1011,6 +1281,27 @@
       });
 
       document.getElementById("btn-new").addEventListener("click", resetForm);
+
+      reframeClose.addEventListener("click", closeReframeEditor);
+      reframeBackdrop.addEventListener("click", function (e) {
+        if (e.target === reframeBackdrop) closeReframeEditor();
+      });
+      reframeModeFramed.addEventListener("click", function () {
+        reframeDisplayMode = "framed";
+        syncReframeModeUi();
+      });
+      reframeModeStudio.addEventListener("click", function () {
+        reframeDisplayMode = "studio";
+        syncReframeModeUi();
+      });
+      reframeBorderColor.addEventListener("input", function () {
+        syncReframeBorderUi(reframeBorderColor.value);
+      });
+      reframeBorderHex.addEventListener("change", function () {
+        syncReframeBorderUi(reframeBorderHex.value);
+      });
+      reframeStickerTemplate.addEventListener("change", updateReframeTemplateDesc);
+      reframeApply.addEventListener("click", applyReframeEdit);
 
       document.getElementById("theme-btn").addEventListener("click", function () {
         var dark = document.documentElement.classList.toggle("dark");
