@@ -65,9 +65,10 @@
     { targetKb: 52, label: "Recommended · ~52 KB", recommended: true, lowest: true },
     { targetKb: 55, label: "Backup · ~55 KB" },
   ];
-  /** Front: single 52 KB @ 1000px bra-focus — only layout that hits ~₹40 (not ₹146). */
+  /** Front: slim column (keep face, trim arms) — mirrors back-panel silhouette strategy. */
   const TIERS_LINGERIE_FRONT = [
-    { targetKb: 52, label: "Front bra-focus · ~₹40 band · test on Meesho", recommended: true, lowest: true },
+    { targetKb: 48, label: "Front slim · ~48 KB · test on Meesho", recommended: true, lowest: true },
+    { targetKb: 52, label: "Front mini · ~52 KB backup", recommended: true },
   ];
   /** Large framed files — same 1280px cap; Meesho may tier on dimensions not KB alone. */
   const TIERS_FRAMED_PRO = [
@@ -85,7 +86,7 @@
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
   const AUTO_MIN_VARIANTS = 10;
   const AUTO_MAX_VARIANTS = 30;
-  const LINGERIE_MAX_VARIANTS = 3;
+  const LINGERIE_MAX_VARIANTS = 5;
   const AUTO_PROCESS_TIMEOUT_MS = 540000;
   const PROCESS_TIMEOUT_MS = 180000;
   const STALE_BUFFER_MS = 30000;
@@ -134,8 +135,11 @@
   const STUDIO_SQUARE_SIDE = 1200;
   /** Product fill on square canvas — 82% keeps bra large (68% was too small). */
   const STUDIO_SQUARE_COVERAGE = 0.82;
-  /** Front bra-focus — 1000px hit ~₹40; 1100/1200 full face hits ₹84–₹146. */
-  const LINGERIE_FRONT_SQUARE_SIDE = 1000;
+  /** Front matches back canvas — back ₹41 at 1200px; 1000px bra-focus still hit ₹146 on Meesho. */
+  const LINGERIE_FRONT_SQUARE_SIDE = 1200;
+  /** Smaller subject on white — shrinks Meesho volumetric bbox without cutting face. */
+  const LINGERIE_FRONT_COVERAGE_SLIM = 0.72;
+  const LINGERIE_FRONT_COVERAGE_MINI = 0.64;
   /** Square front+back bra collages are often 1:1 — not caught by wide-only check. */
   const SPLIT_COLLAGE_MIN_W = 800;
   const SPLIT_COLLAGE_ASPECT_MIN = 0.85;
@@ -273,9 +277,12 @@
     if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
       return Math.min(fileKb, 93);
     }
+    if (path === "studio_panel_slim" || path === "studio_panel_mini") {
+      if (fileKb <= 55) return fileKb;
+      return Math.min(fileKb, 65);
+    }
     if (path === "studio_panel_focus") {
-      if (fileKb <= 65) return 40;
-      return 48;
+      return Math.max(fileKb, 84);
     }
     if (path === "studio_panel_balanced" || path === "studio_panel_soft" || path === "studio_panel_face") {
       return 146;
@@ -485,7 +492,8 @@
   function withLingerieLayout(profile, layout, priority, suffix = "") {
     const tag = suffix ? ` ${suffix}` : "";
     let path = "studio_square";
-    if (layout === "panel_left_focus") path = "studio_panel_focus";
+    if (layout === "panel_left_slim") path = "studio_panel_slim";
+    else if (layout === "panel_left_mini") path = "studio_panel_mini";
     else if (layout === "panel_right") path = "studio_panel";
     return {
       ...profile,
@@ -498,8 +506,8 @@
   }
 
   /**
-   * Front: only bra-focus 1000px (proved ~₹40). Back: 52–55 KB (~₹41).
-   * Full-face / soft / 1200px front → Meesho ₹146 volumetric slab.
+   * Front: slim column keeps face, trims arm spread (back panel hits ~₹41 with narrow silhouette).
+   * Bra-focus torso crop cut face and still showed ₹146 on Meesho — removed.
    */
   function lingerieProfilesForImage(img) {
     const split = isLingerieSplitCollage(img);
@@ -507,12 +515,18 @@
     if (split) {
       return [
         withLingerieLayout(
-          { ...base, id: "lingerie_focus", tiers: TIERS_LINGERIE_FRONT },
-          "panel_left_focus",
+          { ...base, id: "lingerie_slim", tiers: [TIERS_LINGERIE_FRONT[0]] },
+          "panel_left_slim",
           0,
-          "· front bra-focus · ~₹40"
+          "· front slim · keep face"
         ),
-        withLingerieLayout(base, "panel_right", 1, "· back panel"),
+        withLingerieLayout(
+          { ...base, id: "lingerie_mini", tiers: [TIERS_LINGERIE_FRONT[1]] },
+          "panel_left_mini",
+          1,
+          "· front mini · more white"
+        ),
+        withLingerieLayout(base, "panel_right", 2, "· back panel"),
       ];
     }
     return [withLingerieLayout(base, "square", 0, "· 1:1 square")];
@@ -572,7 +586,7 @@
     return cropCanvasRect(canvas, minX, minY, maxX, maxY);
   }
 
-  /** Arm spread trim only — full face and height preserved. */
+  /** Arm spread trim — keeps full face and height. */
   function mildHorizontalTrim(canvas, sideRatio = 0.035) {
     const bounds = contentBoundsFromCanvas(canvas);
     if (!bounds) return canvas;
@@ -584,16 +598,23 @@
     return cropCanvasRect(canvas, minX, bounds.minY, maxX, bounds.maxY);
   }
 
+  /** Stronger arm trim — frontal pose arm spread is main Meesho volumetric inflator. */
+  function aggressiveArmTrim(canvas, sideRatio = 0.14) {
+    return mildHorizontalTrim(canvas, sideRatio);
+  }
+
   /**
-   * Bra-focus crop — proven ~₹40 on Meesho. Soft/low presets still hit ₹146 volumetric slab.
+   * Narrow center column — limits horizontal bbox like back panel, keeps full face.
+   * maxWidthToHeight: e.g. 0.58 → column width ≤ 58% of subject height.
    */
-  function focusFrontTorsoCrop(canvas, mode) {
-    if (mode === "full" || mode === "none" || mode === "balanced") return canvas;
+  function slimFrontColumnCrop(canvas, maxWidthToHeight = 0.58) {
     const bounds = contentBoundsFromCanvas(canvas);
     if (!bounds) return canvas;
+    const { width } = canvas;
+    const maxW = Math.round(bounds.height * maxWidthToHeight);
+    if (bounds.width <= maxW) return canvas;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    const { width, height } = canvas;
-    const { data } = ctx.getImageData(0, 0, width, height);
+    const { data } = ctx.getImageData(0, 0, width, canvas.height);
     let sumX = 0;
     let count = 0;
     for (let y = bounds.minY; y <= bounds.maxY; y++) {
@@ -604,41 +625,30 @@
         count++;
       }
     }
-    if (!count) return canvas;
+    const cx = count ? sumX / count : (bounds.minX + bounds.maxX) / 2;
+    const half = Math.floor(maxW / 2);
+    let minX = Math.round(cx - half);
+    let maxX = minX + maxW - 1;
+    if (minX < 0) {
+      minX = 0;
+      maxX = maxW - 1;
+    }
+    if (maxX >= width) {
+      maxX = width - 1;
+      minX = Math.max(0, maxX - maxW + 1);
+    }
+    return cropCanvasRect(canvas, minX, bounds.minY, maxX, bounds.maxY);
+  }
 
-    const { minX, minY, maxX, maxY } = bounds;
-    const contentW = bounds.width;
-    const contentH = bounds.height;
-    const cx = sumX / count;
+  function applyFrontSlimPrep(canvas, mode) {
     const presets = {
-      tight: { topSkip: 0.24, sideTrim: 0.11, squareScale: 0.74, chestBias: 0.4 },
-      moderate: { topSkip: 0.17, sideTrim: 0.07, squareScale: 0.84, chestBias: 0.44 },
+      slim: { armTrim: 0.14, columnRatio: 0.58 },
+      mini: { armTrim: 0.18, columnRatio: 0.5 },
     };
-    const p = presets[mode] || presets.tight;
-    const cropTop = minY + Math.round(contentH * p.topSkip);
-    const cropBottom = maxY;
-    const cropLeft = minX + Math.round(contentW * p.sideTrim);
-    const cropRight = maxX - Math.round(contentW * p.sideTrim);
-    const innerW = Math.max(8, cropRight - cropLeft + 1);
-    const innerH = Math.max(8, cropBottom - cropTop + 1);
-    const sideLen = Math.round(Math.max(innerW, innerH) * p.squareScale);
-    const chestY = cropTop + innerH * p.chestBias;
-    const half = Math.floor(sideLen / 2);
-    let sqLeft = Math.round(cx - half);
-    let sqTop = Math.round(chestY - half);
-    sqLeft = Math.max(0, Math.min(sqLeft, width - sideLen));
-    sqTop = Math.max(0, Math.min(sqTop, height - sideLen));
-
-    const c = document.createElement("canvas");
-    c.width = sideLen;
-    c.height = sideLen;
-    const nctx = c.getContext("2d");
-    nctx.fillStyle = "#ffffff";
-    nctx.fillRect(0, 0, sideLen, sideLen);
-    nctx.imageSmoothingEnabled = true;
-    nctx.imageSmoothingQuality = "high";
-    nctx.drawImage(canvas, sqLeft, sqTop, sideLen, sideLen, 0, 0, sideLen, sideLen);
-    return c;
+    const p = presets[mode] || presets.slim;
+    let out = aggressiveArmTrim(canvas, p.armTrim);
+    out = slimFrontColumnCrop(out, p.columnRatio);
+    return out;
   }
 
   /** Lingerie canvas — white studio, no background flatten (prevents patch artifacts). */
@@ -676,20 +686,29 @@
     pctx.imageSmoothingQuality = "high";
     pctx.drawImage(img, sx, 0, sw, img.height, 0, 0, sw, img.height);
     let trimmed = trimContentMargins(panelCanvas);
-    if (panel === "left") {
-      trimmed = focusFrontTorsoCrop(trimmed, options.crop || "low");
+    if (panel === "left" && options.crop) {
+      trimmed = applyFrontSlimPrep(trimmed, options.crop);
     }
     const side = options.side ?? (panel === "left" ? LINGERIE_FRONT_SQUARE_SIDE : STUDIO_SQUARE_SIDE);
-    const coverage = options.coverage ?? (panel === "left" ? 0.9 : 0.86);
+    const coverage =
+      options.coverage ??
+      (panel === "left" ? LINGERIE_FRONT_COVERAGE_SLIM : 0.86);
     return prepareLingerieSquareCanvas(trimmed, { coverage, side });
   }
 
   function prepareLingerieLayoutCanvas(img, layout) {
-    if (layout === "panel_left_focus") {
+    if (layout === "panel_left_slim") {
       return prepareLingeriePanelCanvas(img, "left", {
-        crop: "tight",
+        crop: "slim",
         side: LINGERIE_FRONT_SQUARE_SIDE,
-        coverage: 0.9,
+        coverage: LINGERIE_FRONT_COVERAGE_SLIM,
+      });
+    }
+    if (layout === "panel_left_mini") {
+      return prepareLingeriePanelCanvas(img, "left", {
+        crop: "mini",
+        side: LINGERIE_FRONT_SQUARE_SIDE,
+        coverage: LINGERIE_FRONT_COVERAGE_MINI,
       });
     }
     if (layout === "panel_right") return prepareLingeriePanelCanvas(img, "right");
@@ -714,7 +733,7 @@
     return c;
   }
 
-  /** Lingerie-only pipeline — front soft + back panel, ~52–55 KB band. */
+  /** Lingerie-only pipeline — front slim + back panel, ~48–55 KB band. */
   async function optimizeLingerieAll(img, onProgress) {
     const profiles = lingerieProfilesForImage(img);
     const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
