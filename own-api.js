@@ -210,8 +210,11 @@
   /** Square or 2:1 front+back bra collages — split at center. */
   const SPLIT_COLLAGE_MIN_MAX_SIDE = 560;
   const SPLIT_COLLAGE_MIN_MIN_SIDE = 300;
-  const SPLIT_COLLAGE_ASPECT_MIN = 0.88;
-  const SPLIT_COLLAGE_ASPECT_MAX = 2.35;
+  const SPLIT_COLLAGE_COLLAGE_MODE_MIN_MAX = 280;
+  const SPLIT_COLLAGE_COLLAGE_MODE_MIN_MIN = 150;
+  const SPLIT_COLLAGE_ASPECT_MIN = 0.85;
+  const SPLIT_COLLAGE_ASPECT_MAX = 2.5;
+  const SPLIT_COLLAGE_WIDE_ASPECT = 1.18;
   /** Draw stickers at 2× then downscale — sharper text after JPEG without changing frame size. */
   const OVERLAY_SUPERSAMPLE = 2;
 
@@ -609,10 +612,8 @@
     return img.width / Math.max(1, img.height) >= 1.42;
   }
 
-  /** Detect left/right product panels with a light center gutter (front+back collages). */
-  function hasSplitCollageContent(img) {
-    const sampleW = 240;
-    const sampleH = Math.max(120, Math.round((sampleW * img.height) / Math.max(1, img.width)));
+  function collageSampleCanvas(img, sampleW = 320) {
+    const sampleH = Math.max(100, Math.round((sampleW * img.height) / Math.max(1, img.width)));
     const c = document.createElement("canvas");
     c.width = sampleW;
     c.height = sampleH;
@@ -620,52 +621,192 @@
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, sampleW, sampleH);
     ctx.drawImage(img, 0, 0, sampleW, sampleH);
-    const { data } = ctx.getImageData(0, 0, sampleW, sampleH);
+    return { canvas: c, sampleW, sampleH, data: ctx.getImageData(0, 0, sampleW, sampleH).data };
+  }
 
-    const midX = Math.floor(sampleW / 2);
-    const bandW = Math.max(3, Math.floor(sampleW * 0.035));
-    let centerWhite = 0;
-    let centerTotal = 0;
-    for (let y = 0; y < sampleH; y++) {
-      for (let x = midX - bandW; x <= midX + bandW; x++) {
-        if (x < 0 || x >= sampleW) continue;
-        const i = (y * sampleW + x) * 4;
-        centerTotal++;
-        if (nearWhiteAt(data, i)) centerWhite++;
+  /** Cream/off-white studio backgrounds — compare pixels to edge estimate, not pure white. */
+  function estimateCollageBackgroundRef(data, sampleW, sampleH) {
+    let rSum = 0;
+    let gSum = 0;
+    let bSum = 0;
+    let n = 0;
+    const edgeBand = Math.max(2, Math.floor(sampleH * 0.08));
+    function sampleEdge(y0, y1, x0, x1) {
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const i = (y * sampleW + x) * 4;
+          rSum += data[i];
+          gSum += data[i + 1];
+          bSum += data[i + 2];
+          n++;
+        }
       }
     }
-    if (!centerTotal) return false;
+    sampleEdge(0, edgeBand, 0, sampleW);
+    sampleEdge(sampleH - edgeBand, sampleH, 0, sampleW);
+    sampleEdge(0, sampleH, 0, Math.max(3, Math.floor(sampleW * 0.06)));
+    sampleEdge(0, sampleH, sampleW - Math.max(3, Math.floor(sampleW * 0.06)), sampleW);
+    if (!n) return { r: 250, g: 250, b: 248 };
+    return { r: rSum / n, g: gSum / n, b: bSum / n };
+  }
+
+  function isCollageContentPixel(data, i, bgRef) {
+    if (!nearWhiteAt(data, i)) return true;
+    const dr = Math.abs(data[i] - bgRef.r);
+    const dg = Math.abs(data[i + 1] - bgRef.g);
+    const db = Math.abs(data[i + 2] - bgRef.b);
+    return dr + dg + db > 28;
+  }
+
+  /** Per-column product density (0–1) on a downsampled canvas. */
+  function collageColumnDensity(img, options = {}) {
+    const { sampleW, sampleH, data } = collageSampleCanvas(img);
+    const bgRef = estimateCollageBackgroundRef(data, sampleW, sampleH);
+    const col = new Float32Array(sampleW);
+    for (let x = 0; x < sampleW; x++) {
+      let content = 0;
+      for (let y = 0; y < sampleH; y++) {
+        const i = (y * sampleW + x) * 4;
+        if (isCollageContentPixel(data, i, bgRef)) content++;
+      }
+      col[x] = content / sampleH;
+    }
+    return col;
+  }
+
+  function averageColumnRange(col, x0, x1) {
+    let sum = 0;
+    let n = 0;
+    for (let i = x0; i < x1; i++) {
+      sum += col[i];
+      n++;
+    }
+    return n ? sum / n : 0;
+  }
+
+  /** Two product peaks (left + right) with a lighter center seam — classic front|back collage. */
+  function detectTwinPeakSplit(col, options = {}) {
+    const minPeak = options.relaxed ? 0.04 : 0.05;
+    const centerRatio = options.relaxed ? 0.86 : 0.8;
+    const W = col.length;
+    const l0 = Math.floor(W * 0.04);
+    const l1 = Math.floor(W * 0.47);
+    const c0 = Math.floor(W * 0.4);
+    const c1 = Math.ceil(W * 0.6);
+    const r0 = Math.ceil(W * 0.53);
+    const r1 = Math.floor(W * 0.96);
+    let leftPeak = 0;
+    let rightPeak = 0;
+    let centerMin = 1;
+    for (let i = l0; i < l1; i++) if (col[i] > leftPeak) leftPeak = col[i];
+    for (let i = r0; i < r1; i++) if (col[i] > rightPeak) rightPeak = col[i];
+    for (let i = c0; i < c1; i++) if (col[i] < centerMin) centerMin = col[i];
+    if (leftPeak < minPeak || rightPeak < minPeak) return false;
+    return centerMin <= leftPeak * centerRatio && centerMin <= rightPeak * centerRatio;
+  }
+
+  /** Both halves carry product — used when user explicitly chose Collage mode. */
+  function detectBalancedHalves(col, minAvg = 0.03) {
+    const W = col.length;
+    const mid = Math.floor(W / 2);
+    const leftAvg = averageColumnRange(col, 0, mid);
+    const rightAvg = averageColumnRange(col, mid, W);
+    return leftAvg >= minAvg && rightAvg >= minAvg;
+  }
+
+  /** Single centered product on square — avoid false split in Collage mode. */
+  function isSingleCenteredProduct(col) {
+    const W = col.length;
+    let maxVal = 0;
+    let maxIdx = 0;
+    let total = 0;
+    let weighted = 0;
+    for (let i = 0; i < W; i++) {
+      total += col[i];
+      weighted += col[i] * i;
+      if (col[i] > maxVal) {
+        maxVal = col[i];
+        maxIdx = i;
+      }
+    }
+    if (maxVal < 0.05) return false;
+    const com = total > 0 ? weighted / total : W / 2;
+    const centerHeavy = maxIdx >= W * 0.34 && maxIdx <= W * 0.66;
+    const comCentered = com >= W * 0.38 && com <= W * 0.62;
+    const leftAvg = averageColumnRange(col, 0, Math.floor(W * 0.34));
+    const rightAvg = averageColumnRange(col, Math.ceil(W * 0.66), W);
+    const centerAvg = averageColumnRange(col, Math.floor(W * 0.34), Math.ceil(W * 0.66));
+    const sideAvg = (leftAvg + rightAvg) / 2;
+    return (centerHeavy || comCentered) && centerAvg >= sideAvg * 0.92;
+  }
+
+  /** Left + right panels both carry product; center seam may be thin or flush cream. */
+  function detectSideBySidePanels(col, options = {}) {
+    const W = col.length;
+    const leftAvg = averageColumnRange(col, Math.floor(W * 0.02), Math.floor(W * 0.48));
+    const rightAvg = averageColumnRange(col, Math.ceil(W * 0.52), Math.floor(W * 0.98));
+    const centerAvg = averageColumnRange(col, Math.floor(W * 0.44), Math.ceil(W * 0.56));
+    const minSide = options.relaxed ? 0.028 : 0.04;
+    if (leftAvg < minSide || rightAvg < minSide) return false;
+    if (detectTwinPeakSplit(col, options)) return true;
+    const sideAvg = (leftAvg + rightAvg) / 2;
+    if (centerAvg <= sideAvg * 0.9) return true;
+    if (options.relaxed && leftAvg >= 0.03 && rightAvg >= 0.03) return true;
+    return false;
+  }
+
+  /** Detect left/right product panels with a light center gutter (front+back collages). */
+  function hasSplitCollageContent(img, options = {}) {
+    const col = collageColumnDensity(img);
+    if (detectTwinPeakSplit(col, options)) return true;
+    if (detectSideBySidePanels(col, options)) return true;
+
+    const { sampleW, sampleH, data } = collageSampleCanvas(img);
+    const bgRef = estimateCollageBackgroundRef(data, sampleW, sampleH);
+    const minRatio = options.relaxed ? 0.035 : 0.05;
 
     function contentRatio(x0, x1) {
-      let nonWhite = 0;
+      let content = 0;
       let total = 0;
       for (let y = 0; y < sampleH; y++) {
         for (let x = x0; x < x1; x++) {
           const i = (y * sampleW + x) * 4;
           total++;
-          if (!nearWhiteAt(data, i)) nonWhite++;
+          if (isCollageContentPixel(data, i, bgRef)) content++;
         }
       }
-      return total ? nonWhite / total : 0;
+      return total ? content / total : 0;
     }
 
-    const leftRatio = contentRatio(Math.floor(sampleW * 0.04), Math.floor(sampleW * 0.46));
-    const rightRatio = contentRatio(Math.ceil(sampleW * 0.54), Math.floor(sampleW * 0.96));
-    const centerWhiteRatio = centerWhite / centerTotal;
-
-    return centerWhiteRatio >= 0.48 && leftRatio >= 0.09 && rightRatio >= 0.09;
+    const leftRatio = contentRatio(Math.floor(sampleW * 0.02), Math.floor(sampleW * 0.48));
+    const rightRatio = contentRatio(Math.ceil(sampleW * 0.52), Math.floor(sampleW * 0.98));
+    return leftRatio >= minRatio && rightRatio >= minRatio;
   }
 
   /** Square 1:1 or wide ~2:1 front+back collages — split at center. */
-  function isLingerieSplitCollage(img) {
+  function isLingerieSplitCollage(img, options = {}) {
     const w = img.width;
     const h = img.height;
     const aspect = w / Math.max(1, h);
     const maxSide = Math.max(w, h);
     const minSide = Math.min(w, h);
-    if (maxSide < SPLIT_COLLAGE_MIN_MAX_SIDE || minSide < SPLIT_COLLAGE_MIN_MIN_SIDE) return false;
+    const minMax = options.collageMode ? SPLIT_COLLAGE_COLLAGE_MODE_MIN_MAX : SPLIT_COLLAGE_MIN_MAX_SIDE;
+    const minMin = options.collageMode ? SPLIT_COLLAGE_COLLAGE_MODE_MIN_MIN : SPLIT_COLLAGE_MIN_MIN_SIDE;
+    if (maxSide < minMax || minSide < minMin) return false;
     if (aspect < SPLIT_COLLAGE_ASPECT_MIN || aspect > SPLIT_COLLAGE_ASPECT_MAX) return false;
-    return hasSplitCollageContent(img);
+
+    const detectOpts = { relaxed: !!options.collageMode };
+    const col = collageColumnDensity(img);
+
+    if (detectTwinPeakSplit(col, detectOpts)) return true;
+    if (hasSplitCollageContent(img, detectOpts)) return true;
+    if (detectBalancedHalves(col, options.collageMode ? 0.025 : 0.04)) return true;
+
+    if (options.collageMode) {
+      if (aspect >= SPLIT_COLLAGE_WIDE_ASPECT && !isSingleCenteredProduct(col)) return true;
+      if (detectSideBySidePanels(col, detectOpts) && !isSingleCenteredProduct(col)) return true;
+    }
+    return false;
   }
 
   function withLingerieLayout(profile, layout, priority, suffix = "") {
@@ -686,8 +827,8 @@
   /**
    * Front — multiple KB tiers per canvas (like back). Back: 54–58 KB band only.
    */
-  function lingerieProfilesForImage(img) {
-    const split = isLingerieSplitCollage(img);
+  function lingerieProfilesForImage(img, options = {}) {
+    const split = isLingerieSplitCollage(img, options);
     const base = profileLingerie();
     if (split) {
       const frontProfiles = LINGERIE_FRONT_LAYOUTS.map((layoutSpec) =>
@@ -716,8 +857,8 @@
   }
 
   /** Framed collage mirrors studio scenarios — same KB/layout, border + stickers from UI. */
-  function lingerieFramedProfilesForImage(img) {
-    return lingerieProfilesForImage(img).map((profile) => ({
+  function lingerieFramedProfilesForImage(img, options = {}) {
+    return lingerieProfilesForImage(img, options).map((profile) => ({
       ...profile,
       id: `${profile.id}_framed`,
       studio: false,
@@ -903,8 +1044,9 @@
 
   /** Collage — studio scenarios + framed copies (border + sticker from UI). Auto collage unchanged. */
   async function optimizeLingerieAll(img, frameStyle, onProgress) {
-    const studioProfiles = lingerieProfilesForImage(img);
-    const framedProfiles = lingerieFramedProfilesForImage(img);
+    const collageOpts = { collageMode: true };
+    const studioProfiles = lingerieProfilesForImage(img, collageOpts);
+    const framedProfiles = lingerieFramedProfilesForImage(img, collageOpts);
     const profiles = [...studioProfiles, ...framedProfiles];
     const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
     const allVariants = [];
