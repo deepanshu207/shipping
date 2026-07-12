@@ -101,7 +101,8 @@
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
   const AUTO_MIN_VARIANTS = 10;
   const AUTO_MAX_VARIANTS = 30;
-  const LINGERIE_MAX_VARIANTS = 16;
+  const LINGERIE_MAX_VARIANTS = 32;
+  const LINGERIE_PROCESS_TIMEOUT_MS = 360000;
   const AUTO_PROCESS_TIMEOUT_MS = 540000;
   const PROCESS_TIMEOUT_MS = 180000;
   const STALE_BUFFER_MS = 30000;
@@ -287,6 +288,18 @@
     const h = variant.height || 0;
     const maxSide = Math.max(w, h);
     const path = variant.processingPath || "";
+    if (path === "framed_collage") {
+      const pid = String(variant.profileId || "");
+      if (pid.includes("lingerie_back") || pid.includes("panel_right")) {
+        if (fileKb >= 54 && fileKb <= 58) return 41;
+      }
+      if (pid.includes("lingerie_f_")) {
+        if (fileKb === 44 && maxSide <= 1320) return 66;
+        if (fileKb === 48 && maxSide >= 1280) return 71;
+        if (fileKb === 52) return 146;
+      }
+      return Math.min(fileKb, 93);
+    }
     if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
       return Math.min(fileKb, 93);
     }
@@ -593,6 +606,28 @@
     return [withLingerieLayout(base, "square", 0, "· 1:1 square")];
   }
 
+  /** Framed collage mirrors studio scenarios — same KB/layout, border + stickers from UI. */
+  function lingerieFramedProfilesForImage(img) {
+    return lingerieProfilesForImage(img).map((profile) => ({
+      ...profile,
+      id: `${profile.id}_framed`,
+      studio: false,
+      collageFramed: true,
+      path: "framed_collage",
+      modeName: `${profile.modeName} · framed`,
+      lingeriePriority: (profile.lingeriePriority ?? 50) + 40,
+      tiers: profile.tiers.map((tier) => ({
+        ...tier,
+        label: `${tier.label} · framed`,
+      })),
+    }));
+  }
+
+  function prepareLingerieFramedLayoutCanvas(img, layout, frameStyle) {
+    const studioCanvas = prepareLingerieLayoutCanvas(img, layout);
+    return prepareFramedCanvas(studioCanvas, MEESHO_FRAMED_MAX_SIDE, frameStyle);
+  }
+
   function contentBoundsFromCanvas(canvas) {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     const { width, height } = canvas;
@@ -725,10 +760,20 @@
     return c;
   }
 
-  /** Build collage panel variants (shared by Collage mode + Auto). */
-  async function appendCollageProfileVariants(img, profiles, allVariants, onProgress, done, totalSteps) {
+  /** Build collage panel variants (shared by Collage mode + Auto). Auto passes studio profiles only. */
+  async function appendCollageProfileVariants(
+    img,
+    profiles,
+    allVariants,
+    onProgress,
+    done,
+    totalSteps,
+    frameStyle = null
+  ) {
     for (const profile of profiles) {
-      const canvas = prepareLingerieLayoutCanvas(img, profile.studioLayout);
+      const canvas = profile.collageFramed
+        ? prepareLingerieFramedLayoutCanvas(img, profile.studioLayout, frameStyle)
+        : prepareLingerieLayoutCanvas(img, profile.studioLayout);
       const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
       for (const tier of profile.tiers) {
         if (onProgress) {
@@ -747,12 +792,22 @@
     return done;
   }
 
-  /** Lingerie — 12 front + 4 back variants from Meesho-verified KB bands. */
-  async function optimizeLingerieAll(img, onProgress) {
-    const profiles = lingerieProfilesForImage(img);
+  /** Collage — studio scenarios + framed copies (border + sticker from UI). Auto collage unchanged. */
+  async function optimizeLingerieAll(img, frameStyle, onProgress) {
+    const studioProfiles = lingerieProfilesForImage(img);
+    const framedProfiles = lingerieFramedProfilesForImage(img);
+    const profiles = [...studioProfiles, ...framedProfiles];
     const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
     const allVariants = [];
-    await appendCollageProfileVariants(img, profiles, allVariants, onProgress, 0, totalSteps);
+    await appendCollageProfileVariants(
+      img,
+      profiles,
+      allVariants,
+      onProgress,
+      0,
+      totalSteps,
+      frameStyle
+    );
     return finalizeAutoVariants(allVariants, { maxVariants: LINGERIE_MAX_VARIANTS, minVariants: 1 });
   }
 
@@ -818,8 +873,15 @@
     return String(tagName || "").toLowerCase().includes("auto");
   }
 
+  function isLingerieTagName(tagName) {
+    const tag = String(tagName || "").toLowerCase();
+    return tag.includes("collage") || tag.includes("multi-scenario");
+  }
+
   function staleProcessingMs(tagName) {
-    return (isAutoTagName(tagName) ? AUTO_PROCESS_TIMEOUT_MS : PROCESS_TIMEOUT_MS) + STALE_BUFFER_MS;
+    if (isAutoTagName(tagName)) return AUTO_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
+    if (isLingerieTagName(tagName)) return LINGERIE_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
+    return PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
   }
 
   function yieldToMain() {
@@ -1784,9 +1846,10 @@
 
   async function buildVariantForTier(canvas, whiteRatio, profile, tier, options = {}) {
     const minQ = adaptiveMinQ(whiteRatio);
-    const blob = profile.studio
-      ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true, profile.absMinQ)
-      : await compressBusyToSlab(canvas, tier.slabKb);
+    const blob =
+      profile.studio || profile.collageFramed
+        ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true, profile.absMinQ)
+        : await compressBusyToSlab(canvas, tier.slabKb);
     const label = options.showMode
       ? `[${profile.modeName || profile.id}] ${tier.label} · ${canvas.width}×${canvas.height}`
       : `${tier.label} · ${canvas.width}×${canvas.height}`;
@@ -1892,7 +1955,7 @@
       return optimizeAutoAll(img, frameStyle, onProgress);
     }
     if (profile.lingerie) {
-      return optimizeLingerieAll(img, onProgress);
+      return optimizeLingerieAll(img, frameStyle, onProgress);
     }
     if (onProgress) onProgress(15, `Running ${profile.modeName || profile.id}…`);
     const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide, frameStyle);
@@ -1958,7 +2021,12 @@
     if (!req || req.status !== "processing") return;
     PROCESSING.add(id);
     const isAuto = isAutoTagName(tagName);
-    const timeoutMs = isAuto ? AUTO_PROCESS_TIMEOUT_MS : PROCESS_TIMEOUT_MS;
+    const isLingerie = isLingerieTagName(tagName);
+    const timeoutMs = isAuto
+      ? AUTO_PROCESS_TIMEOUT_MS
+      : isLingerie
+        ? LINGERIE_PROCESS_TIMEOUT_MS
+        : PROCESS_TIMEOUT_MS;
     const deadline = Date.now() + timeoutMs;
     const checkDeadline = () => {
       if (Date.now() > deadline) throw new Error("Image processing timeout");

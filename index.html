@@ -397,8 +397,8 @@
         </button>
         <button type="button" class="mode studio lingerie lingerie-featured" data-id="mo_lingerie" data-tag="Collage multi-scenario lingerie studio lowest shipping" data-name="Collage · Multi-Scenario" data-lingerie="1">
           <p class="mode-title"><span class="mode-short">Collage</span><span class="mode-long">Collage · Multi-Scenario</span></p>
-          <p class="mode-for"><b>Front+back collage:</b> 16 ranked scenarios — 12 front · 4 back (~₹41)</p>
-          <span class="mode-tag">16 scenarios · no 52KB slab · test #1 on Meesho</span>
+          <p class="mode-for"><b>Front+back collage:</b> Studio white + framed copies — 12 front · 4 back each</p>
+          <span class="mode-tag">Up to 32 · studio + framed · test #1 on Meesho</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
       </div>
@@ -533,7 +533,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=78"></script>
+  <script src="/own-api.js?v=79"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -745,6 +745,7 @@
 
       function frameSettingsApplyToRun() {
         if (!selected) return false;
+        if (selected.dataset.lingerie === "1") return true;
         if (selected.dataset.auto === "1") return true;
         return selected.classList.contains("framed");
       }
@@ -752,15 +753,18 @@
       function syncFramedSettingsUI() {
         if (!framedSettings) return;
         var isCollage = selected && selected.dataset.lingerie === "1";
-        /* Collage: studio white only — hide frame border + promotion stickers (not used). */
-        framedSettings.classList.toggle("hidden", isCollage);
-        framedSettings.setAttribute("aria-hidden", isCollage ? "true" : "false");
-        if (accordionBorder) accordionBorder.open = false;
-        if (accordionStickers) accordionStickers.open = false;
-        if (isCollage) return;
+        framedSettings.classList.remove("hidden");
+        framedSettings.setAttribute("aria-hidden", "false");
+        if (!isCollage) {
+          if (accordionBorder) accordionBorder.open = false;
+          if (accordionStickers) accordionStickers.open = false;
+        }
         framedSettings.classList.toggle("framed-settings--inactive", !frameSettingsApplyToRun());
         if (framedNote) {
-          if (selected && selected.dataset.auto === "1") {
+          if (isCollage) {
+            framedNote.innerHTML =
+              "Generates <b>studio white</b> scenarios plus <b>framed copies</b> using your border color and sticker template.";
+          } else if (selected && selected.dataset.auto === "1") {
             framedNote.innerHTML =
               "Border &amp; stickers apply to <b>framed variants</b> in this Auto run.";
           } else if (selected && selected.classList.contains("framed")) {
@@ -860,7 +864,7 @@
       }
 
       function poll(requestId, isAuto, isLingerie) {
-        var maxAttempts = isAuto ? 480 : isLingerie ? 200 : 200;
+        var maxAttempts = isAuto ? 480 : isLingerie ? 480 : 200;
         return new Promise(function (resolve, reject) {
           var attempts = 0;
           function tick() {
@@ -898,9 +902,13 @@
           var tag = String(r.tagName || "");
           var lingerieBadge = "";
           if (isLingerie) {
-            if (tag.indexOf("back panel") >= 0 || tag.indexOf("Back ·") >= 0)
-              lingerieBadge = '<span class="badge rank">#' + rank + " · BACK · ~₹41 band</span>";
-            else if (tag.indexOf("~₹66") >= 0 || (rank === 1 && tag.indexOf("front") >= 0))
+            if (tag.indexOf("back panel") >= 0 || tag.indexOf("Back ·") >= 0) {
+              lingerieBadge = tag.indexOf("framed") >= 0
+                ? '<span class="badge rank">#' + rank + " · FRAMED BACK</span>"
+                : '<span class="badge rank">#' + rank + " · BACK · ~₹41 band</span>";
+            } else if (tag.indexOf("framed") >= 0) {
+              lingerieBadge = '<span class="badge rank">#' + rank + " · FRAMED FRONT</span>";
+            } else if (tag.indexOf("~₹66") >= 0 || (rank === 1 && tag.indexOf("front") >= 0))
               lingerieBadge = '<span class="badge try-first">#' + rank + " · FRONT · ~₹66 band</span>";
             else if (tag.indexOf("~₹71") >= 0)
               lingerieBadge = '<span class="badge try-first">#' + rank + " · FRONT · ~₹71 band</span>";
@@ -966,12 +974,12 @@
         processingTitle.textContent = isAuto
           ? "Auto — trying all strategies…"
           : isLingerie
-            ? "Collage — running 16 scenarios…"
+            ? "Collage — studio + framed scenarios…"
             : "Running " + selected.dataset.name + "…";
         processingHint.textContent = isAuto
           ? "Testing every strategy (up to ~45 compressions, showing best 30). Usually 1–3 minutes on mobile."
           : isLingerie
-            ? "16 scenarios: #1 front 900·44KB (~₹66) · #5 front 1200·48KB (~₹71) · #13–#16 back 55KB (~₹41)."
+            ? "Up to 32 scenarios: studio white + framed copies with your border & sticker. Usually 2–4 minutes."
             : "Usually takes 10–30 seconds. Progress updates below.";
         resetProcessingProgress();
         show("processing");
@@ -979,12 +987,10 @@
         var form = new FormData();
         form.append("tagId", selected.dataset.id);
         form.append("tagName", selected.dataset.tag);
-        if (!isLingerie) {
-          var frame = getFrameSettingsFromUi();
-          form.append("frameBorderColor", frame.borderColor);
-          form.append("frameStickerTemplate", frame.stickerTemplate);
-          persistFrameDefaults();
-        }
+        var frame = getFrameSettingsFromUi();
+        form.append("frameBorderColor", frame.borderColor);
+        form.append("frameStickerTemplate", frame.stickerTemplate);
+        persistFrameDefaults();
         form.append("image", imageFile);
 
         setProcessingProgress(1, "Uploading image…");
