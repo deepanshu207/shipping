@@ -85,7 +85,16 @@
     .mode:hover { transform: translateY(-1px); }
     .mode.selected { border-color: var(--emerald); box-shadow: 0 0 0 3px rgb(5 150 105 / 0.15); }
     .mode.selected.framed { border-color: var(--orange); box-shadow: 0 0 0 3px rgb(255 121 0 / 0.15); }
-    .mode.selected.auto { border-color: #6366f1; box-shadow: 0 0 0 3px rgb(99 102 241 / 0.15); }
+    .mode.selected.auto {
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgb(99 102 241 / 0.15);
+      background: linear-gradient(135deg, rgb(99 102 241 / 0.08), rgb(236 253 245 / 0.5));
+    }
+    .dark .mode.selected.auto {
+      background: linear-gradient(135deg, rgb(99 102 241 / 0.14), rgb(24 24 27 / 0.95));
+    }
+    .mode.auto-featured { grid-column: 1 / -1; }
+    .mode.lingerie-featured { grid-column: 1 / -1; }
     .mode.selected.lingerie {
       border-color: #db2777;
       box-shadow: 0 0 0 3px rgb(219 39 119 / 0.22);
@@ -94,18 +103,6 @@
     .dark .mode.selected.lingerie {
       background: linear-gradient(135deg, rgb(219 39 119 / 0.18), rgb(24 24 27 / 0.95));
     }
-    .mode.auto-featured {
-      grid-column: 1 / -1;
-      border-color: #6366f1;
-      background: linear-gradient(135deg, rgb(99 102 241 / 0.06), rgb(5 150 105 / 0.04));
-    }
-    .mode.auto-featured.selected { box-shadow: 0 0 0 3px rgb(99 102 241 / 0.2); }
-    .mode.lingerie-featured {
-      grid-column: 1 / -1;
-      border-color: #db2777;
-      background: linear-gradient(135deg, rgb(219 39 119 / 0.06), rgb(236 253 245 / 0.5));
-    }
-    .mode.lingerie-featured.selected { border-color: #db2777; box-shadow: 0 0 0 3px rgb(219 39 119 / 0.25); }
     .mode .mode-selected-pill {
       display: none; margin-top: 0.5rem; font-size: 0.62rem; font-weight: 800;
       text-transform: uppercase; letter-spacing: 0.05em; color: inherit; opacity: 0.9;
@@ -277,7 +274,7 @@
   </header>
 
   <main class="main">
-    <p class="subtitle">Upload once — <b>Auto</b> tests <b>10–20 unique strategies</b> (lowest est. ₹ first). Download #1–#3 and verify on Meesho Seller Panel.</p>
+    <p class="subtitle">Upload once — <b>Auto</b> mixes <b>all strategies</b> (+ collage scenarios when detected). Ranked lowest est. ₹ first.</p>
 
     <!-- FORM -->
     <section class="card" id="panel-form">
@@ -285,13 +282,13 @@
       <div class="modes">
         <button type="button" class="mode auto auto-featured selected" data-id="mo_auto" data-tag="Auto Lowest Shipping product photo" data-name="Auto Lowest Shipping" data-auto="1">
           <p class="mode-title">Auto Lowest Shipping</p>
-          <p class="mode-for"><b>All products:</b> 10–20 unique strategies — studio first, then framed, ranked lowest ₹</p>
-          <span class="mode-tag">Smart · 1 tier per strategy · try #1 on Meesho</span>
+          <p class="mode-for"><b>All products:</b> Mix of studio + framed + collage scenarios (front/back splits) — all tiers, ranked lowest ₹</p>
+          <span class="mode-tag">Everything · collage auto-detected · try #1 on Meesho</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
-        <button type="button" class="mode studio lingerie lingerie-featured" data-id="mo_lingerie" data-tag="Bra collage multi-scenario lingerie studio lowest shipping" data-name="Bra Collage · Multi-Scenario" data-lingerie="1">
-          <p class="mode-title">Bra Collage · Multi-Scenario</p>
-          <p class="mode-for"><b>Square front+back collage:</b> 16 ranked scenarios — 12 front KB/canvas boxes · 4 back (~₹41)</p>
+        <button type="button" class="mode studio lingerie lingerie-featured" data-id="mo_lingerie" data-tag="Collage multi-scenario lingerie studio lowest shipping" data-name="Collage · Multi-Scenario" data-lingerie="1">
+          <p class="mode-title">Collage · Multi-Scenario</p>
+          <p class="mode-for"><b>Front+back collage:</b> 16 ranked scenarios — 12 front KB/canvas boxes · 4 back (~₹41)</p>
           <span class="mode-tag">16 scenarios · no 52KB slab · test #1 on Meesho</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
@@ -340,7 +337,7 @@
       </div>
 
       <div class="framed-settings" id="framed-settings">
-        <p class="framed-note">Framed border settings apply to <b>Framed</b> modes and <b>Auto</b> only — not Bra Collage scenarios (studio white, no frame).</p>
+        <p class="framed-note">Framed border settings apply to <b>Framed</b> modes and <b>Auto</b> only — not Collage scenarios (studio white, no frame).</p>
 
         <details class="accordion" id="accordion-border" open>
           <summary>Frame border color</summary>
@@ -430,7 +427,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=68"></script>
+  <script src="/own-api.js?v=69"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -709,6 +706,8 @@
               lingerieBadge = '<span class="badge try-first">#' + rank + " · FRONT · test</span>";
             else
               lingerieBadge = '<span class="badge rank">#' + rank + " · FRONT</span>";
+          } else if (r.autoRank && tag.indexOf("Collage") >= 0) {
+            lingerieBadge = '<span class="badge rank">#' + rank + " · Collage scenario</span>";
           }
           return (
             '<article class="result">' +
@@ -761,12 +760,12 @@
         var isAuto = selected && selected.dataset.auto === "1";
         var isLingerie = selected && selected.dataset.lingerie === "1";
         processingTitle.textContent = isAuto
-          ? "Auto — trying unique strategies…"
+          ? "Auto — mixing all strategies…"
           : isLingerie
-            ? "Bra Collage — running 16 scenarios…"
+            ? "Collage — running 16 scenarios…"
             : "Running " + selected.dataset.name + "…";
         processingHint.textContent = isAuto
-          ? "Testing 10–20 unique strategies (1–2 tiers each). Usually 1–2 minutes. Try #1 on Meesho first."
+          ? "Studio + framed + collage scenarios (if front+back split detected). Up to ~45 ranked picks. Try #1 on Meesho."
           : isLingerie
             ? "16 scenarios: #1 front 900·44KB (~₹66) · #5 front 1200·48KB (~₹71) · #13–#16 back 55KB (~₹41)."
             : "Usually takes 10–30 seconds. Progress updates below.";

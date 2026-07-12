@@ -100,7 +100,8 @@
   const MAX_SIDE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 1200 : 2000;
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
   const AUTO_MIN_VARIANTS = 10;
-  const AUTO_MAX_VARIANTS = 20;
+  const AUTO_MAX_VARIANTS = 35;
+  const AUTO_MAX_COLLAGE_VARIANTS = 45;
   const LINGERIE_MAX_VARIANTS = 16;
   const AUTO_PROCESS_TIMEOUT_MS = 540000;
   const PROCESS_TIMEOUT_MS = 180000;
@@ -461,17 +462,9 @@
     ];
   }
 
-  /** One distinct strategy per profile (lowest + optional recommended) — 10–20 unique auto picks. */
+  /** Auto — all tiers per strategy (mix of everything, ranked lowest ₹). */
   function autoTiersForProfile(profile) {
-    const tiers = profile.tiers || [];
-    if (!tiers.length) return [];
-    const picks = [];
-    const lowest = tiers.find((t) => t.lowest);
-    const recommended = tiers.find((t) => t.recommended);
-    if (lowest) picks.push(lowest);
-    if (recommended && recommended !== lowest) picks.push(recommended);
-    if (!picks.length) picks.push(tiers[0]);
-    return picks;
+    return profile.tiers || [];
   }
 
   function mergeFrameStyle(base, override) {
@@ -702,12 +695,8 @@
     return c;
   }
 
-  /** Lingerie — 12 front + 4 back variants from Meesho-verified KB bands. */
-  async function optimizeLingerieAll(img, onProgress) {
-    const profiles = lingerieProfilesForImage(img);
-    const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
-    const allVariants = [];
-    let done = 0;
+  /** Build collage panel variants (shared by Collage mode + Auto). */
+  async function appendCollageProfileVariants(img, profiles, allVariants, onProgress, done, totalSteps) {
     for (const profile of profiles) {
       const canvas = prepareLingerieLayoutCanvas(img, profile.studioLayout);
       const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
@@ -715,7 +704,7 @@
         if (onProgress) {
           onProgress(
             10 + (done / totalSteps) * 85,
-            `Lingerie · ${profile.modeName} · ${tier.label}`
+            `Collage · ${profile.modeName} · ${tier.label}`
           );
         }
         allVariants.push(
@@ -725,6 +714,15 @@
         await yieldToMain();
       }
     }
+    return done;
+  }
+
+  /** Lingerie — 12 front + 4 back variants from Meesho-verified KB bands. */
+  async function optimizeLingerieAll(img, onProgress) {
+    const profiles = lingerieProfilesForImage(img);
+    const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
+    const allVariants = [];
+    await appendCollageProfileVariants(img, profiles, allVariants, onProgress, 0, totalSteps);
     return finalizeAutoVariants(allVariants, { maxVariants: LINGERIE_MAX_VARIANTS, minVariants: 1 });
   }
 
@@ -733,8 +731,8 @@
     const minVariants = options.minVariants ?? AUTO_MIN_VARIANTS;
     const sorted = dedupeAutoVariants(variants).sort(
       (a, b) =>
-        (a.lingeriePriority ?? 99) - (b.lingeriePriority ?? 99) ||
         estimateMeeshoInr(a) - estimateMeeshoInr(b) ||
+        (a.lingeriePriority ?? a.autoPriority ?? 99) - (b.lingeriePriority ?? b.autoPriority ?? 99) ||
         a.bytes - b.bytes
     );
     const capped = sorted.slice(0, maxVariants);
@@ -1143,7 +1141,7 @@
       tag.includes("lingerie bra") ||
       (tag.includes("lingerie") && !tag.includes("framed"))
     ) {
-      return { id: "lingerie_all", lingerie: true, modeName: "Bra Collage · Multi-Scenario" };
+      return { id: "lingerie_all", lingerie: true, modeName: "Collage · Multi-Scenario" };
     }
     if (tag.includes("studio ultra")) {
       return profileStudioUltra();
@@ -1801,25 +1799,27 @@
   }
 
   async function optimizeAutoAll(img, frameStyle, onProgress) {
+    const collage = isLingerieSplitCollage(img);
     const profiles = autoProfilesForImage(img).sort((a, b) => (a.autoPriority ?? 99) - (b.autoPriority ?? 99));
-    const steps = profiles.map((profile) => ({
-      profile,
-      tiers: autoTiersForProfile(profile),
-    }));
-    const totalSteps = steps.reduce((sum, step) => sum + step.tiers.length, 0);
+    const collageProfiles = collage
+      ? lingerieProfilesForImage(img).map((p) => ({
+          ...p,
+          modeName: `Collage ${p.modeName}`,
+        }))
+      : [];
+    const autoSteps = profiles.reduce((sum, p) => sum + autoTiersForProfile(p).length, 0);
+    const collageSteps = collageProfiles.reduce((sum, p) => sum + p.tiers.length, 0);
+    const totalSteps = autoSteps + collageSteps;
     const allVariants = [];
     let done = 0;
-    for (const { profile, tiers } of steps) {
+    for (const profile of profiles) {
       const style = mergeFrameStyle(frameStyle, profile.frameStyleOverride);
       if (onProgress) {
-        onProgress(
-          10 + (done / totalSteps) * 82,
-          `Preparing ${profile.modeName || profile.id}…`
-        );
+        onProgress(10 + (done / totalSteps) * 82, `Preparing ${profile.modeName || profile.id}…`);
       }
       const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide, style);
       const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
-      for (const tier of tiers) {
+      for (const tier of autoTiersForProfile(profile)) {
         if (onProgress) {
           onProgress(
             10 + (done / totalSteps) * 82,
@@ -1829,15 +1829,25 @@
         allVariants.push(await buildVariantForTier(canvas, whiteRatio, profile, tier, { showMode: true }));
         done += 1;
         if (onProgress) {
-          onProgress(
-            10 + (done / totalSteps) * 82,
-            `Ranked preview · ${done}/${totalSteps} strategies tested`
-          );
+          onProgress(10 + (done / totalSteps) * 82, `Ranked preview · ${done}/${totalSteps} tested`);
         }
         await yieldToMain();
       }
     }
-    return finalizeAutoVariants(allVariants);
+    if (collageProfiles.length) {
+      done = await appendCollageProfileVariants(
+        img,
+        collageProfiles,
+        allVariants,
+        onProgress,
+        done,
+        totalSteps
+      );
+    }
+    return finalizeAutoVariants(allVariants, {
+      maxVariants: collage ? AUTO_MAX_COLLAGE_VARIANTS : AUTO_MAX_VARIANTS,
+      minVariants: AUTO_MIN_VARIANTS,
+    });
   }
 
   async function optimizeToVariants(source, tagName, frameStyle, onProgress) {
