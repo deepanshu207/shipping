@@ -415,109 +415,64 @@
     };
   }
 
-  function tierLowest(tiers) {
-    if (!tiers || !tiers.length) return null;
-    return tiers.find((t) => t.lowest) || tiers[0];
-  }
-
-  function stickerMeta(id) {
-    return STICKER_TEMPLATE_META.find((t) => t.id === id) || { id, name: id };
-  }
-
-  function autoFramedProfile({ id, path, sizeLabel, maxSide, sticker, tiers, priority }) {
-    const s = stickerMeta(sticker);
-    const pick = tierLowest(tiers);
-    return profileFramedAuto({
-      id,
-      path,
-      modeName: `Framed ${sizeLabel} · ${s.name}`,
-      tiers: pick ? [pick] : [],
-      framedMaxSide: maxSide,
-      frameStyleOverride: { stickerTemplate: sticker },
-      autoPriority: priority,
-    });
-  }
-
-  /**
-   * Auto — every strategy type once (lowest tier each): studio, all sticker promos, sizes, collage when split.
-   * Ranked 10–30 unique picks by lowest est. ₹.
-   */
+  /** All auto strategies — studio first (lowest ₹), then compact framed, then standard framed. */
   function autoProfilesForImage(_img) {
-    const profiles = [
-      { ...profileStudioUltra(), autoPriority: 1, tiers: [tierLowest(TIERS_STUDIO_ULTRA)].filter(Boolean) },
-      {
-        ...profileStudioBalanced(),
-        autoPriority: 2,
-        tiers: [tierLowest(TIERS_STUDIO_BALANCED)].filter(Boolean),
-      },
-      { ...profileStudioAnyPhoto(), autoPriority: 3, tiers: [tierLowest(TIERS_STUDIO_ANY)].filter(Boolean) },
-      { ...profileStudio(), autoPriority: 4, tiers: [tierLowest(TIERS_WHITE_BG)].filter(Boolean) },
-    ];
-    let priority = 10;
-    for (const sticker of STICKER_TEMPLATE_META.map((t) => t.id)) {
-      profiles.push(
-        autoFramedProfile({
-          id: `auto_fcompact_${sticker}`,
-          path: "framed_compact",
-          sizeLabel: "1024",
-          maxSide: 1024,
-          sticker,
-          tiers: TIERS_FRAMED_MID,
-          priority: priority++,
-        })
-      );
-    }
-    for (const sticker of STICKER_TEMPLATE_META.map((t) => t.id)) {
-      profiles.push(
-        autoFramedProfile({
-          id: `auto_flow_${sticker}`,
-          path: "framed_low",
-          sizeLabel: "1280 · ₹66 band",
-          maxSide: MEESHO_FRAMED_MAX_SIDE,
-          sticker,
-          tiers: TIERS_FRAMED_LOW,
-          priority: priority++,
-        })
-      );
-    }
-    profiles.push(
-      autoFramedProfile({
-        id: "auto_fmini_none",
+    return [
+      { ...profileStudioUltra(), autoPriority: 1 },
+      { ...profileStudioBalanced(), autoPriority: 2 },
+      { ...profileStudioAnyPhoto(), autoPriority: 3 },
+      { ...profileStudio(), autoPriority: 4 },
+      profileFramedAuto({
+        id: "framed_mini_ns",
         path: "framed_mini",
-        sizeLabel: "960",
-        maxSide: 960,
-        sticker: "none",
+        modeName: "Framed 960 · no stickers",
         tiers: TIERS_FRAMED_MID,
-        priority: priority++,
+        framedMaxSide: 960,
+        frameStyleOverride: { stickerTemplate: "none" },
+        autoPriority: 10,
       }),
-      autoFramedProfile({
-        id: "auto_fmini_classic",
-        path: "framed_mini",
-        sizeLabel: "960",
-        maxSide: 960,
-        sticker: "classic_promo",
+      profileFramedAuto({
+        id: "framed_compact_ns",
+        path: "framed_compact",
+        modeName: "Framed 1024 · no stickers",
         tiers: TIERS_FRAMED_MID,
-        priority: priority++,
+        framedMaxSide: 1024,
+        frameStyleOverride: { stickerTemplate: "none" },
+        autoPriority: 11,
       }),
-      autoFramedProfile({
-        id: "auto_fclassic_low",
+      profileFramedAuto({
+        id: "framed_compact",
+        path: "framed_compact",
+        modeName: "Framed 1024 · Classic Promo",
+        tiers: TIERS_FRAMED_MID,
+        framedMaxSide: 1024,
+        frameStyleOverride: { stickerTemplate: "classic_promo" },
+        autoPriority: 12,
+      }),
+      profileFramedAuto({
+        id: "framed_compact_mega",
+        path: "framed_compact",
+        modeName: "Framed 1024 · Mega Sale",
+        tiers: TIERS_FRAMED_MID,
+        framedMaxSide: 1024,
+        frameStyleOverride: { stickerTemplate: "mega_sale" },
+        autoPriority: 13,
+      }),
+      { ...profileFramedLow(), autoPriority: 20 },
+      profileFramedAuto({
+        id: "framed_classic_low",
         path: "framed_classic",
-        sizeLabel: "1280 · low slab",
-        maxSide: MEESHO_FRAMED_MAX_SIDE,
-        sticker: "classic_promo",
+        modeName: "Framed · lower slabs",
         tiers: TIERS_FRAMED_CLASSIC_LOW,
-        priority: priority++,
+        framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+        autoPriority: 30,
       }),
-      {
-        ...profileFramedPro(),
-        autoPriority: priority++,
-        tiers: [tierLowest(TIERS_FRAMED_PRO)].filter(Boolean),
-      }
-    );
-    return profiles;
+      { ...profileFramed(), autoPriority: 31 },
+      { ...profileFramedPro(), autoPriority: 32 },
+    ];
   }
 
-  /** Collage scenarios for Auto — all front boxes + best back tier only (one per scenario). */
+  /** Collage scenarios for Auto — all front boxes + best back tier when split detected. */
   function autoCollageProfilesForImage(img) {
     if (!isLingerieSplitCollage(img)) return [];
     const base = profileLingerie();
@@ -552,9 +507,17 @@
     }));
   }
 
-  /** Auto uses pre-picked single tier per profile (all different strategies). */
+  /** Lowest + recommended tier per profile — fills 10–30 ranked unique picks. */
   function autoTiersForProfile(profile) {
-    return profile.tiers || [];
+    const tiers = profile.tiers || [];
+    if (!tiers.length) return [];
+    const picks = [];
+    const lowest = tiers.find((t) => t.lowest);
+    const recommended = tiers.find((t) => t.recommended);
+    if (lowest) picks.push(lowest);
+    if (recommended && recommended !== lowest) picks.push(recommended);
+    if (!picks.length) picks.push(tiers[0]);
+    return picks;
   }
 
   function mergeFrameStyle(base, override) {
@@ -566,7 +529,7 @@
     const seen = new Set();
     const out = [];
     for (const v of variants) {
-      const key = [v.profileId, v.processingPath, v.width, v.height, v.modeName || "", v.label].join("|");
+      const key = [v.profileId, v.processingPath, v.width, v.height, kb(v.bytes), v.label].join("|");
       if (seen.has(key)) continue;
       seen.add(key);
       out.push(v);
