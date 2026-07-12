@@ -404,7 +404,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=61"></script>
+  <script src="/own-api.js?v=63"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -670,9 +670,10 @@
           var tag = String(r.tagName || "");
           var lingerieBadge = "";
           if (isLingerie) {
-            if (tag.indexOf("front soft") >= 0) lingerieBadge = '<span class="badge try-first">#' + rank + " · FRONT · low ₹</span>";
-            else if (tag.indexOf("back panel") >= 0) lingerieBadge = '<span class="badge rank">#' + rank + " · BACK · ~₹41</span>";
-            else if (tag.indexOf("full face") >= 0) lingerieBadge = '<span class="badge">#' + rank + " · FRONT full · backup</span>";
+            if (tag.indexOf("front bra-focus") >= 0 || tag.indexOf("front") >= 0 && rank === 1)
+              lingerieBadge = '<span class="badge try-first">#' + rank + " · FRONT · ~₹40 band</span>";
+            else if (tag.indexOf("back panel") >= 0)
+              lingerieBadge = '<span class="badge rank">#' + rank + " · BACK · ~₹41</span>";
           }
           return (
             '<article class="result">' +
@@ -726,7 +727,7 @@
         processingHint.textContent = isAuto
           ? "Testing every strategy (up to ~45 compressions, showing best 30). Usually 1–3 minutes on mobile."
           : isLingerie
-            ? "#1 front soft (low ₹) · #3–#6 back · #7 full face only if #1 cuts. ~52 KB each."
+            ? "#1 front bra-focus ONLY (1000px · ~₹40). #2–#3 back. Do NOT use full-face front — ₹146 on Meesho."
             : "Usually takes 10–30 seconds. Progress updates below.";
         resetProcessingProgress();
         show("processing");

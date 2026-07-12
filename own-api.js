@@ -585,7 +585,7 @@
   }
 
   /**
-   * Bra-focus crop — proven ~₹40 on Meesho. "low" keeps slightly more head than old tight.
+   * Bra-focus crop — proven ~₹40 on Meesho. Soft/low presets still hit ₹146 volumetric slab.
    */
   function focusFrontTorsoCrop(canvas, mode) {
     if (mode === "full" || mode === "none" || mode === "balanced") return canvas;
@@ -611,9 +611,10 @@
     const contentH = bounds.height;
     const cx = sumX / count;
     const presets = {
-      low: { topSkip: 0.14, sideTrim: 0.07, squareScale: 0.86, chestBias: 0.47 },
+      tight: { topSkip: 0.24, sideTrim: 0.11, squareScale: 0.74, chestBias: 0.4 },
+      moderate: { topSkip: 0.17, sideTrim: 0.07, squareScale: 0.84, chestBias: 0.44 },
     };
-    const p = presets[mode] || presets.low;
+    const p = presets[mode] || presets.tight;
     const cropTop = minY + Math.round(contentH * p.topSkip);
     const cropBottom = maxY;
     const cropLeft = minX + Math.round(contentW * p.sideTrim);
@@ -686,7 +687,7 @@
   function prepareLingerieLayoutCanvas(img, layout) {
     if (layout === "panel_left_focus") {
       return prepareLingeriePanelCanvas(img, "left", {
-        crop: "low",
+        crop: "tight",
         side: LINGERIE_FRONT_SQUARE_SIDE,
         coverage: 0.9,
       });
