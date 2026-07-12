@@ -273,8 +273,8 @@
         </button>
         <button type="button" class="mode studio lingerie lingerie-featured" data-id="mo_lingerie" data-tag="Lingerie bra panty studio lowest shipping" data-name="Lingerie Lowest ₹" data-lingerie="1">
           <p class="mode-title">Lingerie Lowest ₹</p>
-          <p class="mode-for"><b>For bra front+back collages:</b> Front + back panels · full image · ~55 KB · no crop</p>
-          <span class="mode-tag">8 picks · #1 front · #5 back · same KB band as ₹41 back</span>
+          <p class="mode-for"><b>Bra collage:</b> Exactly 2 images — #1 front · #2 back · ~52 KB · full panel, no cut</p>
+          <span class="mode-tag">2 picks only · same KB as back ₹41 · hard-refresh if you see 8+ results</span>
         </button>
         <button type="button" class="mode studio" data-id="mo_studio" data-tag="White studio product" data-name="Studio Compress">
           <p class="mode-title">Studio Compress</p>
@@ -404,7 +404,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=55"></script>
+  <script src="/own-api.js?v=56"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -662,20 +662,24 @@
         return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
       }
 
-      function showResults(results, modeName) {
+      function showResults(results, modeName, isLingerie) {
         resultsTitle.textContent = modeName + " · " + results.length + " ranked pick" + (results.length === 1 ? "" : "s");
         resultsGrid.innerHTML = results.map(function (r, i) {
           var fname = "meesho-" + r.fileSizeKb + "kb-" + (i + 1) + ".jpg";
           var rank = r.autoRank || (i + 1);
+          var lingerieBadge = "";
+          if (isLingerie && rank === 1) lingerieBadge = '<span class="badge try-first">#1 · FRONT · upload to Meesho</span>';
+          else if (isLingerie && rank === 2) lingerieBadge = '<span class="badge rank">#2 · BACK · upload to Meesho</span>';
           return (
             '<article class="result">' +
               '<div class="result-img"><img src="' + r.imageUrl + '" alt="Variant ' + rank + '" loading="lazy" /></div>' +
               '<div class="result-body">' +
-                (r.autoBest ? '<span class="badge try-first">#1 · Try on Meesho first</span>' : "") +
-                (!r.autoBest && rank <= 3 && r.autoRank ? '<span class="badge rank">#' + rank + " · Top pick</span>" : "") +
-                (!r.autoBest && rank > 3 && r.autoRank ? '<span class="badge rank">#' + rank + "</span>" : "") +
-                (!r.autoRank && r.recommended ? '<span class="badge">Recommended</span>' : "") +
-                (!r.autoRank && r.lowest ? '<span class="badge">Lowest est.</span>' : "") +
+                (lingerieBadge ||
+                  (r.autoBest ? '<span class="badge try-first">#1 · Try on Meesho first</span>' : "") +
+                  (!r.autoBest && rank <= 3 && r.autoRank ? '<span class="badge rank">#' + rank + " · Top pick</span>" : "") +
+                  (!r.autoBest && rank > 3 && r.autoRank ? '<span class="badge rank">#' + rank + "</span>" : "") +
+                  (!r.autoRank && r.recommended ? '<span class="badge">Recommended</span>' : "") +
+                  (!r.autoRank && r.lowest ? '<span class="badge">Lowest est.</span>' : "")) +
                 '<div class="result-label">' + esc(r.tagName || "Variant " + rank) + '</div>' +
                 '<div class="result-meta">Est. ~₹' + (r.estimatedShippingInr || r.fileSizeKb) + " · " + r.fileSizeKb + " KB · " + (r.width || "?") + "×" + (r.height || "?") + "</div>" +
                 '<a class="download" href="' + r.imageUrl + '" download="' + fname + '">Download JPEG</a>' +
@@ -718,7 +722,7 @@
         processingHint.textContent = isAuto
           ? "Testing every strategy (up to ~45 compressions, showing best 30). Usually 1–3 minutes on mobile."
           : isLingerie
-            ? "Front (#1–#4) + back (#5–#8) panels · full image · ~55 KB each. No crop. Usually 20–45 seconds."
+            ? "Exactly 2 images: #1 front · #2 back · ~52 KB each · full panel (no cut). Hard-refresh if you see more."
             : "Usually takes 10–30 seconds. Progress updates below.";
         resetProcessingProgress();
         show("processing");

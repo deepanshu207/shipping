@@ -60,12 +60,9 @@
     { slabKb: 68, label: "Balanced" },
     { slabKb: 71, label: "₹71 backup" },
   ];
-  /** Lingerie panels — match back ~55 KB band (₹41). High KB tiers caused ₹146 on Meesho. */
+  /** Lingerie — single ~52 KB tier per panel (back ₹41 band; avoids ₹146 high-KB tiers). */
   const TIERS_LINGERIE = [
-    { targetKb: 48, label: "Lowest · ~48 KB · test on Meesho first", lowest: true },
-    { targetKb: 52, label: "Recommended · back panel match", recommended: true },
-    { targetKb: 55, label: "Standard · ~55 KB band" },
-    { targetKb: 62, label: "Higher detail backup" },
+    { targetKb: 52, label: "Recommended · ~52 KB · verify on Meesho", recommended: true, lowest: true },
   ];
   /** Large framed files — same 1280px cap; Meesho may tier on dimensions not KB alone. */
   const TIERS_FRAMED_PRO = [
@@ -83,7 +80,7 @@
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
   const AUTO_MIN_VARIANTS = 10;
   const AUTO_MAX_VARIANTS = 30;
-  const LINGERIE_MAX_VARIANTS = 8;
+  const LINGERIE_MAX_VARIANTS = 2;
   const AUTO_PROCESS_TIMEOUT_MS = 540000;
   const PROCESS_TIMEOUT_MS = 180000;
   const STALE_BUFFER_MS = 30000;
@@ -132,9 +129,8 @@
   const STUDIO_SQUARE_SIDE = 1200;
   /** Product fill on square canvas — 82% keeps bra large (68% was too small). */
   const STUDIO_SQUARE_COVERAGE = 0.82;
-  /** Front panel: slightly smaller in frame (no crop) — back uses 0.86. */
-  const LINGERIE_FRONT_COVERAGE = 0.8;
-  const LINGERIE_BACK_COVERAGE = 0.86;
+  /** Front and back use identical letterbox — no coverage difference, no trim crop. */
+  const LINGERIE_PANEL_COVERAGE = 0.86;
   /** Square front+back bra collages are often 1:1 — not caught by wide-only check. */
   const SPLIT_COLLAGE_MIN_W = 800;
   const SPLIT_COLLAGE_ASPECT_MIN = 0.85;
@@ -587,7 +583,7 @@
     return c;
   }
 
-  /** Split panel → trim margins → letterbox square. Front/back share pipeline; no face crop. */
+  /** Split panel → letterbox square. Full panel kept — no margin trim (trim was cutting hair/edges). */
   function prepareLingeriePanelCanvas(img, panel) {
     const mid = Math.floor(img.width / 2);
     const sx = panel === "left" ? 0 : mid;
@@ -601,9 +597,10 @@
     pctx.imageSmoothingEnabled = true;
     pctx.imageSmoothingQuality = "high";
     pctx.drawImage(img, sx, 0, sw, img.height, 0, 0, sw, img.height);
-    const trimmed = trimContentMargins(panelCanvas);
-    const coverage = panel === "left" ? LINGERIE_FRONT_COVERAGE : LINGERIE_BACK_COVERAGE;
-    return prepareLingerieSquareCanvas(trimmed, { side: STUDIO_SQUARE_SIDE, coverage });
+    return prepareLingerieSquareCanvas(panelCanvas, {
+      side: STUDIO_SQUARE_SIDE,
+      coverage: LINGERIE_PANEL_COVERAGE,
+    });
   }
 
   function prepareLingerieLayoutCanvas(img, layout) {
@@ -630,7 +627,7 @@
     return c;
   }
 
-  /** Lingerie-only pipeline — front/back panel crops, no flatten, 150–220 KB band. */
+  /** Lingerie-only pipeline — exactly 2 outputs: front + back, ~52 KB each. */
   async function optimizeLingerieAll(img, onProgress) {
     const profiles = lingerieProfilesForImage(img);
     const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
@@ -1887,7 +1884,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 55, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 56, platform: "cloudflare-static" },
       };
     }
 
