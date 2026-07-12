@@ -60,12 +60,12 @@
     { slabKb: 68, label: "Balanced" },
     { slabKb: 71, label: "₹71 backup" },
   ];
-  /** Lingerie — AtraKit/SupplierDen band: 150–220 KB on 1:1 panel, not ultra 16 KB. */
+  /** Lingerie panels — match back ~55 KB band (₹41). High KB tiers caused ₹146 on Meesho. */
   const TIERS_LINGERIE = [
-    { targetKb: 165, label: "Lowest · 150–200 KB band · test on Meesho", lowest: true },
-    { targetKb: 185, label: "Recommended · low shipping sweet spot", recommended: true },
-    { targetKb: 205, label: "Standard · panel crop" },
-    { targetKb: 225, label: "Higher detail backup" },
+    { targetKb: 48, label: "Lowest · ~48 KB · test on Meesho first", lowest: true },
+    { targetKb: 52, label: "Recommended · back panel match", recommended: true },
+    { targetKb: 55, label: "Standard · ~55 KB band" },
+    { targetKb: 62, label: "Higher detail backup" },
   ];
   /** Large framed files — same 1280px cap; Meesho may tier on dimensions not KB alone. */
   const TIERS_FRAMED_PRO = [
@@ -83,7 +83,7 @@
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
   const AUTO_MIN_VARIANTS = 10;
   const AUTO_MAX_VARIANTS = 30;
-  const LINGERIE_MAX_VARIANTS = 24;
+  const LINGERIE_MAX_VARIANTS = 8;
   const AUTO_PROCESS_TIMEOUT_MS = 540000;
   const PROCESS_TIMEOUT_MS = 180000;
   const STALE_BUFFER_MS = 30000;
@@ -132,8 +132,9 @@
   const STUDIO_SQUARE_SIDE = 1200;
   /** Product fill on square canvas — 82% keeps bra large (68% was too small). */
   const STUDIO_SQUARE_COVERAGE = 0.82;
-  /** Front balanced panel — same 1200px letterbox as back; tight crop optional. */
-  const LINGERIE_FRONT_SQUARE_SIDE = 1200;
+  /** Front panel: slightly smaller in frame (no crop) — back uses 0.86. */
+  const LINGERIE_FRONT_COVERAGE = 0.8;
+  const LINGERIE_BACK_COVERAGE = 0.86;
   /** Square front+back bra collages are often 1:1 — not caught by wide-only check. */
   const SPLIT_COLLAGE_MIN_W = 800;
   const SPLIT_COLLAGE_ASPECT_MIN = 0.85;
@@ -271,24 +272,14 @@
     if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
       return Math.min(fileKb, 93);
     }
-    if (path === "studio_panel_tight") {
-      if (fileKb >= 140 && fileKb <= 230) return 36;
-      if (fileKb < 140) return 40;
-      return 44;
-    }
-    if (path === "studio_panel_balanced") {
-      if (fileKb >= 140 && fileKb <= 230) return 44;
-      if (fileKb < 140) return 46;
-      return 50;
-    }
-    if (path === "studio_panel_face") {
-      return Math.max(fileKb, 78);
+    if (path === "studio_panel_front") {
+      if (fileKb <= 65) return Math.min(fileKb + 4, 52);
+      return Math.min(fileKb, 78);
     }
     if (path === "studio_panel") {
-      if (fileKb >= 140 && fileKb <= 230) return 38;
-      if (fileKb < 140) return 42;
-      if (fileKb <= 280) return 48;
-      return 55;
+      if (fileKb <= 65) return fileKb;
+      if (fileKb <= 90) return 55;
+      return Math.min(fileKb, 93);
     }
     if (path === "studio_square" || (w > 0 && h > 0 && Math.abs(w - h) <= 4)) {
       if (variant.profileId && String(variant.profileId).includes("full")) {
@@ -346,7 +337,7 @@
       tiers: TIERS_LINGERIE,
       path: "studio_panel",
       modeName: "Lingerie Studio",
-      absMinQ: 72,
+      absMinQ: 26,
       lingerie: true,
     };
   }
@@ -489,49 +480,34 @@
     );
   }
 
-  function withLingerieLayout(profile, layout, priority, suffix = "") {
+  function withLingerieLayout(profile, layout, suffix = "") {
     const tag = suffix ? ` ${suffix}` : "";
-    const isFront = layout === "panel_left" || layout === "panel_left_tight";
+    const isFront = layout === "panel_left";
     const isBack = layout === "panel_right";
     let path = "studio_square";
-    if (layout === "panel_left_tight") path = "studio_panel_tight";
-    else if (layout === "panel_left_balanced") path = "studio_panel_balanced";
-    else if (layout === "panel_left") path = "studio_panel_face";
+    if (isFront) path = "studio_panel_front";
     else if (isBack) path = "studio_panel";
-    else if (layout === "full") path = "studio_full";
     return {
       ...profile,
       id: `${profile.id}_${layout}`,
       modeName: `${profile.modeName}${tag}`.trim(),
       path,
       studioLayout: layout,
-      lingeriePriority: priority,
+      lingeriePriority: isFront ? 0 : isBack ? 1 : 2,
     };
   }
 
-  /** Lingerie — balanced front (full face) first; tight crop optional for lowest ₹. */
+  /** Lingerie — front + back panels only, same pipeline, no extra crops. */
   function lingerieProfilesForImage(img) {
     const split = isLingerieSplitCollage(img);
     const base = profileLingerie();
     if (split) {
-      const tightBase = {
-        ...base,
-        id: "lingerie_studio_tight",
-        tiers: TIERS_LINGERIE.slice(0, 2),
-      };
       return [
-        withLingerieLayout(base, "panel_left_balanced", 0, "· front balanced"),
-        withLingerieLayout(base, "panel_right", 1, "· back panel"),
-        withLingerieLayout(tightBase, "panel_left_tight", 3, "· front tight · lowest ₹"),
-        withLingerieLayout(
-          { ...base, tiers: TIERS_LINGERIE.slice(0, 2) },
-          "panel_left",
-          7,
-          "· front full · higher ₹"
-        ),
+        withLingerieLayout(base, "panel_left", "· front panel"),
+        withLingerieLayout(base, "panel_right", "· back panel"),
       ];
     }
-    return [withLingerieLayout(base, "square", 0, "· 1:1 square")];
+    return [withLingerieLayout(base, "square", "· 1:1 square")];
   }
 
   function contentBoundsFromData(data, width, height) {
@@ -571,24 +547,8 @@
     return c;
   }
 
-  /** Trim arm spread only — keeps full face and body height (no chin/head cut). */
-  function mildHorizontalTrim(canvas, sideRatio = 0.04) {
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    const { width, height } = canvas;
-    const bounds = contentBoundsFromData(
-      ctx.getImageData(0, 0, width, height).data,
-      width,
-      height
-    );
-    if (!bounds) return canvas;
-    const inset = Math.round(bounds.width * sideRatio);
-    const minX = Math.max(0, bounds.minX + inset);
-    const maxX = Math.min(width - 1, bounds.maxX - inset);
-    if (maxX - minX < 8) return canvas;
-    return cropCanvasRect(canvas, minX, bounds.minY, maxX, bounds.maxY);
-  }
-
-  function trimContentMargins(canvas, padRatio = 0.02) {
+  /** Trim cream margins with padding — never crops face or body. */
+  function trimContentMargins(canvas, padRatio = 0.035) {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     const { width, height } = canvas;
     const bounds = contentBoundsFromData(
@@ -604,70 +564,6 @@
     const maxX = Math.min(width - 1, bounds.maxX + padX);
     const maxY = Math.min(height - 1, bounds.maxY + padY);
     return cropCanvasRect(canvas, minX, minY, maxX, maxY);
-  }
-
-  /**
-   * Tight front crop — smallest Meesho bbox (~₹45) but may cut face/arms.
-   * Balanced mode uses mildHorizontalTrim only (see prepareLingeriePanelCanvas).
-   */
-  function focusFrontTorsoCrop(canvas, mode) {
-    if (mode === "full" || mode === "none" || mode === "balanced") return canvas;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    const { width, height } = canvas;
-    const { data } = ctx.getImageData(0, 0, width, height);
-    let minX = width;
-    let minY = height;
-    let maxX = 0;
-    let maxY = 0;
-    let sumX = 0;
-    let sumY = 0;
-    let count = 0;
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const i = (y * width + x) * 4;
-        if (nearWhiteAt(data, i)) continue;
-        if (x < minX) minX = x;
-        if (y < minY) minY = y;
-        if (x > maxX) maxX = x;
-        if (y > maxY) maxY = y;
-        sumX += x;
-        sumY += y;
-        count++;
-      }
-    }
-    if (!count) return canvas;
-
-    const contentW = maxX - minX + 1;
-    const contentH = maxY - minY + 1;
-    const cx = sumX / count;
-    const presets = {
-      tight: { topSkip: 0.18, sideTrim: 0.08, squareScale: 0.82, chestBias: 0.46 },
-    };
-    const p = presets[mode] || presets.tight;
-    const cropTop = minY + Math.round(contentH * p.topSkip);
-    const cropBottom = maxY;
-    const cropLeft = minX + Math.round(contentW * p.sideTrim);
-    const cropRight = maxX - Math.round(contentW * p.sideTrim);
-    const innerW = Math.max(8, cropRight - cropLeft + 1);
-    const innerH = Math.max(8, cropBottom - cropTop + 1);
-    const sideLen = Math.round(Math.max(innerW, innerH) * p.squareScale);
-    const chestY = cropTop + innerH * (p.chestBias ?? 0.46);
-    const half = Math.floor(sideLen / 2);
-    let sqLeft = Math.round(cx - half);
-    let sqTop = Math.round(chestY - half);
-    sqLeft = Math.max(0, Math.min(sqLeft, width - sideLen));
-    sqTop = Math.max(0, Math.min(sqTop, height - sideLen));
-
-    const c = document.createElement("canvas");
-    c.width = sideLen;
-    c.height = sideLen;
-    const nctx = c.getContext("2d");
-    nctx.fillStyle = "#ffffff";
-    nctx.fillRect(0, 0, sideLen, sideLen);
-    nctx.imageSmoothingEnabled = true;
-    nctx.imageSmoothingQuality = "high";
-    nctx.drawImage(canvas, sqLeft, sqTop, sideLen, sideLen, 0, 0, sideLen, sideLen);
-    return c;
   }
 
   /** Lingerie canvas — white studio, no background flatten (prevents patch artifacts). */
@@ -691,7 +587,8 @@
     return c;
   }
 
-  function prepareLingeriePanelCanvas(img, panel, options = {}) {
+  /** Split panel → trim margins → letterbox square. Front/back share pipeline; no face crop. */
+  function prepareLingeriePanelCanvas(img, panel) {
     const mid = Math.floor(img.width / 2);
     const sx = panel === "left" ? 0 : mid;
     const sw = panel === "left" ? mid : img.width - mid;
@@ -704,38 +601,13 @@
     pctx.imageSmoothingEnabled = true;
     pctx.imageSmoothingQuality = "high";
     pctx.drawImage(img, sx, 0, sw, img.height, 0, 0, sw, img.height);
-    let trimmed = trimContentMargins(panelCanvas);
-    if (panel === "left") {
-      if (options.crop === "tight") {
-        trimmed = focusFrontTorsoCrop(trimmed, "tight");
-      } else if (options.crop === "balanced") {
-        trimmed = mildHorizontalTrim(trimmed, 0.04);
-      }
-    }
-    const side = options.side ?? STUDIO_SQUARE_SIDE;
-    const coverage =
-      options.coverage ?? (panel === "left" && options.crop === "tight" ? 0.9 : 0.86);
-    return prepareLingerieSquareCanvas(trimmed, { coverage, side });
+    const trimmed = trimContentMargins(panelCanvas);
+    const coverage = panel === "left" ? LINGERIE_FRONT_COVERAGE : LINGERIE_BACK_COVERAGE;
+    return prepareLingerieSquareCanvas(trimmed, { side: STUDIO_SQUARE_SIDE, coverage });
   }
 
   function prepareLingerieLayoutCanvas(img, layout) {
-    if (layout === "panel_left_balanced") {
-      return prepareLingeriePanelCanvas(img, "left", {
-        crop: "balanced",
-        side: STUDIO_SQUARE_SIDE,
-        coverage: 0.86,
-      });
-    }
-    if (layout === "panel_left_tight") {
-      return prepareLingeriePanelCanvas(img, "left", {
-        crop: "tight",
-        side: STUDIO_SQUARE_SIDE,
-        coverage: 0.9,
-      });
-    }
-    if (layout === "panel_left") {
-      return prepareLingeriePanelCanvas(img, "left", { crop: "full", side: STUDIO_SQUARE_SIDE, coverage: 0.86 });
-    }
+    if (layout === "panel_left") return prepareLingeriePanelCanvas(img, "left");
     if (layout === "panel_right") return prepareLingeriePanelCanvas(img, "right");
     if (layout === "square") return prepareLingerieSquareCanvas(img);
     let w = img.width;
@@ -2015,7 +1887,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 54, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 55, platform: "cloudflare-static" },
       };
     }
 
