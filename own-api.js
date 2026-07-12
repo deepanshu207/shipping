@@ -109,6 +109,8 @@
   const PROCESSING = new Set();
   const MOZJPEG_URL = () => new URL("/vendor/mozjpeg.mjs", location.origin).href;
   const FRAME_DEFAULT_ORANGE = "#FF7900";
+  const FRAME_DEFAULT_PURPLE = "#7C3AED";
+  const FRAME_DEFAULT_STICKER = "limited_time";
   const FRAME_LS_BORDER = "meesho_frame_border_color";
   const FRAME_LS_TEMPLATE = "meesho_frame_sticker_template";
   const FRAME_LS_PRESET = "meesho_frame_border_preset";
@@ -227,19 +229,19 @@
   }
 
   function normalizeStickerTemplate(input) {
-    let id = String(input || "classic_promo").trim().toLowerCase();
+    let id = String(input || FRAME_DEFAULT_STICKER).trim().toLowerCase();
     if (STICKER_TEMPLATE_ALIASES[id]) id = STICKER_TEMPLATE_ALIASES[id];
-    return STICKER_TEMPLATE_IDS.has(id) ? id : "classic_promo";
+    return STICKER_TEMPLATE_IDS.has(id) ? id : FRAME_DEFAULT_STICKER;
   }
 
   function normalizeBorderPreset(input) {
-    let id = String(input || "classic_orange").trim().toLowerCase();
+    let id = String(input || "purple").trim().toLowerCase();
     if (BORDER_PRESET_ALIASES[id]) id = BORDER_PRESET_ALIASES[id];
     return id;
   }
 
   function defaultFrameStyle() {
-    return { borderColor: FRAME_DEFAULT_ORANGE, stickerTemplate: "classic_promo" };
+    return { borderColor: FRAME_DEFAULT_PURPLE, stickerTemplate: FRAME_DEFAULT_STICKER };
   }
 
   function parseFrameStyle(fields) {
