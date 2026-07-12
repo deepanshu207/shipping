@@ -207,10 +207,11 @@
   /** Product fill on square canvas — 82% keeps bra large (68% was too small). */
   const STUDIO_SQUARE_COVERAGE = 0.82;
   const LINGERIE_BACK_COVERAGE = 0.86;
-  /** Square front+back bra collages are often 1:1 — not caught by wide-only check. */
-  const SPLIT_COLLAGE_MIN_W = 800;
-  const SPLIT_COLLAGE_ASPECT_MIN = 0.85;
-  const SPLIT_COLLAGE_ASPECT_MAX = 1.65;
+  /** Square or 2:1 front+back bra collages — split at center. */
+  const SPLIT_COLLAGE_MIN_MAX_SIDE = 560;
+  const SPLIT_COLLAGE_MIN_MIN_SIDE = 300;
+  const SPLIT_COLLAGE_ASPECT_MIN = 0.88;
+  const SPLIT_COLLAGE_ASPECT_MAX = 2.35;
   /** Draw stickers at 2× then downscale — sharper text after JPEG without changing frame size. */
   const OVERLAY_SUPERSAMPLE = 2;
 
@@ -608,14 +609,63 @@
     return img.width / Math.max(1, img.height) >= 1.42;
   }
 
-  /** Square 1:1 front+back bra collages — split at center, not only wide 2:1 images. */
+  /** Detect left/right product panels with a light center gutter (front+back collages). */
+  function hasSplitCollageContent(img) {
+    const sampleW = 240;
+    const sampleH = Math.max(120, Math.round((sampleW * img.height) / Math.max(1, img.width)));
+    const c = document.createElement("canvas");
+    c.width = sampleW;
+    c.height = sampleH;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, sampleW, sampleH);
+    ctx.drawImage(img, 0, 0, sampleW, sampleH);
+    const { data } = ctx.getImageData(0, 0, sampleW, sampleH);
+
+    const midX = Math.floor(sampleW / 2);
+    const bandW = Math.max(3, Math.floor(sampleW * 0.035));
+    let centerWhite = 0;
+    let centerTotal = 0;
+    for (let y = 0; y < sampleH; y++) {
+      for (let x = midX - bandW; x <= midX + bandW; x++) {
+        if (x < 0 || x >= sampleW) continue;
+        const i = (y * sampleW + x) * 4;
+        centerTotal++;
+        if (nearWhiteAt(data, i)) centerWhite++;
+      }
+    }
+    if (!centerTotal) return false;
+
+    function contentRatio(x0, x1) {
+      let nonWhite = 0;
+      let total = 0;
+      for (let y = 0; y < sampleH; y++) {
+        for (let x = x0; x < x1; x++) {
+          const i = (y * sampleW + x) * 4;
+          total++;
+          if (!nearWhiteAt(data, i)) nonWhite++;
+        }
+      }
+      return total ? nonWhite / total : 0;
+    }
+
+    const leftRatio = contentRatio(Math.floor(sampleW * 0.04), Math.floor(sampleW * 0.46));
+    const rightRatio = contentRatio(Math.ceil(sampleW * 0.54), Math.floor(sampleW * 0.96));
+    const centerWhiteRatio = centerWhite / centerTotal;
+
+    return centerWhiteRatio >= 0.48 && leftRatio >= 0.09 && rightRatio >= 0.09;
+  }
+
+  /** Square 1:1 or wide ~2:1 front+back collages — split at center. */
   function isLingerieSplitCollage(img) {
-    const aspect = img.width / Math.max(1, img.height);
-    return (
-      img.width >= SPLIT_COLLAGE_MIN_W &&
-      aspect >= SPLIT_COLLAGE_ASPECT_MIN &&
-      aspect <= SPLIT_COLLAGE_ASPECT_MAX
-    );
+    const w = img.width;
+    const h = img.height;
+    const aspect = w / Math.max(1, h);
+    const maxSide = Math.max(w, h);
+    const minSide = Math.min(w, h);
+    if (maxSide < SPLIT_COLLAGE_MIN_MAX_SIDE || minSide < SPLIT_COLLAGE_MIN_MIN_SIDE) return false;
+    if (aspect < SPLIT_COLLAGE_ASPECT_MIN || aspect > SPLIT_COLLAGE_ASPECT_MAX) return false;
+    return hasSplitCollageContent(img);
   }
 
   function withLingerieLayout(profile, layout, priority, suffix = "") {
