@@ -2258,7 +2258,12 @@
       studioBase: profile.studio,
       framedMaxSide: profile.framedMaxSide ?? MEESHO_FRAMED_MAX_SIDE,
       tier:
-        tier.targetKb != null ? { targetKb: tier.targetKb } : { slabKb: tier.slabKb },
+        tier.targetKb != null
+          ? {
+              targetKb: tier.targetKb,
+              framedTargetKb: tier.framedTargetKb ?? null,
+            }
+          : { slabKb: tier.slabKb },
       whiteRatio: options.whiteRatio ?? null,
       absMinQ: profile.absMinQ ?? null,
       frameStyle: style
@@ -2283,29 +2288,39 @@
     );
   }
 
-  /** Re-render one result — studio (no frame) or framed with new border/sticker. */
+  /** Re-render one result — studio | frame_only | framed (border + sticker). */
   async function renderCustomVariant(sourceImg, meta, displayMode, frameStyle) {
     await loadMozjpeg();
     let canvas = resolveReframeBaseCanvas(sourceImg, meta);
     let whiteRatio =
       meta.whiteRatio ?? Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
 
-    if (displayMode === "framed") {
-      const style = parseFrameStyle(frameStyle);
+    const usesTargetKb = meta.tier.targetKb != null;
+    let compressTargetKb = meta.tier.targetKb;
+    const isFramedMode = displayMode === "framed" || displayMode === "frame_only";
+
+    if (isFramedMode) {
+      const style = parseFrameStyle(
+        displayMode === "frame_only"
+          ? mergeFrameStyle(frameStyle, { stickerTemplate: "none" })
+          : frameStyle
+      );
       canvas = prepareFramedCanvas(canvas, meta.framedMaxSide ?? MEESHO_FRAMED_MAX_SIDE, style);
       whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
+      if (displayMode === "frame_only" && meta.tier.framedTargetKb != null) {
+        compressTargetKb = meta.tier.framedTargetKb;
+      }
     }
 
-    const usesTargetKb = meta.tier.targetKb != null;
     const profile = {
       id: meta.profileId,
       path: meta.processingPath,
       studio: displayMode === "studio" && usesTargetKb,
-      collageFramed: displayMode === "framed" && usesTargetKb,
+      collageFramed: isFramedMode && usesTargetKb,
       absMinQ: meta.absMinQ ?? undefined,
     };
     const tier = usesTargetKb
-      ? { targetKb: meta.tier.targetKb, label: "custom" }
+      ? { targetKb: compressTargetKb ?? meta.tier.targetKb, label: "custom" }
       : { slabKb: meta.tier.slabKb, label: "custom" };
     return buildVariantForTier(canvas, whiteRatio, profile, tier);
   }
@@ -2323,8 +2338,8 @@
     };
     const tier = TIERS_FRAMED_LOW.find((t) => t.recommended) || TIERS_FRAMED_LOW[0];
     const combos = [
-      { suffix: "promo", style: frameStyle },
-      { suffix: "frame only", style: mergeFrameStyle(frameStyle, { stickerTemplate: "none" }) },
+      { suffix: "border + sticker", style: frameStyle, displayTag: "framed promo" },
+      { suffix: "border only", style: mergeFrameStyle(frameStyle, { stickerTemplate: "none" }), displayTag: "frame only" },
     ];
     const out = [];
     for (const combo of combos) {

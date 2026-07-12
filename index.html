@@ -252,7 +252,12 @@
       min-height: 140px; display: flex; align-items: center; justify-content: center; padding: 0.5rem; margin-bottom: 0.75rem;
     }
     .dark .reframe-preview { background: #27272a; }
-    .reframe-preview img { max-width: 100%; max-height: 220px; object-fit: contain; }
+    .reframe-preview img { max-width: 100%; max-height: 220px; object-fit: contain; transition: opacity 0.2s; }
+    .reframe-preview-meta {
+      text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--emerald-dark);
+      margin: 0.35rem 0 0; min-height: 1.1rem;
+    }
+    .reframe-preview-meta.muted { color: var(--muted); font-weight: 600; }
     .reframe-mode-row { display: flex; gap: 0.45rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
     .reframe-mode-btn {
       flex: 1; min-width: 7rem; border: 1.5px solid var(--border); background: var(--surface);
@@ -584,14 +589,16 @@
           <h3 id="reframe-title">Customize frame</h3>
           <button type="button" class="reframe-close" id="reframe-close" aria-label="Close">×</button>
         </div>
-        <p class="reframe-note" id="reframe-note">Change border color, promotion sticker, or switch to studio white (no frame).</p>
+        <p class="reframe-note" id="reframe-note">Pick <b>border + sticker</b>, <b>border only</b>, or <b>no border</b> (studio). Preview updates live — same KB target for lowest shipping.</p>
         <div class="reframe-preview"><img id="reframe-preview-img" alt="Preview" /></div>
+        <p class="reframe-preview-meta muted" id="reframe-preview-meta">Updating preview…</p>
         <div class="reframe-mode-row">
           <button type="button" class="reframe-mode-btn selected" data-mode="framed" id="reframe-mode-framed">Border + sticker</button>
-          <button type="button" class="reframe-mode-btn" data-mode="studio" id="reframe-mode-studio">No frame (studio)</button>
+          <button type="button" class="reframe-mode-btn" data-mode="frame_only" id="reframe-mode-frame-only">Border only</button>
+          <button type="button" class="reframe-mode-btn" data-mode="studio" id="reframe-mode-studio">No border</button>
         </div>
         <div id="reframe-frame-controls">
-          <details class="accordion" open>
+          <details class="accordion" open id="reframe-border-section">
             <summary>Border color</summary>
             <div class="accordion-body">
               <div class="swatches" id="reframe-border-swatches" aria-label="Border presets"></div>
@@ -605,7 +612,7 @@
               <div class="frame-preview-bar" id="reframe-border-preview" style="background:#7C3AED"></div>
             </div>
           </details>
-          <details class="accordion" open style="margin-top:0.5rem">
+          <details class="accordion" open style="margin-top:0.5rem" id="reframe-sticker-section">
             <summary>Promotion sticker</summary>
             <div class="accordion-body">
               <div class="field">
@@ -623,7 +630,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=85"></script>
+  <script src="/own-api.js?v=86"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -633,6 +640,9 @@
       var lastUploadDataUrl = null;
       var reframeIndex = -1;
       var reframeDisplayMode = "framed";
+      var reframeSourceImg = null;
+      var reframePreviewTimer = null;
+      var reframePreviewToken = 0;
 
       var panelForm = document.getElementById("panel-form");
       var panelProcessing = document.getElementById("panel-processing");
@@ -683,7 +693,11 @@
       var reframeApply = document.getElementById("reframe-apply");
       var reframeFrameControls = document.getElementById("reframe-frame-controls");
       var reframeModeFramed = document.getElementById("reframe-mode-framed");
+      var reframeModeFrameOnly = document.getElementById("reframe-mode-frame-only");
       var reframeModeStudio = document.getElementById("reframe-mode-studio");
+      var reframePreviewMeta = document.getElementById("reframe-preview-meta");
+      var reframeBorderSection = document.getElementById("reframe-border-section");
+      var reframeStickerSection = document.getElementById("reframe-sticker-section");
       var MR = window.MeeshoReframe;
       var RECOMMENDED_BORDER = "purple";
       var RECOMMENDED_STICKER = "limited_time";
@@ -819,9 +833,62 @@
 
       function syncReframeModeUi() {
         var framed = reframeDisplayMode === "framed";
+        var frameOnly = reframeDisplayMode === "frame_only";
+        var studio = reframeDisplayMode === "studio";
         reframeModeFramed.classList.toggle("selected", framed);
-        reframeModeStudio.classList.toggle("selected", !framed);
-        reframeFrameControls.classList.toggle("hidden", !framed);
+        reframeModeFrameOnly.classList.toggle("selected", frameOnly);
+        reframeModeStudio.classList.toggle("selected", studio);
+        reframeBorderSection.classList.toggle("hidden", studio);
+        reframeStickerSection.classList.toggle("hidden", studio || frameOnly);
+      }
+
+      function inferReframeMode(meta) {
+        if (meta.kind === "collage_studio" || meta.kind === "studio") return "studio";
+        if (meta.frameStyle && meta.frameStyle.stickerTemplate === "none") return "frame_only";
+        return "framed";
+      }
+
+      function scheduleReframePreview() {
+        if (reframePreviewTimer) clearTimeout(reframePreviewTimer);
+        reframePreviewTimer = setTimeout(updateReframePreview, 400);
+      }
+
+      async function updateReframePreview() {
+        if (!MR || reframeIndex < 0 || !lastUploadDataUrl) return;
+        var r = lastResults[reframeIndex];
+        if (!r || !r.reframeMeta) return;
+        var token = ++reframePreviewToken;
+        reframePreviewMeta.textContent = "Updating preview…";
+        reframePreviewMeta.classList.add("muted");
+        reframePreviewImg.style.opacity = "0.55";
+        try {
+          await MR.loadMozjpeg();
+          if (!reframeSourceImg) {
+            reframeSourceImg = await loadImageFromDataUrl(lastUploadDataUrl);
+          }
+          var frame = getReframeSettingsFromUi();
+          var variant = await MR.renderCustomVariant(
+            reframeSourceImg,
+            r.reframeMeta,
+            reframeDisplayMode,
+            frame
+          );
+          if (token !== reframePreviewToken) return;
+          var imageUrl = await MR.blobToDataUrl(variant.blob);
+          var fileSizeKb = MR.kb(variant.bytes);
+          var estimatedShippingInr = MR.estimateMeeshoInr(variant);
+          reframePreviewImg.src = imageUrl;
+          reframePreviewMeta.textContent =
+            "Est. ~₹" + estimatedShippingInr + " · " + fileSizeKb + " KB · " + variant.width + "×" + variant.height;
+          reframePreviewMeta.classList.remove("muted");
+        } catch (err) {
+          if (token === reframePreviewToken) {
+            reframePreviewMeta.textContent = "Preview unavailable — try Apply";
+            reframePreviewMeta.classList.add("muted");
+          }
+        } finally {
+          if (token === reframePreviewToken) reframePreviewImg.style.opacity = "1";
+        }
       }
 
       function loadImageFromDataUrl(dataUrl) {
@@ -837,6 +904,11 @@
         reframeBackdrop.classList.add("hidden");
         reframeBackdrop.setAttribute("aria-hidden", "true");
         reframeIndex = -1;
+        reframeSourceImg = null;
+        if (reframePreviewTimer) {
+          clearTimeout(reframePreviewTimer);
+          reframePreviewTimer = null;
+        }
       }
 
       function openReframeEditor(index) {
@@ -844,13 +916,15 @@
         var r = lastResults[index];
         if (!r || !r.reframeMeta) return;
         reframeIndex = index;
+        reframeSourceImg = null;
         reframePreviewImg.src = r.imageUrl;
         var meta = r.reframeMeta;
-        const isStudioKind = meta.kind === "collage_studio" || meta.kind === "studio";
-        reframeDisplayMode = isStudioKind ? "studio" : "framed";
+        reframeDisplayMode = inferReframeMode(meta);
         if (meta.frameStyle) {
           syncReframeBorderUi(meta.frameStyle.borderColor || DEFAULT_BORDER_COLOR);
-          reframeStickerTemplate.value = FS.normalizeStickerTemplate(meta.frameStyle.stickerTemplate || RECOMMENDED_STICKER);
+          reframeStickerTemplate.value = FS.normalizeStickerTemplate(
+            meta.frameStyle.stickerTemplate === "none" ? RECOMMENDED_STICKER : (meta.frameStyle.stickerTemplate || RECOMMENDED_STICKER)
+          );
         } else {
           var defaults = getFrameSettingsFromUi();
           syncReframeBorderUi(defaults.borderColor);
@@ -860,6 +934,7 @@
         syncReframeModeUi();
         reframeBackdrop.classList.remove("hidden");
         reframeBackdrop.setAttribute("aria-hidden", "false");
+        scheduleReframePreview();
       }
 
       async function applyReframeEdit() {
@@ -881,17 +956,28 @@
           var imageUrl = await MR.blobToDataUrl(variant.blob);
           var fileSizeKb = MR.kb(variant.bytes);
           var estimatedShippingInr = MR.estimateMeeshoInr(variant);
+          var modeLabel =
+            reframeDisplayMode === "studio"
+              ? "studio · no border"
+              : reframeDisplayMode === "frame_only"
+                ? "frame only"
+                : "framed";
           r.imageUrl = imageUrl;
           r.fileSizeKb = fileSizeKb;
           r.estimatedShippingInr = estimatedShippingInr;
           r.shippingCharge = String(estimatedShippingInr);
           r.width = variant.width;
           r.height = variant.height;
-          r.tagName = variant.label + " · " + fileSizeKb + " KB · customized";
+          r.tagName = variant.label + " · " + fileSizeKb + " KB · " + modeLabel;
           if (r.reframeMeta) {
             r.reframeMeta.frameStyle = {
               borderColor: frame.borderColor,
-              stickerTemplate: frame.stickerTemplate,
+              stickerTemplate:
+                reframeDisplayMode === "studio"
+                  ? "none"
+                  : reframeDisplayMode === "frame_only"
+                    ? "none"
+                    : frame.stickerTemplate,
             };
           }
           var card = resultsGrid.querySelector('[data-result-index="' + reframeIndex + '"]');
@@ -943,6 +1029,7 @@
         btn.dataset.color = p.color;
         btn.addEventListener("click", function () {
           syncReframeBorderUi(p.color);
+          scheduleReframePreview();
         });
         reframeBorderSwatches.appendChild(btn);
       });
@@ -1020,7 +1107,7 @@
         if (framedNote) {
           if (isCollage) {
             framedNote.innerHTML =
-              "Generates <b>studio white</b> scenarios plus <b>framed copies</b> using your border color and sticker template.";
+              "Generates <b>studio (no border)</b> plus <b>framed</b> copies. Tap any result to switch: border+sticker · border only · no border.";
           } else if (selected && selected.dataset.auto === "1") {
             framedNote.innerHTML =
               "Border &amp; stickers apply to <b>framed variants</b> in this Auto run. Tap any result to change frame after generation.";
@@ -1029,10 +1116,10 @@
               "Border &amp; stickers apply to this <b>Framed</b> run. Tap any result to customize after generation.";
           } else if (isStudioOnlyMode()) {
             framedNote.innerHTML =
-              "Studio output stays white. We also <b>append framed copies</b> with your border &amp; stickers. Tap results to edit frame.";
+              "Studio = <b>no border</b>. Also appends <b>border+sticker</b> and <b>border only</b> copies. Tap results to switch anytime.";
           } else {
             framedNote.innerHTML =
-              "Border &amp; stickers apply where relevant. <b>Tap any result</b> after generation to change border, sticker, or remove frame.";
+              "Choose border + sticker before generate. After generation, <b>tap any result</b> to switch: border+sticker · border only · no border.";
           }
         }
       }
@@ -1191,7 +1278,7 @@
                   (!r.autoRank && r.lowest ? '<span class="badge">Lowest est.</span>' : "")) +
                 '<div class="result-label">' + esc(r.tagName || "Variant " + rank) + '</div>' +
                 '<div class="result-meta">Est. ~₹' + (r.estimatedShippingInr || r.fileSizeKb) + " · " + r.fileSizeKb + " KB · " + (r.width || "?") + "×" + (r.height || "?") + "</div>" +
-                (editable ? '<p class="result-edit-hint">Tap to change border / sticker / no frame</p>' : "") +
+                (editable ? '<p class="result-edit-hint">Tap · border+sticker · border only · no border</p>' : "") +
                 '<a class="download" href="' + r.imageUrl + '" download="' + fname + '" onclick="event.stopPropagation()">Download JPEG</a>' +
               '</div></article>'
           );
@@ -1289,18 +1376,30 @@
       reframeModeFramed.addEventListener("click", function () {
         reframeDisplayMode = "framed";
         syncReframeModeUi();
+        scheduleReframePreview();
+      });
+      reframeModeFrameOnly.addEventListener("click", function () {
+        reframeDisplayMode = "frame_only";
+        syncReframeModeUi();
+        scheduleReframePreview();
       });
       reframeModeStudio.addEventListener("click", function () {
         reframeDisplayMode = "studio";
         syncReframeModeUi();
+        scheduleReframePreview();
       });
       reframeBorderColor.addEventListener("input", function () {
         syncReframeBorderUi(reframeBorderColor.value);
+        scheduleReframePreview();
       });
       reframeBorderHex.addEventListener("change", function () {
         syncReframeBorderUi(reframeBorderHex.value);
+        scheduleReframePreview();
       });
-      reframeStickerTemplate.addEventListener("change", updateReframeTemplateDesc);
+      reframeStickerTemplate.addEventListener("change", function () {
+        updateReframeTemplateDesc();
+        if (reframeDisplayMode === "framed") scheduleReframePreview();
+      });
       reframeApply.addEventListener("click", applyReframeEdit);
 
       document.getElementById("theme-btn").addEventListener("click", function () {
