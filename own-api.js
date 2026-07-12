@@ -68,22 +68,75 @@
     { targetKb: 58, label: "Back · 58 KB" },
   ];
   /**
-   * Meesho-verified front slabs (no trim, no flatten):
-   * 900px 44KB → ₹66 · 1200px 48KB 56% white → ₹71 · 52KB → ₹146
+   * Front layouts — multiple KB tiers per canvas (like back panel 54–58 band).
+   * No 52 KB (₹146). 900·44KB → ~₹66 · 1200·48KB → ~₹71.
    */
-  const LINGERIE_FRONT_SPECS = [
-    { layout: "f_900_44", priority: 0, side: 900, coverage: 0.68, targetKb: 44, tag: "front 900 · 44KB · ~₹66" },
-    { layout: "f_900_42", priority: 1, side: 900, coverage: 0.68, targetKb: 42, tag: "front 900 · 42KB" },
-    { layout: "f_900_46", priority: 2, side: 900, coverage: 0.68, targetKb: 46, tag: "front 900 · 46KB" },
-    { layout: "f_900_55", priority: 3, side: 900, coverage: 0.68, targetKb: 55, tag: "front 900 · 55KB" },
-    { layout: "f_1200_48", priority: 4, side: 1200, coverage: 0.56, targetKb: 48, tag: "front 1200 · 48KB · ~₹71" },
-    { layout: "f_1200_55", priority: 5, side: 1200, coverage: 0.56, targetKb: 55, tag: "front 1200 · 55KB" },
-    { layout: "f_1000_44", priority: 6, side: 1000, coverage: 0.62, targetKb: 44, tag: "front 1000 · 44KB" },
-    { layout: "f_1000_48", priority: 7, side: 1000, coverage: 0.56, targetKb: 48, tag: "front 1000 · 48KB" },
-    { layout: "f_900_48m", priority: 8, side: 900, coverage: 0.56, targetKb: 48, tag: "front 900 · 48KB mini" },
-    { layout: "f_1200_44", priority: 9, side: 1200, coverage: 0.68, targetKb: 44, tag: "front 1200 · 44KB" },
-    { layout: "f_900_40", priority: 10, side: 900, coverage: 0.68, targetKb: 40, tag: "front 900 · 40KB" },
-    { layout: "f_1000_55", priority: 11, side: 1000, coverage: 0.62, targetKb: 55, tag: "front 1000 · 55KB" },
+  const LINGERIE_FRONT_LAYOUTS = [
+    {
+      layout: "f_900_std",
+      priority: 0,
+      side: 900,
+      coverage: 0.68,
+      panelTag: "front 900",
+      tiers: [
+        { targetKb: 44, label: "44KB · ~₹66", recommended: true, lowest: true },
+        { targetKb: 42, label: "42KB" },
+        { targetKb: 46, label: "46KB" },
+        { targetKb: 40, label: "40KB" },
+      ],
+    },
+    {
+      layout: "f_1200_wide",
+      priority: 10,
+      side: 1200,
+      coverage: 0.56,
+      panelTag: "front 1200",
+      tiers: [
+        { targetKb: 48, label: "48KB · ~₹71", recommended: true, lowest: true },
+        { targetKb: 44, label: "44KB" },
+        { targetKb: 46, label: "46KB" },
+        { targetKb: 55, label: "55KB" },
+      ],
+    },
+    {
+      layout: "f_1000_mid",
+      priority: 20,
+      side: 1000,
+      coverage: 0.62,
+      panelTag: "front 1000",
+      tiers: [
+        { targetKb: 44, label: "44KB", recommended: true, lowest: true },
+        { targetKb: 48, label: "48KB" },
+        { targetKb: 42, label: "42KB" },
+        { targetKb: 55, label: "55KB" },
+      ],
+    },
+    {
+      layout: "f_900_compact",
+      priority: 30,
+      side: 900,
+      coverage: 0.56,
+      panelTag: "front 900 compact",
+      tiers: [
+        { targetKb: 48, label: "48KB", recommended: true, lowest: true },
+        { targetKb: 44, label: "44KB" },
+        { targetKb: 46, label: "46KB" },
+        { targetKb: 40, label: "40KB" },
+      ],
+    },
+    {
+      layout: "f_1200_std",
+      priority: 40,
+      side: 1200,
+      coverage: 0.68,
+      panelTag: "front 1200 tight",
+      tiers: [
+        { targetKb: 44, label: "44KB", recommended: true, lowest: true },
+        { targetKb: 48, label: "48KB" },
+        { targetKb: 46, label: "46KB" },
+        { targetKb: 55, label: "55KB" },
+      ],
+    },
   ];
   /** Large framed files — same 1280px cap; Meesho may tier on dimensions not KB alone. */
   const TIERS_FRAMED_PRO = [
@@ -101,7 +154,7 @@
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
   const AUTO_MIN_VARIANTS = 10;
   const AUTO_MAX_VARIANTS = 30;
-  const LINGERIE_MAX_VARIANTS = 32;
+  const LINGERIE_MAX_VARIANTS = 48;
   const LINGERIE_PROCESS_TIMEOUT_MS = 360000;
   const AUTO_PROCESS_TIMEOUT_MS = 540000;
   const PROCESS_TIMEOUT_MS = 180000;
@@ -476,27 +529,41 @@
     ];
   }
 
-  /** Collage scenarios for Auto — all front boxes + best back tier when split detected. */
+  function lingerieFrontTiers(layoutSpec) {
+    return layoutSpec.tiers.map((tier) => ({
+      targetKb: tier.targetKb,
+      label: `${layoutSpec.panelTag} · ${tier.label}`,
+      lowest: !!tier.lowest,
+      recommended: !!tier.recommended,
+    }));
+  }
+
+  function lingerieFrontAutoTier(layoutSpec) {
+    const pick = layoutSpec.tiers.find((t) => t.lowest) || layoutSpec.tiers[0];
+    return [
+      {
+        targetKb: pick.targetKb,
+        label: `${layoutSpec.panelTag} · ${pick.label}`,
+        lowest: true,
+        recommended: true,
+      },
+    ];
+  }
+
+  /** Collage scenarios for Auto — best front tier per layout + best back tier when split detected. */
   function autoCollageProfilesForImage(img) {
     if (!isLingerieSplitCollage(img)) return [];
     const base = profileLingerie();
-    const frontProfiles = LINGERIE_FRONT_SPECS.map((spec, i) =>
+    const frontProfiles = LINGERIE_FRONT_LAYOUTS.map((layoutSpec) =>
       withLingerieLayout(
         {
           ...base,
-          id: `lingerie_${spec.layout}`,
-          tiers: [
-            {
-              targetKb: spec.targetKb,
-              label: spec.tag,
-              lowest: i === 0,
-              recommended: i < 3,
-            },
-          ],
+          id: `lingerie_${layoutSpec.layout}`,
+          tiers: lingerieFrontAutoTier(layoutSpec),
         },
-        spec.layout,
-        spec.priority,
-        `· ${spec.tag}`
+        layoutSpec.layout,
+        layoutSpec.priority,
+        `· ${layoutSpec.panelTag}`
       )
     );
     const backProfile = withLingerieLayout(
@@ -567,30 +634,22 @@
   }
 
   /**
-   * Front variants from Meesho-tested KB/canvas bands. No ultra flatten (causes patches).
-   * Back: never 52 KB (₹146) — only 54–58 KB band (~₹41).
+   * Front — multiple KB tiers per canvas (like back). Back: 54–58 KB band only.
    */
   function lingerieProfilesForImage(img) {
     const split = isLingerieSplitCollage(img);
     const base = profileLingerie();
     if (split) {
-      const frontProfiles = LINGERIE_FRONT_SPECS.map((spec, i) =>
+      const frontProfiles = LINGERIE_FRONT_LAYOUTS.map((layoutSpec) =>
         withLingerieLayout(
           {
             ...base,
-            id: `lingerie_${spec.layout}`,
-            tiers: [
-              {
-                targetKb: spec.targetKb,
-                label: spec.tag,
-                lowest: i === 0,
-                recommended: i < 3,
-              },
-            ],
+            id: `lingerie_${layoutSpec.layout}`,
+            tiers: lingerieFrontTiers(layoutSpec),
           },
-          spec.layout,
-          spec.priority,
-          `· ${spec.tag}`
+          layoutSpec.layout,
+          layoutSpec.priority,
+          `· ${layoutSpec.panelTag}`
         )
       );
       const backProfiles = [
@@ -727,8 +786,8 @@
     if (layout === "panel_right") {
       return { side: STUDIO_SQUARE_SIDE, coverage: LINGERIE_BACK_COVERAGE };
     }
-    const spec = LINGERIE_FRONT_SPECS.find((s) => s.layout === layout);
-    if (spec) return { side: spec.side, coverage: spec.coverage };
+    const layoutSpec = LINGERIE_FRONT_LAYOUTS.find((s) => s.layout === layout);
+    if (layoutSpec) return { side: layoutSpec.side, coverage: layoutSpec.coverage };
     return { side: STUDIO_SQUARE_SIDE, coverage: LINGERIE_BACK_COVERAGE };
   }
 
