@@ -274,7 +274,7 @@
   </header>
 
   <main class="main">
-    <p class="subtitle">Upload once — <b>Auto</b> shows <b>10–30 ranked JPEGs</b> (studio + framed + collage if split). Lowest est. ₹ first — try #1 on Meesho.</p>
+    <p class="subtitle">Upload once — <b>Auto</b> generates up to <b>30 ranked JPEGs</b> (lowest est. ₹ first). Studio strategies run before framed — download #1–#3 and verify on Meesho Seller Panel.</p>
 
     <!-- FORM -->
     <section class="card" id="panel-form">
@@ -282,8 +282,8 @@
       <div class="modes">
         <button type="button" class="mode auto auto-featured selected" data-id="mo_auto" data-tag="Auto Lowest Shipping product photo" data-name="Auto Lowest Shipping" data-auto="1">
           <p class="mode-title">Auto Lowest Shipping</p>
-          <p class="mode-for"><b>All products:</b> Up to 30 ranked picks — studio first, then framed, collage if split</p>
-          <span class="mode-tag">Smart · 10–30 options · lowest ₹ first</span>
+          <p class="mode-for"><b>Recommended:</b> Up to 30 variants — studio ₹20–40 first, then compact framed, ranked lowest ₹</p>
+          <span class="mode-tag">Smart · 10–30 options · try #1 on Meesho first</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode studio lingerie lingerie-featured" data-id="mo_lingerie" data-tag="Collage multi-scenario lingerie studio lowest shipping" data-name="Collage · Multi-Scenario" data-lingerie="1">
@@ -427,7 +427,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=71"></script>
+  <script src="/own-api.js?v=72"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -760,12 +760,12 @@
         var isAuto = selected && selected.dataset.auto === "1";
         var isLingerie = selected && selected.dataset.lingerie === "1";
         processingTitle.textContent = isAuto
-          ? "Auto — mixing all strategies…"
+          ? "Auto — trying all strategies…"
           : isLingerie
             ? "Collage — running 16 scenarios…"
             : "Running " + selected.dataset.name + "…";
         processingHint.textContent = isAuto
-          ? "Testing strategies (10–30 ranked picks). Studio + framed + collage if split. Usually 1–2 minutes. Try #1 on Meesho."
+          ? "Testing every strategy (up to ~45 compressions, showing best 30). Usually 1–3 minutes on mobile."
           : isLingerie
             ? "16 scenarios: #1 front 900·44KB (~₹66) · #5 front 1200·48KB (~₹71) · #13–#16 back 55KB (~₹41)."
             : "Usually takes 10–30 seconds. Progress updates below.";
