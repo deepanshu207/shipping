@@ -273,8 +273,8 @@
         </button>
         <button type="button" class="mode studio lingerie lingerie-featured" data-id="mo_lingerie" data-tag="Lingerie bra panty studio lowest shipping" data-name="Lingerie Lowest ₹" data-lingerie="1">
           <p class="mode-title">Lingerie Lowest ₹</p>
-          <p class="mode-for"><b>For bra front+back collages:</b> Front bra-focus crop (low ₹) + back panel · no patches</p>
-          <span class="mode-tag">#1 front bra-focus · back panel · avoid full-face front (₹84)</span>
+          <p class="mode-for"><b>For bra front+back collages:</b> Front balanced (full face) + back panel · tight crop optional</p>
+          <span class="mode-tag">#1 front balanced · #3 back · #9 tight if need lower ₹</span>
         </button>
         <button type="button" class="mode studio" data-id="mo_studio" data-tag="White studio product" data-name="Studio Compress">
           <p class="mode-title">Studio Compress</p>
@@ -404,7 +404,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=53"></script>
+  <script src="/own-api.js?v=54"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -718,7 +718,7 @@
         processingHint.textContent = isAuto
           ? "Testing every strategy (up to ~45 compressions, showing best 30). Usually 1–3 minutes on mobile."
           : isLingerie
-            ? "Front bra-focus crop (#1) + back panel. Full-face front often hits ₹84 on Meesho. Usually 20–60 seconds."
+            ? "Front balanced (#1, full face) + back (#5). Tight front at #9 if you need lowest ₹. Usually 30–90 seconds."
             : "Usually takes 10–30 seconds. Progress updates below.";
         resetProcessingProgress();
         show("processing");
