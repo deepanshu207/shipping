@@ -60,24 +60,30 @@
     { slabKb: 68, label: "Balanced" },
     { slabKb: 71, label: "₹71 backup" },
   ];
-  /** Back panel tiers — ~52–56 KB hits ₹41 on Meesho. */
-  const TIERS_LINGERIE = [
-    { targetKb: 52, label: "Recommended · ~52 KB", recommended: true, lowest: true },
-    { targetKb: 55, label: "Backup · ~55 KB" },
+  /** Back — 52 KB hits ₹146 on Meesho; 55 KB confirmed ~₹41. */
+  const TIERS_LINGERIE_BACK = [
+    { targetKb: 55, label: "Back · ~55 KB · ~₹41", recommended: true, lowest: true },
+    { targetKb: 54, label: "Back · 54 KB" },
+    { targetKb: 56, label: "Back · 56 KB" },
+    { targetKb: 58, label: "Back · 58 KB" },
   ];
-  /** Front ultra — Auto mode's lowest-KB studio path; may beat ₹146 slab. */
-  const TIERS_LINGERIE_FRONT_ULTRA = [
-    { targetKb: 16, label: "Front ultra · 16 KB · 1000px", lowest: true, recommended: true },
-    { targetKb: 20, label: "Front ultra · 20 KB · 1000px", recommended: true },
-  ];
-  const TIERS_LINGERIE_FRONT_COMPACT = [
-    { targetKb: 44, label: "Front · 900px · 44 KB", lowest: true },
-  ];
-  const TIERS_LINGERIE_FRONT_MINI = [
-    { targetKb: 48, label: "Front · 56% on white · 48 KB", lowest: true },
-  ];
-  const TIERS_LINGERIE_FRONT_STANDARD = [
-    { targetKb: 52, label: "Front standard · 52 KB · may be ₹146", recommended: true },
+  /**
+   * Meesho-verified front slabs (no trim, no flatten):
+   * 900px 44KB → ₹66 · 1200px 48KB 56% white → ₹71 · 52KB → ₹146
+   */
+  const LINGERIE_FRONT_SPECS = [
+    { layout: "f_900_44", priority: 0, side: 900, coverage: 0.68, targetKb: 44, tag: "front 900 · 44KB · ~₹66" },
+    { layout: "f_900_42", priority: 1, side: 900, coverage: 0.68, targetKb: 42, tag: "front 900 · 42KB" },
+    { layout: "f_900_46", priority: 2, side: 900, coverage: 0.68, targetKb: 46, tag: "front 900 · 46KB" },
+    { layout: "f_900_55", priority: 3, side: 900, coverage: 0.68, targetKb: 55, tag: "front 900 · 55KB" },
+    { layout: "f_1200_48", priority: 4, side: 1200, coverage: 0.56, targetKb: 48, tag: "front 1200 · 48KB · ~₹71" },
+    { layout: "f_1200_55", priority: 5, side: 1200, coverage: 0.56, targetKb: 55, tag: "front 1200 · 55KB" },
+    { layout: "f_1000_44", priority: 6, side: 1000, coverage: 0.62, targetKb: 44, tag: "front 1000 · 44KB" },
+    { layout: "f_1000_48", priority: 7, side: 1000, coverage: 0.56, targetKb: 48, tag: "front 1000 · 48KB" },
+    { layout: "f_900_48m", priority: 8, side: 900, coverage: 0.56, targetKb: 48, tag: "front 900 · 48KB mini" },
+    { layout: "f_1200_44", priority: 9, side: 1200, coverage: 0.68, targetKb: 44, tag: "front 1200 · 44KB" },
+    { layout: "f_900_40", priority: 10, side: 900, coverage: 0.68, targetKb: 40, tag: "front 900 · 40KB" },
+    { layout: "f_1000_55", priority: 11, side: 1000, coverage: 0.62, targetKb: 55, tag: "front 1000 · 55KB" },
   ];
   /** Large framed files — same 1280px cap; Meesho may tier on dimensions not KB alone. */
   const TIERS_FRAMED_PRO = [
@@ -95,7 +101,7 @@
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
   const AUTO_MIN_VARIANTS = 10;
   const AUTO_MAX_VARIANTS = 30;
-  const LINGERIE_MAX_VARIANTS = 8;
+  const LINGERIE_MAX_VARIANTS = 16;
   const AUTO_PROCESS_TIMEOUT_MS = 540000;
   const PROCESS_TIMEOUT_MS = 180000;
   const STALE_BUFFER_MS = 30000;
@@ -144,13 +150,7 @@
   const STUDIO_SQUARE_SIDE = 1200;
   /** Product fill on square canvas — 82% keeps bra large (68% was too small). */
   const STUDIO_SQUARE_COVERAGE = 0.82;
-  /** Front: try smaller canvas + ultra KB — standard 48–52 KB still hits ₹146 on Meesho. */
-  const LINGERIE_FRONT_SIDE_COMPACT = 1000;
-  const LINGERIE_FRONT_SIDE_MINI = 900;
-  const LINGERIE_FRONT_COVERAGE = 0.86;
-  const LINGERIE_FRONT_COVERAGE_ULTRA = 0.6;
-  const LINGERIE_FRONT_COVERAGE_COMPACT = 0.68;
-  const LINGERIE_FRONT_COVERAGE_MINI = 0.56;
+  const LINGERIE_BACK_COVERAGE = 0.86;
   /** Square front+back bra collages are often 1:1 — not caught by wide-only check. */
   const SPLIT_COLLAGE_MIN_W = 800;
   const SPLIT_COLLAGE_ASPECT_MIN = 0.85;
@@ -288,20 +288,25 @@
     if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
       return Math.min(fileKb, 93);
     }
-    if (path === "studio_ultra" && variant.profileId && String(variant.profileId).includes("lingerie")) {
-      return fileKb;
-    }
-    if (path === "studio_panel" && variant.profileId && String(variant.profileId).includes("lingerie_front")) {
-      return 146;
+    if (path === "studio_panel") {
+      const pid = String(variant.profileId || "");
+      if (pid.includes("lingerie_back") || pid.includes("panel_right")) {
+        if (fileKb >= 54 && fileKb <= 58) return 41;
+        if (fileKb === 52) return 146;
+      }
+      if (pid.includes("lingerie_f_")) {
+        if (fileKb === 44 && maxSide <= 920) return 66;
+        if (fileKb === 48 && maxSide >= 1180) return 71;
+        if (fileKb === 52) return 146;
+        if (fileKb >= 54 && fileKb <= 58) return 41;
+      }
+      if (fileKb <= 65) return fileKb;
     }
     if (path === "studio_panel_focus") {
       return Math.max(fileKb, 84);
     }
     if (path === "studio_panel_balanced" || path === "studio_panel_soft" || path === "studio_panel_face") {
       return 146;
-    }
-    if (path === "studio_panel") {
-      if (fileKb <= 65) return fileKb;
     }
     if (path === "studio_square" || (w > 0 && h > 0 && Math.abs(w - h) <= 4)) {
       if (variant.profileId && String(variant.profileId).includes("full")) {
@@ -356,7 +361,7 @@
     return {
       id: "lingerie_studio",
       studio: true,
-      tiers: TIERS_LINGERIE,
+      tiers: TIERS_LINGERIE_BACK,
       path: "studio_panel",
       modeName: "Lingerie Studio",
       absMinQ: 26,
@@ -518,58 +523,41 @@
   }
 
   /**
-   * Front ₹146 on Meesho: full-frame 48–52 KB fails. Rank ultra-KB + compact canvas first.
-   * No arm/body trim — only scale, dimensions, and compression tier changes.
+   * Front variants from Meesho-tested KB/canvas bands. No ultra flatten (causes patches).
+   * Back: never 52 KB (₹146) — only 54–58 KB band (~₹41).
    */
   function lingerieProfilesForImage(img) {
     const split = isLingerieSplitCollage(img);
     const base = profileLingerie();
     if (split) {
-      return [
+      const frontProfiles = LINGERIE_FRONT_SPECS.map((spec, i) =>
         withLingerieLayout(
           {
             ...base,
-            id: "lingerie_ultra",
-            path: "studio_ultra",
-            absMinQ: 14,
-            tiers: [TIERS_LINGERIE_FRONT_ULTRA[0]],
+            id: `lingerie_${spec.layout}`,
+            tiers: [
+              {
+                targetKb: spec.targetKb,
+                label: spec.tag,
+                lowest: i === 0,
+                recommended: i < 3,
+              },
+            ],
           },
-          "panel_ultra_a",
-          0,
-          "· front ultra · try first"
-        ),
+          spec.layout,
+          spec.priority,
+          `· ${spec.tag}`
+        )
+      );
+      const backProfiles = [
         withLingerieLayout(
-          {
-            ...base,
-            id: "lingerie_ultra",
-            path: "studio_ultra",
-            absMinQ: 14,
-            tiers: [TIERS_LINGERIE_FRONT_ULTRA[1]],
-          },
-          "panel_ultra_b",
-          1,
-          "· front ultra · backup"
+          { ...base, id: "lingerie_back", tiers: TIERS_LINGERIE_BACK },
+          "panel_right",
+          20,
+          "· back panel"
         ),
-        withLingerieLayout(
-          { ...base, id: "lingerie_compact", tiers: TIERS_LINGERIE_FRONT_COMPACT },
-          "panel_compact",
-          2,
-          "· front · 900px"
-        ),
-        withLingerieLayout(
-          { ...base, id: "lingerie_mini", tiers: TIERS_LINGERIE_FRONT_MINI },
-          "panel_mini_white",
-          3,
-          "· front · mini on white"
-        ),
-        withLingerieLayout(
-          { ...base, id: "lingerie_front", tiers: TIERS_LINGERIE_FRONT_STANDARD },
-          "panel_left",
-          4,
-          "· front standard"
-        ),
-        withLingerieLayout(base, "panel_right", 5, "· back panel"),
       ];
+      return [...frontProfiles, ...backProfiles];
     }
     return [withLingerieLayout(base, "square", 0, "· 1:1 square")];
   }
@@ -663,56 +651,29 @@
     pctx.imageSmoothingQuality = "high";
     pctx.drawImage(img, sx, 0, sw, img.height, 0, 0, sw, img.height);
     let trimmed = trimContentMargins(panelCanvas, options.padRatio ?? 0.03);
-    if (options.flatten) {
-      flattenBackgroundWhite(trimmed, { gentle: true });
-    }
-    if (options.maxSourceSide) {
-      const maxDim = Math.max(trimmed.width, trimmed.height);
-      if (maxDim > options.maxSourceSide) {
-        trimmed = scaleCanvas(trimmed, options.maxSourceSide / maxDim);
-      }
-    }
     const side = options.side ?? STUDIO_SQUARE_SIDE;
-    const coverage = options.coverage ?? LINGERIE_FRONT_COVERAGE;
+    const coverage =
+      options.coverage ?? (panel === "right" ? LINGERIE_BACK_COVERAGE : 0.68);
     return prepareLingerieSquareCanvas(trimmed, { coverage, side });
   }
 
+  function lingerieLayoutOptions(layout) {
+    if (layout === "panel_right") {
+      return { side: STUDIO_SQUARE_SIDE, coverage: LINGERIE_BACK_COVERAGE };
+    }
+    const spec = LINGERIE_FRONT_SPECS.find((s) => s.layout === layout);
+    if (spec) return { side: spec.side, coverage: spec.coverage };
+    return { side: STUDIO_SQUARE_SIDE, coverage: LINGERIE_BACK_COVERAGE };
+  }
+
   function prepareLingerieLayoutCanvas(img, layout) {
-    if (layout === "panel_ultra_a") {
-      return prepareLingeriePanelCanvas(img, "left", {
-        side: LINGERIE_FRONT_SIDE_COMPACT,
-        coverage: LINGERIE_FRONT_COVERAGE_ULTRA,
-        maxSourceSide: 720,
-        flatten: true,
-      });
+    if (layout === "panel_right") {
+      return prepareLingeriePanelCanvas(img, "right", lingerieLayoutOptions(layout));
     }
-    if (layout === "panel_ultra_b") {
-      return prepareLingeriePanelCanvas(img, "left", {
-        side: LINGERIE_FRONT_SIDE_COMPACT,
-        coverage: LINGERIE_FRONT_COVERAGE_COMPACT,
-        flatten: true,
-      });
-    }
-    if (layout === "panel_compact") {
-      return prepareLingeriePanelCanvas(img, "left", {
-        side: LINGERIE_FRONT_SIDE_MINI,
-        coverage: LINGERIE_FRONT_COVERAGE_COMPACT,
-      });
-    }
-    if (layout === "panel_mini_white") {
-      return prepareLingeriePanelCanvas(img, "left", {
-        side: STUDIO_SQUARE_SIDE,
-        coverage: LINGERIE_FRONT_COVERAGE_MINI,
-      });
-    }
-    if (layout === "panel_left") {
-      return prepareLingeriePanelCanvas(img, "left", {
-        side: STUDIO_SQUARE_SIDE,
-        coverage: LINGERIE_FRONT_COVERAGE,
-      });
-    }
-    if (layout === "panel_right") return prepareLingeriePanelCanvas(img, "right");
     if (layout === "square") return prepareLingerieSquareCanvas(img);
+    if (String(layout).startsWith("f_")) {
+      return prepareLingeriePanelCanvas(img, "left", lingerieLayoutOptions(layout));
+    }
     let w = img.width;
     let h = img.height;
     const max = Math.max(w, h);
@@ -733,7 +694,7 @@
     return c;
   }
 
-  /** Lingerie — front ultra/compact picks + back panel (~₹41). */
+  /** Lingerie — 12 front + 4 back variants from Meesho-verified KB bands. */
   async function optimizeLingerieAll(img, onProgress) {
     const profiles = lingerieProfilesForImage(img);
     const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
