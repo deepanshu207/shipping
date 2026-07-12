@@ -75,8 +75,23 @@
       color: var(--muted); margin: 0 0 0.85rem;
     }
     .modes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
-    @media (min-width: 640px) { .modes { grid-template-columns: repeat(3, 1fr); } }
-    @media (max-width: 420px) { .modes { grid-template-columns: 1fr; } }
+    .modes-primary { margin-bottom: 0.75rem; }
+    .modes-more {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.65rem;
+    }
+    @media (min-width: 640px) {
+      .modes-more { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 420px) {
+      .modes-primary,
+      .modes-more { grid-template-columns: 1fr; }
+    }
+    .accordion-modes { margin-top: 0.15rem; }
+    .accordion-modes summary .accordion-mode-hint {
+      font-size: 0.72rem; font-weight: 600; color: var(--muted); text-transform: none;
+      letter-spacing: normal; margin-left: auto; margin-right: 0.35rem;
+    }
+    .accordion-modes[open] summary .accordion-mode-hint { display: none; }
     .mode {
       text-align: left; font: inherit; color: inherit; cursor: pointer;
       border: 2px solid var(--border); border-radius: 1rem; padding: 0.9rem;
@@ -93,8 +108,8 @@
     .dark .mode.selected.auto {
       background: linear-gradient(135deg, rgb(99 102 241 / 0.14), rgb(24 24 27 / 0.95));
     }
-    .mode.auto-featured { grid-column: 1 / -1; }
-    .mode.lingerie-featured { grid-column: 1 / -1; }
+    .mode.auto-featured,
+    .mode.lingerie-featured { grid-column: auto; }
     .mode.selected.lingerie {
       border-color: #db2777;
       box-shadow: 0 0 0 3px rgb(219 39 119 / 0.22);
@@ -274,24 +289,33 @@
   </header>
 
   <main class="main">
-    <p class="subtitle">Upload once — <b>Auto</b> generates up to <b>30 ranked JPEGs</b> (lowest est. ₹ first). Studio strategies run before framed — download #1–#3 and verify on Meesho Seller Panel.</p>
+    <p class="subtitle">Pick <b>Auto</b> or <b>Collage</b> — or open <b>More compression modes</b> for studio &amp; framed. Auto generates up to <b>30 ranked JPEGs</b> (lowest est. ₹ first).</p>
 
     <!-- FORM -->
     <section class="card" id="panel-form">
       <p class="label">1 · Choose compression mode</p>
-      <div class="modes">
+      <div class="modes modes-primary">
         <button type="button" class="mode auto auto-featured selected" data-id="mo_auto" data-tag="Auto Lowest Shipping product photo" data-name="Auto Lowest Shipping" data-auto="1">
           <p class="mode-title">Auto Lowest Shipping</p>
-          <p class="mode-for"><b>Recommended:</b> Up to 30 variants — studio ₹20–40 first, then compact framed, ranked lowest ₹</p>
+          <p class="mode-for"><b>All products:</b> Up to 30 ranked picks — studio first, then framed</p>
           <span class="mode-tag">Smart · 10–30 options · try #1 on Meesho first</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode studio lingerie lingerie-featured" data-id="mo_lingerie" data-tag="Collage multi-scenario lingerie studio lowest shipping" data-name="Collage · Multi-Scenario" data-lingerie="1">
           <p class="mode-title">Collage · Multi-Scenario</p>
-          <p class="mode-for"><b>Front+back collage:</b> 16 ranked scenarios — 12 front KB/canvas boxes · 4 back (~₹41)</p>
+          <p class="mode-for"><b>Front+back collage:</b> 16 ranked scenarios — 12 front · 4 back (~₹41)</p>
           <span class="mode-tag">16 scenarios · no 52KB slab · test #1 on Meesho</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
+      </div>
+
+      <details class="accordion accordion-modes" id="accordion-modes">
+        <summary>
+          More compression modes
+          <span class="accordion-mode-hint" id="accordion-mode-hint">Studio &amp; Framed</span>
+        </summary>
+        <div class="accordion-body">
+          <div class="modes modes-more">
         <button type="button" class="mode studio" data-id="mo_studio" data-tag="White studio product" data-name="Studio Compress">
           <p class="mode-title">Studio Compress</p>
           <p class="mode-for"><b>For:</b> White / plain background (bra, lingerie)</p>
@@ -334,7 +358,9 @@
           <span class="mode-tag">Full frame · ~177–200 KB · est. ₹93</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
-      </div>
+          </div>
+        </div>
+      </details>
 
       <div class="framed-settings" id="framed-settings">
         <p class="framed-note">Framed border settings apply to <b>Framed</b> modes and <b>Auto</b> only — not Collage scenarios (studio white, no frame).</p>
@@ -427,7 +453,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=72"></script>
+  <script src="/own-api.js?v=73"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -449,6 +475,8 @@
       var processingPercent = document.getElementById("processing-percent");
       var processingBar = document.getElementById("processing-bar");
       var resultsTitle = document.getElementById("results-title");
+      var accordionModes = document.getElementById("accordion-modes");
+      var accordionModeHint = document.getElementById("accordion-mode-hint");
       var FS = window.MeeshoFrameSettings;
       var borderPreset = document.getElementById("border-preset");
       var borderColor = document.getElementById("border-color");
@@ -590,6 +618,20 @@
         }
       }
 
+      function isMoreMode(btn) {
+        return !!(btn && accordionModes && accordionModes.contains(btn));
+      }
+
+      function syncAccordionModeUI() {
+        if (!accordionModes || !accordionModeHint) return;
+        if (selected && isMoreMode(selected)) {
+          accordionModes.open = true;
+          accordionModeHint.textContent = "Selected: " + selected.dataset.name;
+        } else {
+          accordionModeHint.textContent = "Studio & Framed";
+        }
+      }
+
       function updateGenerate() {
         generateBtn.disabled = !(selected && imageFile);
       }
@@ -603,6 +645,7 @@
           btn.classList.add("selected");
           btn.setAttribute("aria-pressed", "true");
           selected = btn;
+          syncAccordionModeUI();
           setError("");
           updateGenerate();
         });
@@ -738,6 +781,8 @@
           selected.classList.add("selected");
           selected.setAttribute("aria-pressed", "true");
         }
+        if (accordionModes) accordionModes.open = false;
+        syncAccordionModeUI();
         imageFile = null;
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         previewUrl = null;
@@ -806,6 +851,7 @@
       });
 
       selected = document.querySelector(".mode.selected") || document.querySelector(".mode.auto");
+      syncAccordionModeUI();
       updateGenerate();
     })();
   </script>
