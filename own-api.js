@@ -443,20 +443,10 @@
       profileFramedAuto({
         id: "framed_compact",
         path: "framed_compact",
-        modeName: "Framed 1024 · Classic Promo",
+        modeName: "Framed 1024 · promo stickers",
         tiers: TIERS_FRAMED_MID,
         framedMaxSide: 1024,
-        frameStyleOverride: { stickerTemplate: "classic_promo" },
         autoPriority: 12,
-      }),
-      profileFramedAuto({
-        id: "framed_compact_mega",
-        path: "framed_compact",
-        modeName: "Framed 1024 · Mega Sale",
-        tiers: TIERS_FRAMED_MID,
-        framedMaxSide: 1024,
-        frameStyleOverride: { stickerTemplate: "mega_sale" },
-        autoPriority: 13,
       }),
       { ...profileFramedLow(), autoPriority: 20 },
       profileFramedAuto({
@@ -468,7 +458,6 @@
         autoPriority: 30,
       }),
       { ...profileFramed(), autoPriority: 31 },
-      { ...profileFramedPro(), autoPriority: 32 },
     ];
   }
 
@@ -507,17 +496,9 @@
     }));
   }
 
-  /** Lowest + recommended tier per profile — fills 10–30 ranked unique picks. */
+  /** Auto — test every tier per strategy (~45 compressions, top 30 ranked). */
   function autoTiersForProfile(profile) {
-    const tiers = profile.tiers || [];
-    if (!tiers.length) return [];
-    const picks = [];
-    const lowest = tiers.find((t) => t.lowest);
-    const recommended = tiers.find((t) => t.recommended);
-    if (lowest) picks.push(lowest);
-    if (recommended && recommended !== lowest) picks.push(recommended);
-    if (!picks.length) picks.push(tiers[0]);
-    return picks;
+    return profile.tiers || [];
   }
 
   function mergeFrameStyle(base, override) {
@@ -1849,19 +1830,22 @@
     const collage = isLingerieSplitCollage(img);
     const profiles = autoProfilesForImage(img).sort((a, b) => (a.autoPriority ?? 99) - (b.autoPriority ?? 99));
     const collageProfiles = collage ? autoCollageProfilesForImage(img) : [];
-    const autoSteps = profiles.reduce((sum, p) => sum + autoTiersForProfile(p).length, 0);
+    const steps = profiles.map((profile) => ({
+      profile,
+      tiers: autoTiersForProfile(profile),
+    }));
     const collageSteps = collageProfiles.reduce((sum, p) => sum + p.tiers.length, 0);
-    const totalSteps = autoSteps + collageSteps;
+    const totalSteps = steps.reduce((sum, step) => sum + step.tiers.length, 0) + collageSteps;
     const allVariants = [];
     let done = 0;
-    for (const profile of profiles) {
+    for (const { profile, tiers } of steps) {
       const style = mergeFrameStyle(frameStyle, profile.frameStyleOverride);
       if (onProgress) {
         onProgress(10 + (done / totalSteps) * 82, `Preparing ${profile.modeName || profile.id}…`);
       }
       const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide, style);
       const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
-      for (const tier of autoTiersForProfile(profile)) {
+      for (const tier of tiers) {
         if (onProgress) {
           onProgress(
             10 + (done / totalSteps) * 82,
@@ -1871,7 +1855,10 @@
         allVariants.push(await buildVariantForTier(canvas, whiteRatio, profile, tier, { showMode: true }));
         done += 1;
         if (onProgress) {
-          onProgress(10 + (done / totalSteps) * 82, `Ranked preview · ${done}/${totalSteps} tested`);
+          onProgress(
+            10 + (done / totalSteps) * 82,
+            `Ranked preview · ${done}/${totalSteps} strategies tested`
+          );
         }
         await yieldToMain();
       }
