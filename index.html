@@ -273,8 +273,8 @@
         </button>
         <button type="button" class="mode studio lingerie lingerie-featured" data-id="mo_lingerie" data-tag="Lingerie bra panty studio lowest shipping" data-name="Lingerie Lowest ₹" data-lingerie="1">
           <p class="mode-title">Lingerie Lowest ₹</p>
-          <p class="mode-for"><b>For bra front+back collages:</b> Front bra-focus crop (low ₹) + back panel · no patches</p>
-          <span class="mode-tag">#1 front bra-focus · back panel · avoid full-face front (₹84)</span>
+          <p class="mode-for"><b>Bra collage:</b> #1 front soft (low ₹) · #3–#6 back (~₹41) · #7 full face backup</p>
+          <span class="mode-tag">~52 KB band · no 165 KB tiers · hard-refresh v61</span>
         </button>
         <button type="button" class="mode studio" data-id="mo_studio" data-tag="White studio product" data-name="Studio Compress">
           <p class="mode-title">Studio Compress</p>
@@ -404,7 +404,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=60"></script>
+  <script src="/own-api.js?v=61"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -662,20 +662,28 @@
         return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
       }
 
-      function showResults(results, modeName) {
+      function showResults(results, modeName, isLingerie) {
         resultsTitle.textContent = modeName + " · " + results.length + " ranked pick" + (results.length === 1 ? "" : "s");
         resultsGrid.innerHTML = results.map(function (r, i) {
           var fname = "meesho-" + r.fileSizeKb + "kb-" + (i + 1) + ".jpg";
           var rank = r.autoRank || (i + 1);
+          var tag = String(r.tagName || "");
+          var lingerieBadge = "";
+          if (isLingerie) {
+            if (tag.indexOf("front soft") >= 0) lingerieBadge = '<span class="badge try-first">#' + rank + " · FRONT · low ₹</span>";
+            else if (tag.indexOf("back panel") >= 0) lingerieBadge = '<span class="badge rank">#' + rank + " · BACK · ~₹41</span>";
+            else if (tag.indexOf("full face") >= 0) lingerieBadge = '<span class="badge">#' + rank + " · FRONT full · backup</span>";
+          }
           return (
             '<article class="result">' +
               '<div class="result-img"><img src="' + r.imageUrl + '" alt="Variant ' + rank + '" loading="lazy" /></div>' +
               '<div class="result-body">' +
-                (r.autoBest ? '<span class="badge try-first">#1 · Try on Meesho first</span>' : "") +
-                (!r.autoBest && rank <= 3 && r.autoRank ? '<span class="badge rank">#' + rank + " · Top pick</span>" : "") +
-                (!r.autoBest && rank > 3 && r.autoRank ? '<span class="badge rank">#' + rank + "</span>" : "") +
-                (!r.autoRank && r.recommended ? '<span class="badge">Recommended</span>' : "") +
-                (!r.autoRank && r.lowest ? '<span class="badge">Lowest est.</span>' : "") +
+                (lingerieBadge ||
+                  (r.autoBest ? '<span class="badge try-first">#1 · Try on Meesho first</span>' : "") +
+                  (!r.autoBest && rank <= 3 && r.autoRank ? '<span class="badge rank">#' + rank + " · Top pick</span>" : "") +
+                  (!r.autoBest && rank > 3 && r.autoRank ? '<span class="badge rank">#' + rank + "</span>" : "") +
+                  (!r.autoRank && r.recommended ? '<span class="badge">Recommended</span>' : "") +
+                  (!r.autoRank && r.lowest ? '<span class="badge">Lowest est.</span>' : "")) +
                 '<div class="result-label">' + esc(r.tagName || "Variant " + rank) + '</div>' +
                 '<div class="result-meta">Est. ~₹' + (r.estimatedShippingInr || r.fileSizeKb) + " · " + r.fileSizeKb + " KB · " + (r.width || "?") + "×" + (r.height || "?") + "</div>" +
                 '<a class="download" href="' + r.imageUrl + '" download="' + fname + '">Download JPEG</a>' +
