@@ -536,7 +536,7 @@
     </section>
   </main>
 
-  <script src="/own-api.js?v=75"></script>
+  <script src="/own-api.js?v=77"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -562,6 +562,8 @@
       var accordionModeHint = document.getElementById("accordion-mode-hint");
       var framedSettings = document.getElementById("framed-settings");
       var framedNote = document.getElementById("framed-note");
+      var accordionBorder = document.getElementById("accordion-border");
+      var accordionStickers = document.getElementById("accordion-stickers");
       var FS = window.MeeshoFrameSettings;
       if (!FS) {
         console.error("[ui] MeeshoFrameSettings not loaded — frame controls disabled");
@@ -722,13 +724,16 @@
 
       function syncFramedSettingsUI() {
         if (!framedSettings) return;
-        framedSettings.classList.remove("hidden");
+        var isCollage = selected && selected.dataset.lingerie === "1";
+        /* Collage: studio white only — hide frame border + promotion stickers (not used). */
+        framedSettings.classList.toggle("hidden", isCollage);
+        framedSettings.setAttribute("aria-hidden", isCollage ? "true" : "false");
+        if (accordionBorder) accordionBorder.open = false;
+        if (accordionStickers) accordionStickers.open = false;
+        if (isCollage) return;
         framedSettings.classList.toggle("framed-settings--inactive", !frameSettingsApplyToRun());
         if (framedNote) {
-          if (selected && selected.dataset.lingerie === "1") {
-            framedNote.innerHTML =
-              "Collage runs use <b>studio white</b> (no frame). Border &amp; sticker choices below still save as your default for <b>Auto</b> and <b>Framed</b>.";
-          } else if (selected && selected.dataset.auto === "1") {
+          if (selected && selected.dataset.auto === "1") {
             framedNote.innerHTML =
               "Border &amp; stickers apply to <b>framed variants</b> in this Auto run.";
           } else if (selected && selected.classList.contains("framed")) {
@@ -947,11 +952,13 @@
         var form = new FormData();
         form.append("tagId", selected.dataset.id);
         form.append("tagName", selected.dataset.tag);
-        var frame = getFrameSettingsFromUi();
-        form.append("frameBorderColor", frame.borderColor);
-        form.append("frameStickerTemplate", frame.stickerTemplate);
+        if (!isLingerie) {
+          var frame = getFrameSettingsFromUi();
+          form.append("frameBorderColor", frame.borderColor);
+          form.append("frameStickerTemplate", frame.stickerTemplate);
+          persistFrameDefaults();
+        }
         form.append("image", imageFile);
-        persistFrameDefaults();
 
         setProcessingProgress(1, "Uploading image…");
         fetch("/api/meesho/getLowestShippingCharge", { method: "POST", body: form, credentials: "include" })
