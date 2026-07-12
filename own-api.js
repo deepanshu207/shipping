@@ -60,16 +60,14 @@
     { slabKb: 68, label: "Balanced" },
     { slabKb: 71, label: "₹71 backup" },
   ];
-  /** Lingerie panels — ~55 KB band (back ₹41). Never use 165+ KB tiers on front. */
+  /** Back panel tiers — ~52–56 KB hits ₹41 on Meesho. */
   const TIERS_LINGERIE = [
-    { targetKb: 48, label: "Lowest · ~48 KB", lowest: true },
-    { targetKb: 52, label: "Recommended · ~55 KB band", recommended: true },
-    { targetKb: 55, label: "Standard" },
-    { targetKb: 62, label: "Higher detail backup" },
+    { targetKb: 52, label: "Recommended · ~52 KB", recommended: true, lowest: true },
+    { targetKb: 55, label: "Backup · ~55 KB" },
   ];
+  /** Front: single 52 KB @ 1000px bra-focus — only layout that hits ~₹40 (not ₹146). */
   const TIERS_LINGERIE_FRONT = [
-    { targetKb: 52, label: "Recommended · test on Meesho", recommended: true, lowest: true },
-    { targetKb: 55, label: "Backup tier" },
+    { targetKb: 52, label: "Front bra-focus · ~₹40 band · test on Meesho", recommended: true, lowest: true },
   ];
   /** Large framed files — same 1280px cap; Meesho may tier on dimensions not KB alone. */
   const TIERS_FRAMED_PRO = [
@@ -87,7 +85,7 @@
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
   const AUTO_MIN_VARIANTS = 10;
   const AUTO_MAX_VARIANTS = 30;
-  const LINGERIE_MAX_VARIANTS = 10;
+  const LINGERIE_MAX_VARIANTS = 3;
   const AUTO_PROCESS_TIMEOUT_MS = 540000;
   const PROCESS_TIMEOUT_MS = 180000;
   const STALE_BUFFER_MS = 30000;
@@ -136,8 +134,8 @@
   const STUDIO_SQUARE_SIDE = 1200;
   /** Product fill on square canvas — 82% keeps bra large (68% was too small). */
   const STUDIO_SQUARE_COVERAGE = 0.82;
-  /** Soft front crop canvas — between tight 1000 and full 1200. */
-  const LINGERIE_FRONT_SQUARE_SIDE = 1100;
+  /** Front bra-focus — 1000px hit ~₹40; 1100/1200 full face hits ₹84–₹146. */
+  const LINGERIE_FRONT_SQUARE_SIDE = 1000;
   /** Square front+back bra collages are often 1:1 — not caught by wide-only check. */
   const SPLIT_COLLAGE_MIN_W = 800;
   const SPLIT_COLLAGE_ASPECT_MIN = 0.85;
@@ -275,16 +273,12 @@
     if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
       return Math.min(fileKb, 93);
     }
-    if (path === "studio_panel_soft") {
-      if (fileKb <= 65) return fileKb + 2;
+    if (path === "studio_panel_focus") {
+      if (fileKb <= 65) return 40;
       return 48;
     }
-    if (path === "studio_panel_balanced") {
-      if (fileKb <= 65) return Math.min(fileKb + 10, 58);
-      return 65;
-    }
-    if (path === "studio_panel_face") {
-      return Math.max(fileKb, 78);
+    if (path === "studio_panel_balanced" || path === "studio_panel_soft" || path === "studio_panel_face") {
+      return 146;
     }
     if (path === "studio_panel") {
       if (fileKb <= 65) return fileKb;
@@ -491,8 +485,7 @@
   function withLingerieLayout(profile, layout, priority, suffix = "") {
     const tag = suffix ? ` ${suffix}` : "";
     let path = "studio_square";
-    if (layout === "panel_left_soft") path = "studio_panel_soft";
-    else if (layout === "panel_left_balanced") path = "studio_panel_balanced";
+    if (layout === "panel_left_focus") path = "studio_panel_focus";
     else if (layout === "panel_right") path = "studio_panel";
     return {
       ...profile,
@@ -505,8 +498,8 @@
   }
 
   /**
-   * Front: soft crop (low ₹, keeps more face than tight) + balanced backup.
-   * Back: unchanged 4 tiers (~₹41 at ~55 KB).
+   * Front: only bra-focus 1000px (proved ~₹40). Back: 52–55 KB (~₹41).
+   * Full-face / soft / 1200px front → Meesho ₹146 volumetric slab.
    */
   function lingerieProfilesForImage(img) {
     const split = isLingerieSplitCollage(img);
@@ -514,18 +507,12 @@
     if (split) {
       return [
         withLingerieLayout(
-          { ...base, id: "lingerie_soft", tiers: TIERS_LINGERIE_FRONT },
-          "panel_left_soft",
+          { ...base, id: "lingerie_focus", tiers: TIERS_LINGERIE_FRONT },
+          "panel_left_focus",
           0,
-          "· front soft · low ₹"
+          "· front bra-focus · ~₹40"
         ),
         withLingerieLayout(base, "panel_right", 1, "· back panel"),
-        withLingerieLayout(
-          { ...base, id: "lingerie_balanced", tiers: TIERS_LINGERIE_FRONT },
-          "panel_left_balanced",
-          5,
-          "· front full face · if #1 cuts"
-        ),
       ];
     }
     return [withLingerieLayout(base, "square", 0, "· 1:1 square")];
@@ -598,7 +585,7 @@
   }
 
   /**
-   * Soft front crop — lowers Meesho bbox vs full face, keeps more head than tight.
+   * Bra-focus crop — proven ~₹40 on Meesho. "low" keeps slightly more head than old tight.
    */
   function focusFrontTorsoCrop(canvas, mode) {
     if (mode === "full" || mode === "none" || mode === "balanced") return canvas;
@@ -624,9 +611,9 @@
     const contentH = bounds.height;
     const cx = sumX / count;
     const presets = {
-      moderate: { topSkip: 0.08, sideTrim: 0.04, squareScale: 0.94, chestBias: 0.52 },
+      low: { topSkip: 0.14, sideTrim: 0.07, squareScale: 0.86, chestBias: 0.47 },
     };
-    const p = presets[mode] || presets.moderate;
+    const p = presets[mode] || presets.low;
     const cropTop = minY + Math.round(contentH * p.topSkip);
     const cropBottom = maxY;
     const cropLeft = minX + Math.round(contentW * p.sideTrim);
@@ -689,30 +676,19 @@
     pctx.drawImage(img, sx, 0, sw, img.height, 0, 0, sw, img.height);
     let trimmed = trimContentMargins(panelCanvas);
     if (panel === "left") {
-      if (options.crop === "soft") {
-        trimmed = focusFrontTorsoCrop(trimmed, "moderate");
-      } else if (options.crop === "balanced") {
-        trimmed = mildHorizontalTrim(trimmed);
-      }
+      trimmed = focusFrontTorsoCrop(trimmed, options.crop || "low");
     }
     const side = options.side ?? (panel === "left" ? LINGERIE_FRONT_SQUARE_SIDE : STUDIO_SQUARE_SIDE);
-    const coverage = options.coverage ?? (panel === "left" ? 0.88 : 0.86);
+    const coverage = options.coverage ?? (panel === "left" ? 0.9 : 0.86);
     return prepareLingerieSquareCanvas(trimmed, { coverage, side });
   }
 
   function prepareLingerieLayoutCanvas(img, layout) {
-    if (layout === "panel_left_soft") {
+    if (layout === "panel_left_focus") {
       return prepareLingeriePanelCanvas(img, "left", {
-        crop: "soft",
+        crop: "low",
         side: LINGERIE_FRONT_SQUARE_SIDE,
-        coverage: 0.88,
-      });
-    }
-    if (layout === "panel_left_balanced") {
-      return prepareLingeriePanelCanvas(img, "left", {
-        crop: "balanced",
-        side: STUDIO_SQUARE_SIDE,
-        coverage: 0.84,
+        coverage: 0.9,
       });
     }
     if (layout === "panel_right") return prepareLingeriePanelCanvas(img, "right");
@@ -1994,7 +1970,7 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 61, platform: "cloudflare-static" },
+        body: { ok: true, api: "own", service: "own-api.js", version: 62, platform: "cloudflare-static" },
       };
     }
 
