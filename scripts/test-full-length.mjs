@@ -1,5 +1,5 @@
 /**
- * Regression: full-length collage-style mode — studio ~₹55 + framed ~₹66, no ₹198 outliers.
+ * Regression: full-length uses Collage pipeline (lowered square/panel + extras).
  */
 import { chromium } from "playwright";
 
@@ -44,32 +44,41 @@ const sorted = [...results].sort(
     Math.max(a.width || 0, a.height || 0) - Math.max(b.width || 0, b.height || 0)
 );
 const topEst = sorted[0]?.estimatedShippingInr || 99;
-const hasFramed = results.some((r) => String(r.processingPath || "").includes("framed"));
-const hasStudio = results.some((r) => String(r.processingPath || "").includes("portrait"));
+const topMax = Math.max(...sorted.slice(0, 5).map((r) => Math.max(r.width || 0, r.height || 0)));
+const hasSquare = results.some((r) => String(r.processingPath || "") === "full_length_square");
+const hasPortrait = results.some((r) => String(r.processingPath || "") === "full_length_portrait");
+const hasFramed = results.some((r) => String(r.processingPath || "") === "full_length_framed");
 const bad198 = results.filter((r) => (r.fileSizeKb || 0) > 100 || (r.estimatedShippingInr || 0) > 120);
-const has66 = results.some((r) => r.estimatedShippingInr === 66);
 
 console.log(
-  `variants=${results.length} topEst=₹${topEst} framed=${hasFramed} studio=${hasStudio} has66=${has66} bad198=${bad198.length}`
+  `variants=${results.length} topEst=₹${topEst} top5Max=${topMax} sq=${hasSquare} pt=${hasPortrait} framed=${hasFramed} bad=${bad198.length}`
 );
 if (results.length < 20) {
   console.error("FAIL: expected at least 20 variants");
   process.exit(1);
 }
-if (!hasFramed) {
-  console.error("FAIL: missing framed full-length scenarios");
+if (!hasSquare) {
+  console.error("FAIL: missing collage-style square scenarios");
   process.exit(1);
 }
-if (!hasStudio) {
-  console.error("FAIL: missing studio full-length scenarios");
+if (!hasPortrait) {
+  console.error("FAIL: missing full-length-only portrait/cap scenarios");
+  process.exit(1);
+}
+if (!hasFramed) {
+  console.error("FAIL: missing framed mirrors");
+  process.exit(1);
+}
+if (topMax > 1100) {
+  console.error("FAIL: top-5 max side too large (dims not lowered):", topMax);
   process.exit(1);
 }
 if (bad198.length > 0) {
-  console.error("FAIL: ₹198-style outliers:", bad198.slice(0, 3));
+  console.error("FAIL: ₹198-style outliers");
   process.exit(1);
 }
 if (topEst > 71) {
   console.error("FAIL: top estimate too high:", topEst);
   process.exit(1);
 }
-console.log("OK  full-length collage mode");
+console.log("OK  full-length collage pipeline");

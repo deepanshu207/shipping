@@ -528,8 +528,8 @@
         </button>
         <button type="button" class="mode studio fulllength" data-id="mo_full_length" data-tag="Full-length enlarged dress kaftan saree lowest shipping" data-name="Full-Length Lowest ₹" data-fulllength="1">
           <p class="mode-title">Full-Length Lowest ₹</p>
-          <p class="mode-for"><b>For:</b> Tall full-body dress/kaftan/saree — studio ~₹55 + framed ~₹66</p>
-          <span class="mode-tag">16 scenarios · studio trim/cap + framed portrait · collage-style</span>
+          <p class="mode-for"><b>For:</b> Tall dress/kaftan — Collage-style lowered dims + portrait extras</p>
+          <span class="mode-tag">Collage pipeline · square 800–1000 + portrait/cap · studio + framed</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode framed" data-id="mo_framed_low" data-tag="Framed Best Rate indoor" data-name="Framed Best Rate">
@@ -676,7 +676,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=93"></script>
+  <script src="/own-api.js?v=94"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1328,7 +1328,7 @@
               : isModel
                 ? "Model Photo — framed 1024 scenarios…"
                 : isFullLength
-                  ? "Full-Length — studio + framed scenarios…"
+                  ? "Full-Length — Collage-style scenarios (lowered dims)…"
                   : "Running " + selected.dataset.name + "…";
         processingHint.textContent = window.__MEESHO_USE_SERVER__
           ? (isAuto
@@ -1340,7 +1340,7 @@
                   : isModel
                     ? "Server trying 6 model-photo scenarios — targets ₹39–₹51 band."
                     : isFullLength
-                      ? "Server trying 16 full-length scenarios — studio ~₹55 + framed ~₹66 band."
+                      ? "Server — Collage-style full-length: square/panel + portrait extras, studio + framed."
                       : "Server optimizing — runs in background, not in this browser tab.")
           : (isAuto
               ? "In-browser processing — keep this tab open and on screen for fastest runs."
@@ -1351,7 +1351,7 @@
                   : isModel
                     ? "In-browser — 6 model-photo scenarios. Keep tab active."
                     : isFullLength
-                      ? "In-browser — 16 full-length scenarios. Try #1 studio or framed ~₹66 on Meesho."
+                      ? "In-browser — Collage-style full-length. Try square 900 · 44KB framed for ~₹66."
                       : "In-browser — keep this tab open while optimizing.");
         resetProcessingProgress();
         show("processing");
