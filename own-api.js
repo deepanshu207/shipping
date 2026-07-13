@@ -268,52 +268,128 @@
       tiers: FLATLAY_KB_TIERS_STUDIO,
     },
   ];
-  /** Full-length / enlarged (dress, kaftan, saree) — fit tall body into capped 703×1024 / 580×900 canvases. */
-  const FULL_LENGTH_MAX_VARIANTS = 52;
+  /** Full-length / enlarged (dress, kaftan, saree) — beat direct-upload ~₹55 via smaller height + KB band. */
+  const FULL_LENGTH_KB_TIERS_STUDIO = [
+    { targetKb: 36, label: "36KB · lowest try", lowest: true },
+    { targetKb: 38, label: "38KB" },
+    { targetKb: 39, label: "39KB · ~₹39" },
+    { targetKb: 41, label: "41KB · ~₹41", recommended: true },
+    { targetKb: 44, label: "44KB" },
+    { targetKb: 48, label: "48KB · beat ₹55" },
+  ];
+  const FULL_LENGTH_KB_TIERS_FRAMED = [
+    { slabKb: 39, label: "39KB try", lowest: true },
+    { slabKb: 41, label: "41KB · ~₹41" },
+    { slabKb: 44, label: "44KB" },
+    { slabKb: 48, label: "48KB · ~₹48", recommended: true },
+    { slabKb: 49, label: "49KB" },
+  ];
+  const FULL_LENGTH_MAX_VARIANTS = 50;
   const FULL_LENGTH_PROCESS_TIMEOUT_MS = 360000;
+  const FULL_LENGTH_MAX_OUTER = 900;
   const FULL_LENGTH_LAYOUTS = [
     {
-      layout: "fl_fp703_ns",
+      layout: "fl_580_f_ns",
       type: "portrait_framed",
-      portraitW: FLATLAY_PORTRAIT_W,
-      portraitH: FLATLAY_PORTRAIT_H,
-      coverage: 0.72,
-      framedMaxSide: 1024,
+      portraitW: 580,
+      portraitH: 870,
+      coverage: 0.7,
+      trimPad: 0.01,
+      framedMaxSide: 900,
       noStickers: true,
       priority: 0,
-      panelTag: "fit 703×1024 framed",
-      tiers: FLATLAY_KB_TIERS_FRAMED,
+      panelTag: "580×870 framed",
+      tiers: FULL_LENGTH_KB_TIERS_FRAMED,
     },
     {
-      layout: "fl_p703",
-      type: "portrait_studio",
-      portraitW: FLATLAY_PORTRAIT_W,
-      portraitH: FLATLAY_PORTRAIT_H,
-      coverage: 0.72,
-      priority: 5,
-      panelTag: "fit 703×1024 studio",
-      tiers: FLATLAY_KB_TIERS_STUDIO,
-    },
-    {
-      layout: "fl_fp703",
-      type: "portrait_framed",
-      portraitW: FLATLAY_PORTRAIT_W,
-      portraitH: FLATLAY_PORTRAIT_H,
-      coverage: 0.7,
-      framedMaxSide: 1024,
-      priority: 8,
-      panelTag: "fit 703×1024 + stickers",
-      tiers: FLATLAY_KB_TIERS_FRAMED,
-    },
-    {
-      layout: "fl_p580",
+      layout: "fl_580_s",
       type: "portrait_studio",
       portraitW: 580,
+      portraitH: 870,
+      coverage: 0.7,
+      trimPad: 0.01,
+      priority: 3,
+      panelTag: "580×870 studio",
+      tiers: FULL_LENGTH_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "fl_520_f_ns",
+      type: "portrait_framed",
+      portraitW: 520,
+      portraitH: 750,
+      coverage: 0.68,
+      trimPad: 0.01,
+      framedMaxSide: 853,
+      noStickers: true,
+      priority: 5,
+      panelTag: "520×750 framed",
+      tiers: FULL_LENGTH_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_520_s",
+      type: "portrait_studio",
+      portraitW: 520,
+      portraitH: 750,
+      coverage: 0.68,
+      trimPad: 0.01,
+      priority: 8,
+      panelTag: "520×750 studio",
+      tiers: FULL_LENGTH_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "fl_703_f900",
+      type: "portrait_framed",
+      portraitW: 703,
       portraitH: 900,
-      coverage: 0.74,
+      coverage: 0.65,
+      trimPad: 0.01,
+      framedMaxSide: 900,
+      noStickers: true,
+      priority: 10,
+      panelTag: "703×900 framed",
+      tiers: FULL_LENGTH_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_703_s900",
+      type: "portrait_studio",
+      portraitW: 703,
+      portraitH: 900,
+      coverage: 0.65,
+      trimPad: 0.01,
       priority: 12,
-      panelTag: "fit 580×900 studio",
-      tiers: FLATLAY_KB_TIERS_STUDIO,
+      panelTag: "703×900 studio",
+      tiers: FULL_LENGTH_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "fl_cap900_f",
+      type: "native_capped_framed",
+      capMaxSide: 900,
+      framedMaxSide: 900,
+      trimPad: 0.01,
+      noStickers: true,
+      priority: 20,
+      panelTag: "capped 900 framed",
+      tiers: FULL_LENGTH_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_cap853_f",
+      type: "native_capped_framed",
+      capMaxSide: 853,
+      framedMaxSide: 853,
+      trimPad: 0.01,
+      noStickers: true,
+      priority: 22,
+      panelTag: "capped 853 framed",
+      tiers: FULL_LENGTH_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_cap900_s",
+      type: "native_capped_studio",
+      capMaxSide: 900,
+      trimPad: 0.01,
+      priority: 25,
+      panelTag: "capped 900 studio",
+      tiers: FULL_LENGTH_KB_TIERS_STUDIO,
     },
     {
       layout: "fl_fp580_ns",
@@ -321,59 +397,12 @@
       portraitW: 580,
       portraitH: 900,
       coverage: 0.72,
-      framedMaxSide: 960,
+      trimPad: 0.01,
+      framedMaxSide: 900,
       noStickers: true,
-      priority: 15,
-      panelTag: "fit 580×900 framed",
-      tiers: FLATLAY_KB_TIERS_FRAMED,
-    },
-    {
-      layout: "fl_cap1024",
-      type: "native_capped_studio",
-      capMaxSide: 1024,
-      priority: 18,
-      panelTag: "capped 1024 studio",
-      tiers: FLATLAY_KB_TIERS_STUDIO,
-    },
-    {
-      layout: "fl_cap1024_f",
-      type: "native_capped_framed",
-      capMaxSide: 1024,
-      framedMaxSide: 1024,
-      noStickers: true,
-      priority: 20,
-      panelTag: "capped 1024 framed",
-      tiers: FLATLAY_KB_TIERS_FRAMED,
-    },
-    {
-      layout: "fl_cap960_f",
-      type: "native_capped_framed",
-      capMaxSide: 960,
-      framedMaxSide: 960,
-      noStickers: true,
-      priority: 25,
-      panelTag: "capped 960 framed",
-      tiers: FLATLAY_KB_TIERS_FRAMED,
-    },
-    {
-      layout: "fl_p620",
-      type: "portrait_studio",
-      portraitW: 620,
-      portraitH: 900,
-      coverage: 0.68,
       priority: 28,
-      panelTag: "fit 620×900 tight",
-      tiers: FLATLAY_KB_TIERS_STUDIO,
-    },
-    {
-      layout: "fl_p703_loose",
-      type: "portrait_studio",
-      portraitW: FLATLAY_PORTRAIT_W,
-      portraitH: FLATLAY_PORTRAIT_H,
-      coverage: 0.78,
-      priority: 32,
-      panelTag: "fit 703 loose studio",
-      tiers: FLATLAY_KB_TIERS_STUDIO,
+      panelTag: "580×900 framed",
+      tiers: FULL_LENGTH_KB_TIERS_FRAMED,
     },
   ];
   const FLATLAY_LAYOUTS = [
@@ -791,8 +820,10 @@
       if (fileKb <= 65) return fileKb;
     }
     if (path === "full_length_portrait" || path === "full_length_framed") {
-      if (fileKb >= 37 && fileKb <= 44) return fileKb <= 40 ? 39 : 41;
-      if (maxSide > 0 && maxSide <= 1024 && fileKb <= 65) return fileKb;
+      if (maxSide > FULL_LENGTH_MAX_OUTER) return Math.max(fileKb, 58);
+      if (fileKb >= 36 && fileKb <= 44) return fileKb <= 40 ? 39 : 41;
+      if (fileKb >= 45 && fileKb <= 52) return Math.min(fileKb, 51);
+      if (maxSide <= FULL_LENGTH_MAX_OUTER && fileKb <= 65) return fileKb;
       if (fileKb <= 65) return fileKb;
     }
     const aspect = w / Math.max(1, h);
@@ -878,10 +909,10 @@
     return {
       id: "full_length_studio",
       studio: true,
-      tiers: FLATLAY_KB_TIERS_STUDIO,
+      tiers: FULL_LENGTH_KB_TIERS_STUDIO,
       path: "full_length_portrait",
       modeName: "Full-Length",
-      absMinQ: 22,
+      absMinQ: 20,
       fullLength: true,
     };
   }
@@ -1395,7 +1426,8 @@
     const pw = spec.portraitW ?? FLATLAY_PORTRAIT_W;
     const ph = spec.portraitH ?? FLATLAY_PORTRAIT_H;
     const coverage = spec.coverage ?? 0.88;
-    const trimmed = trimContentMargins(imageToWhiteCanvas(img), 0.02);
+    const trimPad = spec.trimPad ?? 0.02;
+    const trimmed = trimContentMargins(imageToWhiteCanvas(img), trimPad);
     const c = document.createElement("canvas");
     c.width = pw;
     c.height = ph;
@@ -1413,12 +1445,12 @@
     return c;
   }
 
-  function prepareFlatlayNativeStudio(img) {
-    return trimContentMargins(imageToWhiteCanvas(img), 0.02);
+  function prepareFlatlayNativeStudio(img, trimPad = 0.02) {
+    return trimContentMargins(imageToWhiteCanvas(img), trimPad);
   }
 
-  function prepareNativeCappedStudio(img, maxSide = 1024) {
-    const trimmed = prepareFlatlayNativeStudio(img);
+  function prepareNativeCappedStudio(img, maxSide = 1024, trimPad = 0.02) {
+    const trimmed = prepareFlatlayNativeStudio(img, trimPad);
     const max = Math.max(trimmed.width, trimmed.height);
     if (max <= maxSide) return trimmed;
     const scale = maxSide / max;
@@ -1479,10 +1511,10 @@
       return prepareFlatlayNativeStudio(img);
     }
     if (type === "native_capped_studio") {
-      return prepareNativeCappedStudio(img, layoutSpec.capMaxSide ?? 1024);
+      return prepareNativeCappedStudio(img, layoutSpec.capMaxSide ?? 1024, layoutSpec.trimPad ?? 0.02);
     }
     if (type === "native_capped_framed") {
-      const studio = prepareNativeCappedStudio(img, layoutSpec.capMaxSide ?? 1024);
+      const studio = prepareNativeCappedStudio(img, layoutSpec.capMaxSide ?? 1024, layoutSpec.trimPad ?? 0.02);
       return prepareFramedCanvas(
         studio,
         layoutSpec.framedMaxSide ?? 1024,
@@ -1830,6 +1862,7 @@
     const sorted = dedupeAutoVariants(variants).sort(
       (a, b) =>
         estimateMeeshoInr(a) - estimateMeeshoInr(b) ||
+        Math.max(a.width || 0, a.height || 0) - Math.max(b.width || 0, b.height || 0) ||
         (a.lingeriePriority ?? a.flatlayPriority ?? a.autoPriority ?? 99) -
           (b.lingeriePriority ?? b.flatlayPriority ?? b.autoPriority ?? 99) ||
         a.bytes - b.bytes
@@ -3358,7 +3391,7 @@
           api: "own",
           service: "own-api.js",
           processing: "client",
-          version: 90,
+          version: 91,
           platform: "cloudflare-static",
         },
       };

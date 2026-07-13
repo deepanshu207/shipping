@@ -32,21 +32,28 @@ const results = await page.evaluate(
 
 await browser.close();
 
-const maxSide = Math.max(...results.map((r) => Math.max(r.width || 0, r.height || 0)));
-const hasFit703 = results.some((r) => String(r.modeName || "").includes("703"));
-const hasCapped = results.some((r) => String(r.modeName || "").includes("capped"));
-
-console.log(`variants=${results.length} maxSide=${maxSide} fit703=${hasFit703} capped=${hasCapped}`);
+const sorted = [...results].sort(
+  (a, b) =>
+    a.estimatedShippingInr - b.estimatedShippingInr ||
+    Math.max(a.width || 0, a.height || 0) - Math.max(b.width || 0, b.height || 0)
+);
+const topMax = Math.max(...sorted.slice(0, 5).map((r) => Math.max(r.width || 0, r.height || 0)));
+const has580 = results.some((r) => String(r.modeName || "").includes("580×870"));
+console.log(`variants=${results.length} top5MaxSide=${topMax} fit580=${has580}`);
 if (results.length < 10) {
   console.error("FAIL: expected at least 10 variants");
   process.exit(1);
 }
-if (maxSide > 1100) {
-  console.error("FAIL: max outer side too large:", maxSide);
+if (topMax > 960) {
+  console.error("FAIL: top-5 max outer side too large:", topMax);
   process.exit(1);
 }
-if (!hasFit703) {
-  console.error("FAIL: missing fit 703×1024 scenario");
+if (!has580) {
+  console.error("FAIL: missing 580×870 scenario");
+  process.exit(1);
+}
+if ((sorted[0].estimatedShippingInr || 99) > 55) {
+  console.error("FAIL: top estimate too high:", sorted[0].estimatedShippingInr);
   process.exit(1);
 }
 console.log("OK  full-length mode");
