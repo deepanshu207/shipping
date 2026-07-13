@@ -4,17 +4,21 @@
   "type": "module",
   "scripts": {
     "dev": "python3 server.py",
+    "dev:sharp": "MEESHO_USE_SHARP=1 python3 server.py",
     "deploy": "wrangler deploy",
     "deploy:preview": "wrangler deploy --dry-run",
     "verify:deploy": "node scripts/verify-deploy.mjs",
     "verify:api": "python3 scripts/verify-api.py",
-    "test:mobile": "node scripts/test-mobile-browser.mjs"
+    "test:mobile": "node scripts/test-mobile-browser.mjs",
+    "test:collage": "node scripts/test-collage-detect.mjs",
+    "test:flatlay": "node scripts/test-flatlay.mjs"
   },
   "dependencies": {
     "@jsquash/jpeg": "^1.6.0",
     "sharp": "^0.33.5"
   },
   "devDependencies": {
+    "playwright": "^1.61.1",
     "wrangler": "^4.14.0"
   }
 }

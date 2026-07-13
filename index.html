@@ -128,6 +128,16 @@
     .mode.selected.framed .mode-selected-pill { color: #c2410c; }
     .mode.selected.studio:not(.lingerie):not(.auto) .mode-selected-pill { color: var(--emerald-dark); }
     .mode.lingerie .mode-tag { background: #fce7f3; color: #9d174d; }
+    .mode.flatlay .mode-tag { background: #e0f2fe; color: #0369a1; }
+    .mode.selected.flatlay {
+      border-color: #0284c7;
+      box-shadow: 0 0 0 3px rgb(2 132 199 / 0.15);
+    }
+    .dark .mode.selected.flatlay {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 3px rgb(56 189 248 / 0.2);
+    }
+    .mode.selected.flatlay .mode-selected-pill { color: #0369a1; }
     .mode-title { font-size: 0.92rem; font-weight: 800; margin: 0 0 0.3rem; line-height: 1.25; }
     .mode-for { font-size: 0.75rem; color: var(--muted); margin: 0; line-height: 1.35; }
     .mode-for b { color: var(--text); font-weight: 700; }
@@ -480,6 +490,12 @@
           <span class="mode-tag">Try ₹20–40 without frame · verify on Meesho</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
+        <button type="button" class="mode studio flatlay" data-id="mo_flatlay" data-tag="Flat-lay apparel tops crop tops white studio lowest shipping" data-name="Flat-Lay Apparel Lowest ₹" data-flatlay="1">
+          <p class="mode-title">Flat-Lay Apparel Lowest ₹</p>
+          <p class="mode-for"><b>For:</b> Flat-lay tops, crop tops, tees on white — targets ₹39–₹51</p>
+          <span class="mode-tag">11 scenarios · portrait 703×1024 + framed 1024 · verify on Meesho</span>
+          <span class="mode-selected-pill">✓ Selected</span>
+        </button>
         <button type="button" class="mode framed" data-id="mo_framed_low" data-tag="Framed Best Rate indoor" data-name="Framed Best Rate">
           <p class="mode-title">Framed Best Rate</p>
           <p class="mode-for"><b>For:</b> Mid slabs — targets ₹66–₹71 tier</p>
@@ -623,7 +639,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=85"></script>
+  <script src="/own-api.js?v=88"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1240,17 +1256,30 @@
         setError("");
         var isAuto = selected && selected.dataset.auto === "1";
         var isLingerie = selected && selected.dataset.lingerie === "1";
+        var isFlatlay = selected && selected.dataset.flatlay === "1";
         lastUploadDataUrl = previewUrl;
         processingTitle.textContent = isAuto
           ? "Auto — trying all strategies…"
           : isLingerie
             ? "Collage — studio + framed scenarios…"
-            : "Running " + selected.dataset.name + "…";
-        processingHint.textContent = isAuto
-          ? "Testing every strategy (up to ~45 compressions, showing best 30). Usually 1–3 minutes on mobile."
-          : isLingerie
-            ? "Up to 72 scenarios: 20 front KB bands · 25 back · studio + framed. Usually 4–6 minutes."
-            : "Usually takes 10–30 seconds. Progress updates below.";
+            : isFlatlay
+              ? "Flat-Lay — portrait + framed scenarios…"
+              : "Running " + selected.dataset.name + "…";
+        processingHint.textContent = window.__MEESHO_USE_SERVER__
+          ? (isAuto
+              ? "Running on server — you can switch tabs; progress updates below."
+              : isLingerie
+                ? "Server processing up to 72 scenarios — tab may stay in background."
+                : isFlatlay
+                  ? "Server trying 11 flat-lay scenarios — targets ₹39–₹51 band."
+                  : "Server optimizing — runs in background, not in this browser tab.")
+          : (isAuto
+              ? "In-browser processing — keep this tab open and on screen for fastest runs."
+              : isLingerie
+                ? "In-browser — up to 72 scenarios. Keep this tab active (3–6 min)."
+                : isFlatlay
+                  ? "In-browser — 11 flat-lay scenarios (portrait 703×1024, framed 1024). Keep tab active."
+                  : "In-browser — keep this tab open while optimizing.");
         resetProcessingProgress();
         show("processing");
 
@@ -1309,8 +1338,11 @@
       });
 
       selected = document.querySelector(".mode.selected") || document.querySelector(".mode.auto");
-      syncModeUI();
-      updateGenerate();
+      var apiReadyPromise = window.__MEESHO_API_READY__ || Promise.resolve(false);
+      apiReadyPromise.then(function () {
+        syncModeUI();
+        updateGenerate();
+      });
     })();
   </script>
 </body>
