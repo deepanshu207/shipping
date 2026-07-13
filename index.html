@@ -148,6 +148,16 @@
       box-shadow: 0 0 0 3px rgb(168 85 247 / 0.2);
     }
     .mode.selected.model .mode-selected-pill { color: #7e22ce; }
+    .mode.fulllength .mode-tag { background: #fef3c7; color: #b45309; }
+    .mode.selected.fulllength {
+      border-color: #d97706;
+      box-shadow: 0 0 0 3px rgb(217 119 6 / 0.15);
+    }
+    .dark .mode.selected.fulllength {
+      border-color: #fbbf24;
+      box-shadow: 0 0 0 3px rgb(251 191 36 / 0.2);
+    }
+    .mode.selected.fulllength .mode-selected-pill { color: #b45309; }
     .mode.selected.flatlay .mode-selected-pill { color: #0369a1; }
     .mode-title { font-size: 0.92rem; font-weight: 800; margin: 0 0 0.3rem; line-height: 1.25; }
     .mode-for { font-size: 0.75rem; color: var(--muted); margin: 0; line-height: 1.35; }
@@ -516,6 +526,12 @@
           <span class="mode-tag">6 scenarios · native + portrait 703×1024 · verify on Meesho</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
+        <button type="button" class="mode studio fulllength" data-id="mo_full_length" data-tag="Full-length enlarged dress kaftan saree lowest shipping" data-name="Full-Length Lowest ₹" data-fulllength="1">
+          <p class="mode-title">Full-Length Lowest ₹</p>
+          <p class="mode-for"><b>For:</b> Tall full-body (dress, kaftan, saree) — fit into capped 703×1024</p>
+          <span class="mode-tag">10 scenarios · capped 1024/960 · targets ₹39–₹51 band</span>
+          <span class="mode-selected-pill">✓ Selected</span>
+        </button>
         <button type="button" class="mode framed" data-id="mo_framed_low" data-tag="Framed Best Rate indoor" data-name="Framed Best Rate">
           <p class="mode-title">Framed Best Rate</p>
           <p class="mode-for"><b>For:</b> Mid slabs — targets ₹66–₹71 tier</p>
@@ -660,7 +676,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=89"></script>
+  <script src="/own-api.js?v=90"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1301,6 +1317,7 @@
         var isLingerie = selected && selected.dataset.lingerie === "1";
         var isFlatlay = selected && selected.dataset.flatlay === "1";
         var isModel = selected && selected.dataset.model === "1";
+        var isFullLength = selected && selected.dataset.fulllength === "1";
         lastUploadDataUrl = previewUrl;
         processingTitle.textContent = isAuto
           ? "Auto — trying all strategies…"
@@ -1310,7 +1327,9 @@
               ? "Flat-Lay — portrait + framed scenarios…"
               : isModel
                 ? "Model Photo — framed 1024 scenarios…"
-                : "Running " + selected.dataset.name + "…";
+                : isFullLength
+                  ? "Full-Length — fit + cap scenarios…"
+                  : "Running " + selected.dataset.name + "…";
         processingHint.textContent = window.__MEESHO_USE_SERVER__
           ? (isAuto
               ? "Running on server — you can switch tabs; progress updates below."
@@ -1320,7 +1339,9 @@
                   ? "Server trying 11 flat-lay scenarios — targets ₹39–₹51 band."
                   : isModel
                     ? "Server trying 6 model-photo scenarios — targets ₹39–₹51 band."
-                    : "Server optimizing — runs in background, not in this browser tab.")
+                    : isFullLength
+                      ? "Server trying 10 full-length scenarios — caps tall images to 1024px."
+                      : "Server optimizing — runs in background, not in this browser tab.")
           : (isAuto
               ? "In-browser processing — keep this tab open and on screen for fastest runs."
               : isLingerie
@@ -1329,7 +1350,9 @@
                   ? "In-browser — 11 flat-lay scenarios. Keep tab active."
                   : isModel
                     ? "In-browser — 6 model-photo scenarios. Keep tab active."
-                    : "In-browser — keep this tab open while optimizing.");
+                    : isFullLength
+                      ? "In-browser — 10 full-length scenarios. Keep tab active."
+                      : "In-browser — keep this tab open while optimizing.");
         resetProcessingProgress();
         show("processing");
 

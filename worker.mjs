@@ -14,7 +14,7 @@ export default {
           api: "own",
           service: "cloudflare-worker",
           processing: "client",
-          version: 89,
+          version: 90,
         }),
         { headers: { "Content-Type": "application/json; charset=utf-8" } }
       );

@@ -268,6 +268,114 @@
       tiers: FLATLAY_KB_TIERS_STUDIO,
     },
   ];
+  /** Full-length / enlarged (dress, kaftan, saree) — fit tall body into capped 703×1024 / 580×900 canvases. */
+  const FULL_LENGTH_MAX_VARIANTS = 52;
+  const FULL_LENGTH_PROCESS_TIMEOUT_MS = 360000;
+  const FULL_LENGTH_LAYOUTS = [
+    {
+      layout: "fl_fp703_ns",
+      type: "portrait_framed",
+      portraitW: FLATLAY_PORTRAIT_W,
+      portraitH: FLATLAY_PORTRAIT_H,
+      coverage: 0.72,
+      framedMaxSide: 1024,
+      noStickers: true,
+      priority: 0,
+      panelTag: "fit 703×1024 framed",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_p703",
+      type: "portrait_studio",
+      portraitW: FLATLAY_PORTRAIT_W,
+      portraitH: FLATLAY_PORTRAIT_H,
+      coverage: 0.72,
+      priority: 5,
+      panelTag: "fit 703×1024 studio",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "fl_fp703",
+      type: "portrait_framed",
+      portraitW: FLATLAY_PORTRAIT_W,
+      portraitH: FLATLAY_PORTRAIT_H,
+      coverage: 0.7,
+      framedMaxSide: 1024,
+      priority: 8,
+      panelTag: "fit 703×1024 + stickers",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_p580",
+      type: "portrait_studio",
+      portraitW: 580,
+      portraitH: 900,
+      coverage: 0.74,
+      priority: 12,
+      panelTag: "fit 580×900 studio",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "fl_fp580_ns",
+      type: "portrait_framed",
+      portraitW: 580,
+      portraitH: 900,
+      coverage: 0.72,
+      framedMaxSide: 960,
+      noStickers: true,
+      priority: 15,
+      panelTag: "fit 580×900 framed",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_cap1024",
+      type: "native_capped_studio",
+      capMaxSide: 1024,
+      priority: 18,
+      panelTag: "capped 1024 studio",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "fl_cap1024_f",
+      type: "native_capped_framed",
+      capMaxSide: 1024,
+      framedMaxSide: 1024,
+      noStickers: true,
+      priority: 20,
+      panelTag: "capped 1024 framed",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_cap960_f",
+      type: "native_capped_framed",
+      capMaxSide: 960,
+      framedMaxSide: 960,
+      noStickers: true,
+      priority: 25,
+      panelTag: "capped 960 framed",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_p620",
+      type: "portrait_studio",
+      portraitW: 620,
+      portraitH: 900,
+      coverage: 0.68,
+      priority: 28,
+      panelTag: "fit 620×900 tight",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "fl_p703_loose",
+      type: "portrait_studio",
+      portraitW: FLATLAY_PORTRAIT_W,
+      portraitH: FLATLAY_PORTRAIT_H,
+      coverage: 0.78,
+      priority: 32,
+      panelTag: "fit 703 loose studio",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+  ];
   const FLATLAY_LAYOUTS = [
     {
       layout: "fp_703_ns",
@@ -437,6 +545,7 @@
     "framed_mini",
     "flatlay_framed",
     "model_framed",
+    "full_length_framed",
     "supplierden",
     "supplierden_heavy",
   ]);
@@ -681,6 +790,11 @@
     if (path === "model_portrait" || path === "model_framed") {
       if (fileKb <= 65) return fileKb;
     }
+    if (path === "full_length_portrait" || path === "full_length_framed") {
+      if (fileKb >= 37 && fileKb <= 44) return fileKb <= 40 ? 39 : 41;
+      if (maxSide > 0 && maxSide <= 1024 && fileKb <= 65) return fileKb;
+      if (fileKb <= 65) return fileKb;
+    }
     const aspect = w / Math.max(1, h);
     if (aspect >= 1.42 && path.startsWith("studio")) {
       const volPenalty = Math.round(Math.min(48, (aspect - 1) * 32));
@@ -757,6 +871,18 @@
       modeName: "Model Photo",
       absMinQ: 22,
       modelPhoto: true,
+    };
+  }
+
+  function profileFullLength() {
+    return {
+      id: "full_length_studio",
+      studio: true,
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+      path: "full_length_portrait",
+      modeName: "Full-Length",
+      absMinQ: 22,
+      fullLength: true,
     };
   }
 
@@ -1291,6 +1417,25 @@
     return trimContentMargins(imageToWhiteCanvas(img), 0.02);
   }
 
+  function prepareNativeCappedStudio(img, maxSide = 1024) {
+    const trimmed = prepareFlatlayNativeStudio(img);
+    const max = Math.max(trimmed.width, trimmed.height);
+    if (max <= maxSide) return trimmed;
+    const scale = maxSide / max;
+    const w = Math.round(trimmed.width * scale);
+    const h = Math.round(trimmed.height * scale);
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(trimmed, 0, 0, trimmed.width, trimmed.height, 0, 0, w, h);
+    return c;
+  }
+
   function flatlayFramedStyle(layoutSpec, frameStyle) {
     if (layoutSpec.noStickers) {
       return mergeFrameStyle(frameStyle, { stickerTemplate: "none" });
@@ -1333,6 +1478,17 @@
     if (type === "native_studio") {
       return prepareFlatlayNativeStudio(img);
     }
+    if (type === "native_capped_studio") {
+      return prepareNativeCappedStudio(img, layoutSpec.capMaxSide ?? 1024);
+    }
+    if (type === "native_capped_framed") {
+      const studio = prepareNativeCappedStudio(img, layoutSpec.capMaxSide ?? 1024);
+      return prepareFramedCanvas(
+        studio,
+        layoutSpec.framedMaxSide ?? 1024,
+        flatlayFramedStyle(layoutSpec, frameStyle)
+      );
+    }
     if (type === "native_framed") {
       const studio = prepareFlatlayNativeStudio(img);
       return prepareFramedCanvas(
@@ -1344,24 +1500,36 @@
     return prepareCanvas(img, true);
   }
 
+  function apparelProfileKey(profile) {
+    if (profile.fullLength) return "full_length";
+    if (profile.modelPhoto) return "model";
+    return "flatlay";
+  }
+
+  function apparelPathForLayout(profile, layoutSpec, isFramed) {
+    const key = apparelProfileKey(profile);
+    if (isFramed) {
+      if (key === "full_length") return "full_length_framed";
+      if (key === "model") return "model_framed";
+      return "flatlay_framed";
+    }
+    if (layoutSpec.type === "square_studio") return "flatlay_square";
+    if (key === "full_length") return "full_length_portrait";
+    if (key === "model") return "model_portrait";
+    return "flatlay_portrait";
+  }
+
   function withFlatlayLayout(profile, layoutSpec) {
     const isFramed = String(layoutSpec.type || "").includes("framed");
-    const path = isFramed
-      ? profile.modelPhoto
-        ? "model_framed"
-        : "flatlay_framed"
-      : layoutSpec.type === "square_studio"
-        ? "flatlay_square"
-        : profile.modelPhoto
-          ? "model_portrait"
-          : "flatlay_portrait";
+    const key = apparelProfileKey(profile);
+    const labels = { full_length: "Full-length", model: "Model", flatlay: "Flat-lay" };
     return {
       ...profile,
-      id: `${profile.modelPhoto ? "model" : "flatlay"}_${layoutSpec.layout}`,
-      modeName: `${profile.modelPhoto ? "Model" : "Flat-lay"} · ${layoutSpec.panelTag || layoutSpec.layout}`,
+      id: `${key}_${layoutSpec.layout}`,
+      modeName: `${labels[key]} · ${layoutSpec.panelTag || layoutSpec.layout}`,
       studio: !isFramed,
       collageFramed: false,
-      path,
+      path: apparelPathForLayout(profile, layoutSpec, isFramed),
       studioLayout: layoutSpec.layout,
       flatlaySpec: layoutSpec,
       flatlayPriority: layoutSpec.priority ?? 50,
@@ -1380,6 +1548,13 @@
   function modelProfilesForImage() {
     const base = profileModelPhoto();
     return MODEL_PHOTO_LAYOUTS.map((layoutSpec) => withFlatlayLayout(base, layoutSpec)).sort(
+      (a, b) => (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99)
+    );
+  }
+
+  function fullLengthProfilesForImage() {
+    const base = profileFullLength();
+    return FULL_LENGTH_LAYOUTS.map((layoutSpec) => withFlatlayLayout(base, layoutSpec)).sort(
       (a, b) => (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99)
     );
   }
@@ -1437,6 +1612,17 @@
       frameStyle,
       onProgress,
       "Model"
+    );
+  }
+
+  async function optimizeFullLengthAll(img, frameStyle, onProgress) {
+    return optimizeApparelLayoutsAll(
+      img,
+      fullLengthProfilesForImage(),
+      FULL_LENGTH_MAX_VARIANTS,
+      frameStyle,
+      onProgress,
+      "Full-length"
     );
   }
 
@@ -1727,11 +1913,25 @@
     );
   }
 
+  function isFullLengthTagName(tagName) {
+    const tag = String(tagName || "").toLowerCase();
+    return (
+      tag.includes("full-length") ||
+      tag.includes("full length") ||
+      tag.includes("enlarged") ||
+      tag.includes("full-length lowest") ||
+      tag.includes("kaftan") ||
+      tag.includes("dress full") ||
+      tag.includes("saree full")
+    );
+  }
+
   function staleProcessingMs(tagName) {
     if (isAutoTagName(tagName)) return AUTO_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     if (isLingerieTagName(tagName)) return LINGERIE_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     if (isFlatlayTagName(tagName)) return FLATLAY_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     if (isModelPhotoTagName(tagName)) return MODEL_PHOTO_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
+    if (isFullLengthTagName(tagName)) return FULL_LENGTH_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     return PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
   }
 
@@ -2092,6 +2292,17 @@
       tag.includes("model apparel")
     ) {
       return { id: "model_all", modelPhoto: true, modeName: "Model Photo Lowest ₹" };
+    }
+    if (
+      tag.includes("full-length") ||
+      tag.includes("full length") ||
+      tag.includes("enlarged") ||
+      tag.includes("full-length lowest") ||
+      tag.includes("kaftan") ||
+      tag.includes("dress full") ||
+      tag.includes("saree full")
+    ) {
+      return { id: "full_length_all", fullLength: true, modeName: "Full-Length Lowest ₹" };
     }
     if (
       tag.includes("bra collage") ||
@@ -2770,8 +2981,9 @@
 
   function findApparelLayoutSpec(layout, profileId) {
     const pid = String(profileId || "");
-    if (pid.includes("model_")) return MODEL_PHOTO_LAYOUTS.find((s) => s.layout === layout);
-    if (pid.includes("flatlay_")) return FLATLAY_LAYOUTS.find((s) => s.layout === layout);
+    if (pid.startsWith("full_length_")) return FULL_LENGTH_LAYOUTS.find((s) => s.layout === layout);
+    if (pid.startsWith("model_")) return MODEL_PHOTO_LAYOUTS.find((s) => s.layout === layout);
+    if (pid.startsWith("flatlay_")) return FLATLAY_LAYOUTS.find((s) => s.layout === layout);
     return null;
   }
 
@@ -2996,6 +3208,9 @@
     if (profile.modelPhoto) {
       return optimizeModelPhotoAll(img, frameStyle, onProgress);
     }
+    if (profile.fullLength) {
+      return optimizeFullLengthAll(img, frameStyle, onProgress);
+    }
     if (onProgress) onProgress(15, `Running ${profile.modeName || profile.id}…`);
     const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide, frameStyle);
     const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
@@ -3083,6 +3298,7 @@
     const isLingerie = isLingerieTagName(tagName);
     const isFlatlay = isFlatlayTagName(tagName);
     const isModelPhoto = isModelPhotoTagName(tagName);
+    const isFullLength = isFullLengthTagName(tagName);
     const timeoutMs = isAuto
       ? AUTO_PROCESS_TIMEOUT_MS
       : isLingerie
@@ -3091,7 +3307,9 @@
           ? FLATLAY_PROCESS_TIMEOUT_MS
           : isModelPhoto
             ? MODEL_PHOTO_PROCESS_TIMEOUT_MS
-            : PROCESS_TIMEOUT_MS;
+            : isFullLength
+              ? FULL_LENGTH_PROCESS_TIMEOUT_MS
+              : PROCESS_TIMEOUT_MS;
     const deadline = Date.now() + timeoutMs;
     const checkDeadline = () => {
       if (Date.now() > deadline) throw new Error("Image processing timeout");
@@ -3140,7 +3358,7 @@
           api: "own",
           service: "own-api.js",
           processing: "client",
-          version: 89,
+          version: 90,
           platform: "cloudflare-static",
         },
       };
