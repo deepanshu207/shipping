@@ -269,8 +269,8 @@
     },
   ];
   /**
-   * Full-length dress/kaftan — studio only (no frame), match direct-upload ~₹55 band.
-   * Framed paths fail to hit low slabs on detailed patterns → ~198 KB fallback; avoid them.
+   * Full-length dress/kaftan — collage-style multi-scenario (studio + framed).
+   * Studio: trim/cap ~₹55 band (direct upload). Framed: portrait combos collage misses — ₹66 band via targetKb (not busy slabs).
    */
   const FULL_LENGTH_KB_TIERS_STUDIO = [
     { targetKb: 54, label: "54KB · ~₹55", lowest: true },
@@ -279,10 +279,19 @@
     { targetKb: 57, label: "57KB" },
     { targetKb: 58, label: "58KB" },
   ];
-  const FULL_LENGTH_MAX_VARIANTS = 40;
+  /** Framed full-length — targetKb + compressCanvas (collageFramed), same band as collage ₹66 scenarios. */
+  const FULL_LENGTH_KB_TIERS_FRAMED = [
+    { targetKb: 44, label: "44KB · ~₹66", lowest: true, recommended: true },
+    { targetKb: 46, label: "46KB" },
+    { targetKb: 48, label: "48KB · ~₹71" },
+    { targetKb: 64, label: "64KB · mid slab" },
+    { targetKb: 66, label: "66KB · ₹66 slab" },
+  ];
+  const FULL_LENGTH_MAX_VARIANTS = 72;
   const FULL_LENGTH_PROCESS_TIMEOUT_MS = 360000;
   const FULL_LENGTH_MAX_OUTER = 1200;
   const FULL_LENGTH_MAX_KB = 68;
+  const FULL_LENGTH_MAX_FRAMED_KB = 72;
   const FULL_LENGTH_LAYOUTS = [
     {
       layout: "fl_preserve",
@@ -338,13 +347,35 @@
       tiers: FULL_LENGTH_KB_TIERS_STUDIO,
     },
     {
+      layout: "fl_p620",
+      type: "portrait_studio",
+      portraitW: 620,
+      portraitH: 900,
+      coverage: 0.88,
+      trimPad: 0.01,
+      priority: 20,
+      panelTag: "portrait 620×900 studio",
+      tiers: FULL_LENGTH_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "fl_p700",
+      type: "portrait_studio",
+      portraitW: 700,
+      portraitH: 1050,
+      coverage: 0.9,
+      trimPad: 0.01,
+      priority: 22,
+      panelTag: "portrait 700×1050 studio",
+      tiers: FULL_LENGTH_KB_TIERS_STUDIO,
+    },
+    {
       layout: "fl_down580",
       type: "portrait_downonly",
       portraitW: 580,
       portraitH: 870,
       coverage: 0.88,
       trimPad: 0.01,
-      priority: 22,
+      priority: 24,
       panelTag: "downscale fit 580×870",
       tiers: FULL_LENGTH_KB_TIERS_STUDIO,
     },
@@ -355,9 +386,81 @@
       portraitH: 750,
       coverage: 0.86,
       trimPad: 0.01,
-      priority: 25,
+      priority: 26,
       panelTag: "downscale fit 520×750",
       tiers: FULL_LENGTH_KB_TIERS_STUDIO,
+    },
+  ];
+  /** Framed portrait combos — tall dress layouts not in lingerie collage (no split panels). */
+  const FULL_LENGTH_FRAMED_LAYOUTS = [
+    {
+      layout: "fl_f580_ns",
+      type: "portrait_framed",
+      portraitW: 580,
+      portraitH: 870,
+      coverage: 0.88,
+      framedMaxSide: 960,
+      noStickers: true,
+      priority: 0,
+      panelTag: "portrait 580×870 · framed 960",
+      tiers: FULL_LENGTH_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_f620_ns",
+      type: "portrait_framed",
+      portraitW: 620,
+      portraitH: 900,
+      coverage: 0.86,
+      framedMaxSide: 1024,
+      noStickers: true,
+      priority: 5,
+      panelTag: "portrait 620×900 · framed 1024",
+      tiers: FULL_LENGTH_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_f700",
+      type: "portrait_framed",
+      portraitW: 700,
+      portraitH: 1050,
+      coverage: 0.88,
+      framedMaxSide: 1024,
+      priority: 10,
+      panelTag: "portrait 700×1050 · framed",
+      tiers: FULL_LENGTH_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_cap900_f",
+      type: "native_capped_framed",
+      capMaxSide: 900,
+      trimPad: 0.01,
+      framedMaxSide: 960,
+      noStickers: true,
+      priority: 15,
+      panelTag: "trim cap 900 · framed 960",
+      tiers: FULL_LENGTH_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_cap800_f",
+      type: "native_capped_framed",
+      capMaxSide: 800,
+      trimPad: 0.01,
+      framedMaxSide: 1024,
+      noStickers: true,
+      priority: 18,
+      panelTag: "trim cap 800 · framed 1024",
+      tiers: FULL_LENGTH_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_f520_ns",
+      type: "portrait_framed",
+      portraitW: 520,
+      portraitH: 780,
+      coverage: 0.86,
+      framedMaxSide: 960,
+      noStickers: true,
+      priority: 22,
+      panelTag: "portrait 520×780 · framed 960",
+      tiers: FULL_LENGTH_KB_TIERS_FRAMED,
     },
   ];
   const FLATLAY_LAYOUTS = [
@@ -735,6 +838,22 @@
       }
       return Math.min(fileKb, 93);
     }
+    if (path === "full_length_portrait") {
+      if (fileKb === 52) return 146;
+      if (fileKb >= 53 && fileKb <= 60) return 55;
+      if (fileKb > FULL_LENGTH_MAX_KB) return Math.max(fileKb, 120);
+      if (maxSide > FULL_LENGTH_MAX_OUTER) return Math.max(fileKb, 70);
+      return fileKb <= 65 ? fileKb : fileKb;
+    }
+    if (path === "full_length_framed") {
+      if (fileKb === 52) return 146;
+      if (fileKb === 44 && maxSide <= 1100) return 66;
+      if (fileKb === 48 && maxSide <= 1280) return 71;
+      if (fileKb >= 64 && fileKb <= 66) return 66;
+      if (fileKb >= 53 && fileKb <= 60) return 55;
+      if (fileKb > FULL_LENGTH_MAX_FRAMED_KB) return Math.max(fileKb, 120);
+      return Math.min(fileKb, 93);
+    }
     if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
       return Math.min(fileKb, 93);
     }
@@ -773,13 +892,6 @@
     }
     if (path === "model_portrait" || path === "model_framed") {
       if (fileKb <= 65) return fileKb;
-    }
-    if (path === "full_length_portrait" || path === "full_length_framed") {
-      if (fileKb === 52) return 146;
-      if (fileKb >= 53 && fileKb <= 60) return 55;
-      if (fileKb > FULL_LENGTH_MAX_KB) return Math.max(fileKb, 120);
-      if (maxSide > FULL_LENGTH_MAX_OUTER) return Math.max(fileKb, 70);
-      return fileKb <= 65 ? fileKb : fileKb;
     }
     const aspect = w / Math.max(1, h);
     if (aspect >= 1.42 && path.startsWith("studio")) {
@@ -1588,6 +1700,22 @@
     );
   }
 
+  /** Framed full-length — collageFramed uses compressCanvas + targetKb (avoids busy-slab ₹198 fallback). */
+  function fullLengthFramedProfilesForImage() {
+    const base = profileFullLength();
+    return FULL_LENGTH_FRAMED_LAYOUTS.map((layoutSpec) => ({
+      ...withFlatlayLayout(base, layoutSpec),
+      collageFramed: true,
+      path: "full_length_framed",
+      flatlayPriority: (layoutSpec.priority ?? 50) + 40,
+      modeName: `Full-length · ${layoutSpec.panelTag} · framed`,
+    })).sort((a, b) => (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99));
+  }
+
+  function fullLengthAllProfilesForImage() {
+    return [...fullLengthProfilesForImage(), ...fullLengthFramedProfilesForImage()];
+  }
+
   async function optimizeApparelLayoutsAll(
     img,
     profiles,
@@ -1657,13 +1785,20 @@
   async function optimizeFullLengthAll(img, frameStyle, onProgress) {
     return optimizeApparelLayoutsAll(
       img,
-      fullLengthProfilesForImage(),
+      fullLengthAllProfilesForImage(),
       FULL_LENGTH_MAX_VARIANTS,
       frameStyle,
       onProgress,
       "Full-length",
       {
-        variantFilter: (variant) => variant.bytes / 1024 <= FULL_LENGTH_MAX_KB,
+        variantFilter: (variant) => {
+          const fileKb = variant.bytes / 1024;
+          if (fileKb === 52) return false;
+          if (variant.processingPath === "full_length_framed") {
+            return fileKb <= FULL_LENGTH_MAX_FRAMED_KB;
+          }
+          return fileKb <= FULL_LENGTH_MAX_KB;
+        },
       }
     );
   }
@@ -3024,7 +3159,12 @@
 
   function findApparelLayoutSpec(layout, profileId) {
     const pid = String(profileId || "");
-    if (pid.startsWith("full_length_")) return FULL_LENGTH_LAYOUTS.find((s) => s.layout === layout);
+    if (pid.startsWith("full_length_")) {
+      return (
+        FULL_LENGTH_LAYOUTS.find((s) => s.layout === layout) ||
+        FULL_LENGTH_FRAMED_LAYOUTS.find((s) => s.layout === layout)
+      );
+    }
     if (pid.startsWith("model_")) return MODEL_PHOTO_LAYOUTS.find((s) => s.layout === layout);
     if (pid.startsWith("flatlay_")) return FLATLAY_LAYOUTS.find((s) => s.layout === layout);
     return null;
@@ -3401,7 +3541,7 @@
           api: "own",
           service: "own-api.js",
           processing: "client",
-          version: 92,
+          version: 93,
           platform: "cloudflare-static",
         },
       };
