@@ -190,7 +190,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
                     "service": "server.py",
                     "processing": "server",
                     "engine": "browser-headless",
-                    "version": 91,
+                    "version": 92,
                 },
             )
             return True

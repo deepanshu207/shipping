@@ -268,141 +268,96 @@
       tiers: FLATLAY_KB_TIERS_STUDIO,
     },
   ];
-  /** Full-length / enlarged (dress, kaftan, saree) — beat direct-upload ~₹55 via smaller height + KB band. */
+  /**
+   * Full-length dress/kaftan — studio only (no frame), match direct-upload ~₹55 band.
+   * Framed paths fail to hit low slabs on detailed patterns → ~198 KB fallback; avoid them.
+   */
   const FULL_LENGTH_KB_TIERS_STUDIO = [
-    { targetKb: 36, label: "36KB · lowest try", lowest: true },
-    { targetKb: 38, label: "38KB" },
-    { targetKb: 39, label: "39KB · ~₹39" },
-    { targetKb: 41, label: "41KB · ~₹41", recommended: true },
-    { targetKb: 44, label: "44KB" },
-    { targetKb: 48, label: "48KB · beat ₹55" },
+    { targetKb: 54, label: "54KB · ~₹55", lowest: true },
+    { targetKb: 55, label: "55KB · match direct", recommended: true },
+    { targetKb: 56, label: "56KB" },
+    { targetKb: 57, label: "57KB" },
+    { targetKb: 58, label: "58KB" },
   ];
-  const FULL_LENGTH_KB_TIERS_FRAMED = [
-    { slabKb: 39, label: "39KB try", lowest: true },
-    { slabKb: 41, label: "41KB · ~₹41" },
-    { slabKb: 44, label: "44KB" },
-    { slabKb: 48, label: "48KB · ~₹48", recommended: true },
-    { slabKb: 49, label: "49KB" },
-  ];
-  const FULL_LENGTH_MAX_VARIANTS = 50;
+  const FULL_LENGTH_MAX_VARIANTS = 40;
   const FULL_LENGTH_PROCESS_TIMEOUT_MS = 360000;
-  const FULL_LENGTH_MAX_OUTER = 900;
+  const FULL_LENGTH_MAX_OUTER = 1200;
+  const FULL_LENGTH_MAX_KB = 68;
   const FULL_LENGTH_LAYOUTS = [
     {
-      layout: "fl_580_f_ns",
-      type: "portrait_framed",
-      portraitW: 580,
-      portraitH: 870,
-      coverage: 0.7,
+      layout: "fl_preserve",
+      type: "native_preserve",
       trimPad: 0.01,
-      framedMaxSide: 900,
-      noStickers: true,
       priority: 0,
-      panelTag: "580×870 framed",
-      tiers: FULL_LENGTH_KB_TIERS_FRAMED,
-    },
-    {
-      layout: "fl_580_s",
-      type: "portrait_studio",
-      portraitW: 580,
-      portraitH: 870,
-      coverage: 0.7,
-      trimPad: 0.01,
-      priority: 3,
-      panelTag: "580×870 studio",
+      panelTag: "trim only · original size",
       tiers: FULL_LENGTH_KB_TIERS_STUDIO,
     },
     {
-      layout: "fl_520_f_ns",
-      type: "portrait_framed",
-      portraitW: 520,
-      portraitH: 750,
-      coverage: 0.68,
+      layout: "fl_cap900",
+      type: "native_preserve",
+      capMaxSide: 900,
       trimPad: 0.01,
-      framedMaxSide: 853,
-      noStickers: true,
       priority: 5,
-      panelTag: "520×750 framed",
-      tiers: FULL_LENGTH_KB_TIERS_FRAMED,
+      panelTag: "trim · max 900px",
+      tiers: FULL_LENGTH_KB_TIERS_STUDIO,
     },
     {
-      layout: "fl_520_s",
-      type: "portrait_studio",
-      portraitW: 520,
-      portraitH: 750,
-      coverage: 0.68,
+      layout: "fl_cap853",
+      type: "native_preserve",
+      capMaxSide: 853,
       trimPad: 0.01,
       priority: 8,
-      panelTag: "520×750 studio",
+      panelTag: "trim · max 853px",
       tiers: FULL_LENGTH_KB_TIERS_STUDIO,
     },
     {
-      layout: "fl_703_f900",
-      type: "portrait_framed",
-      portraitW: 703,
-      portraitH: 900,
-      coverage: 0.65,
-      trimPad: 0.01,
-      framedMaxSide: 900,
-      noStickers: true,
-      priority: 10,
-      panelTag: "703×900 framed",
-      tiers: FULL_LENGTH_KB_TIERS_FRAMED,
-    },
-    {
-      layout: "fl_703_s900",
-      type: "portrait_studio",
-      portraitW: 703,
-      portraitH: 900,
-      coverage: 0.65,
+      layout: "fl_cap800",
+      type: "native_preserve",
+      capMaxSide: 800,
       trimPad: 0.01,
       priority: 12,
-      panelTag: "703×900 studio",
+      panelTag: "trim · max 800px",
       tiers: FULL_LENGTH_KB_TIERS_STUDIO,
     },
     {
-      layout: "fl_cap900_f",
-      type: "native_capped_framed",
-      capMaxSide: 900,
-      framedMaxSide: 900,
+      layout: "fl_cap750",
+      type: "native_preserve",
+      capMaxSide: 750,
       trimPad: 0.01,
-      noStickers: true,
-      priority: 20,
-      panelTag: "capped 900 framed",
-      tiers: FULL_LENGTH_KB_TIERS_FRAMED,
+      priority: 15,
+      panelTag: "trim · max 750px",
+      tiers: FULL_LENGTH_KB_TIERS_STUDIO,
     },
     {
-      layout: "fl_cap853_f",
-      type: "native_capped_framed",
-      capMaxSide: 853,
-      framedMaxSide: 853,
+      layout: "fl_cap700",
+      type: "native_preserve",
+      capMaxSide: 700,
       trimPad: 0.01,
-      noStickers: true,
+      priority: 18,
+      panelTag: "trim · max 700px",
+      tiers: FULL_LENGTH_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "fl_down580",
+      type: "portrait_downonly",
+      portraitW: 580,
+      portraitH: 870,
+      coverage: 0.88,
+      trimPad: 0.01,
       priority: 22,
-      panelTag: "capped 853 framed",
-      tiers: FULL_LENGTH_KB_TIERS_FRAMED,
+      panelTag: "downscale fit 580×870",
+      tiers: FULL_LENGTH_KB_TIERS_STUDIO,
     },
     {
-      layout: "fl_cap900_s",
-      type: "native_capped_studio",
-      capMaxSide: 900,
+      layout: "fl_down520",
+      type: "portrait_downonly",
+      portraitW: 520,
+      portraitH: 750,
+      coverage: 0.86,
       trimPad: 0.01,
       priority: 25,
-      panelTag: "capped 900 studio",
+      panelTag: "downscale fit 520×750",
       tiers: FULL_LENGTH_KB_TIERS_STUDIO,
-    },
-    {
-      layout: "fl_fp580_ns",
-      type: "portrait_framed",
-      portraitW: 580,
-      portraitH: 900,
-      coverage: 0.72,
-      trimPad: 0.01,
-      framedMaxSide: 900,
-      noStickers: true,
-      priority: 28,
-      panelTag: "580×900 framed",
-      tiers: FULL_LENGTH_KB_TIERS_FRAMED,
     },
   ];
   const FLATLAY_LAYOUTS = [
@@ -820,11 +775,11 @@
       if (fileKb <= 65) return fileKb;
     }
     if (path === "full_length_portrait" || path === "full_length_framed") {
-      if (maxSide > FULL_LENGTH_MAX_OUTER) return Math.max(fileKb, 58);
-      if (fileKb >= 36 && fileKb <= 44) return fileKb <= 40 ? 39 : 41;
-      if (fileKb >= 45 && fileKb <= 52) return Math.min(fileKb, 51);
-      if (maxSide <= FULL_LENGTH_MAX_OUTER && fileKb <= 65) return fileKb;
-      if (fileKb <= 65) return fileKb;
+      if (fileKb === 52) return 146;
+      if (fileKb >= 53 && fileKb <= 60) return 55;
+      if (fileKb > FULL_LENGTH_MAX_KB) return Math.max(fileKb, 120);
+      if (maxSide > FULL_LENGTH_MAX_OUTER) return Math.max(fileKb, 70);
+      return fileKb <= 65 ? fileKb : fileKb;
     }
     const aspect = w / Math.max(1, h);
     if (aspect >= 1.42 && path.startsWith("studio")) {
@@ -912,7 +867,7 @@
       tiers: FULL_LENGTH_KB_TIERS_STUDIO,
       path: "full_length_portrait",
       modeName: "Full-Length",
-      absMinQ: 20,
+      absMinQ: 16,
       fullLength: true,
     };
   }
@@ -1449,11 +1404,14 @@
     return trimContentMargins(imageToWhiteCanvas(img), trimPad);
   }
 
-  function prepareNativeCappedStudio(img, maxSide = 1024, trimPad = 0.02) {
-    const trimmed = prepareFlatlayNativeStudio(img, trimPad);
+  function prepareNativePreserveStudio(img, spec) {
+    const trimPad = spec.trimPad ?? 0.01;
+    let trimmed = trimContentMargins(imageToWhiteCanvas(img), trimPad);
+    const cap = spec.capMaxSide;
+    if (!cap) return trimmed;
     const max = Math.max(trimmed.width, trimmed.height);
-    if (max <= maxSide) return trimmed;
-    const scale = maxSide / max;
+    if (max <= cap) return trimmed;
+    const scale = cap / max;
     const w = Math.round(trimmed.width * scale);
     const h = Math.round(trimmed.height * scale);
     const c = document.createElement("canvas");
@@ -1466,6 +1424,39 @@
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(trimmed, 0, 0, trimmed.width, trimmed.height, 0, 0, w, h);
     return c;
+  }
+
+  function preparePortraitDownonlyStudio(img, spec) {
+    const trimmed = trimContentMargins(imageToWhiteCanvas(img), spec.trimPad ?? 0.01);
+    const pw = spec.portraitW ?? 580;
+    const ph = spec.portraitH ?? 870;
+    const coverage = spec.coverage ?? 0.88;
+    const srcMax = Math.max(trimmed.width, trimmed.height);
+    const tgtMax = Math.max(pw, ph);
+    if (srcMax <= tgtMax) return trimmed;
+    const c = document.createElement("canvas");
+    c.width = pw;
+    c.height = ph;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, pw, ph);
+    const fitScale = Math.min(
+      (pw * coverage) / trimmed.width,
+      (ph * coverage) / trimmed.height,
+      1
+    );
+    const dw = Math.round(trimmed.width * fitScale);
+    const dh = Math.round(trimmed.height * fitScale);
+    const dx = Math.round((pw - dw) / 2);
+    const dy = Math.round((ph - dh) / 2);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(trimmed, 0, 0, trimmed.width, trimmed.height, dx, dy, dw, dh);
+    return c;
+  }
+
+  function prepareNativeCappedStudio(img, maxSide, trimPad = 0.02) {
+    return prepareNativePreserveStudio(img, { capMaxSide: maxSide, trimPad });
   }
 
   function flatlayFramedStyle(layoutSpec, frameStyle) {
@@ -1509,6 +1500,12 @@
     }
     if (type === "native_studio") {
       return prepareFlatlayNativeStudio(img);
+    }
+    if (type === "native_preserve") {
+      return prepareNativePreserveStudio(img, layoutSpec);
+    }
+    if (type === "portrait_downonly") {
+      return preparePortraitDownonlyStudio(img, layoutSpec);
     }
     if (type === "native_capped_studio") {
       return prepareNativeCappedStudio(img, layoutSpec.capMaxSide ?? 1024, layoutSpec.trimPad ?? 0.02);
@@ -1591,7 +1588,16 @@
     );
   }
 
-  async function optimizeApparelLayoutsAll(img, profiles, maxVariants, frameStyle, onProgress, labelPrefix) {
+  async function optimizeApparelLayoutsAll(
+    img,
+    profiles,
+    maxVariants,
+    frameStyle,
+    onProgress,
+    labelPrefix,
+    options = {}
+  ) {
+    const variantFilter = options.variantFilter;
     const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
     const allVariants = [];
     let done = 0;
@@ -1605,16 +1611,17 @@
             `${labelPrefix} · ${profile.modeName} · ${tier.label}`
           );
         }
-        allVariants.push(
-          await buildVariantForTier(canvas, whiteRatio, profile, tier, {
-            showMode: true,
-            reframeMeta: buildReframeMeta(profile, tier, {
-              frameStyle: profile.studio ? null : flatlayFramedStyle(profile.flatlaySpec, frameStyle),
-              studioLayout: profile.studioLayout,
-              whiteRatio,
-            }),
-          })
-        );
+        const variant = await buildVariantForTier(canvas, whiteRatio, profile, tier, {
+          showMode: true,
+          reframeMeta: buildReframeMeta(profile, tier, {
+            frameStyle: profile.studio ? null : flatlayFramedStyle(profile.flatlaySpec, frameStyle),
+            studioLayout: profile.studioLayout,
+            whiteRatio,
+          }),
+        });
+        if (!variantFilter || variantFilter(variant)) {
+          allVariants.push(variant);
+        }
         done += 1;
         await yieldToMain();
       }
@@ -1654,7 +1661,10 @@
       FULL_LENGTH_MAX_VARIANTS,
       frameStyle,
       onProgress,
-      "Full-length"
+      "Full-length",
+      {
+        variantFilter: (variant) => variant.bytes / 1024 <= FULL_LENGTH_MAX_KB,
+      }
     );
   }
 
@@ -3391,7 +3401,7 @@
           api: "own",
           service: "own-api.js",
           processing: "client",
-          version: 91,
+          version: 92,
           platform: "cloudflare-static",
         },
       };
