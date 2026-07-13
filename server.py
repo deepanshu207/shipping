@@ -112,7 +112,8 @@ class SPAHandler(SimpleHTTPRequestHandler):
         is_auto = "auto" in str(tag_name or "").lower()
         is_lingerie = "collage" in str(tag_name or "").lower() or "multi-scenario" in str(tag_name or "").lower()
         is_flatlay = "flat-lay" in str(tag_name or "").lower() or "flatlay" in str(tag_name or "").lower() or "apparel lowest" in str(tag_name or "").lower()
-        timeout = 600 if is_auto or is_lingerie or is_flatlay else 180
+        is_model = "model photo" in str(tag_name or "").lower() or "model lowest" in str(tag_name or "").lower() or "on-person" in str(tag_name or "").lower()
+        timeout = 600 if is_auto or is_lingerie or is_flatlay or is_model else 180
         style = frame_style or {}
         payload = json.dumps(
             {
@@ -188,7 +189,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
                     "service": "server.py",
                     "processing": "server",
                     "engine": "browser-headless",
-                    "version": 88,
+                    "version": 89,
                 },
             )
             return True

@@ -75,7 +75,7 @@
       color: var(--muted); margin: 0 0 0.85rem;
     }
     .modes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
-    .modes-primary { margin-bottom: 0.75rem; grid-template-columns: repeat(3, 1fr); }
+    .modes-primary { margin-bottom: 0.75rem; grid-template-columns: repeat(2, 1fr); }
     .modes-more {
       display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.65rem;
     }
@@ -109,7 +109,8 @@
     }
     .mode.auto-featured,
     .mode.lingerie-featured,
-    .mode.framed-featured { grid-column: auto; }
+    .mode.framed-featured,
+    .mode.flatlay-featured { grid-column: auto; }
     .mode.selected.lingerie {
       border-color: #db2777;
       box-shadow: 0 0 0 3px rgb(219 39 119 / 0.22);
@@ -137,6 +138,16 @@
       border-color: #38bdf8;
       box-shadow: 0 0 0 3px rgb(56 189 248 / 0.2);
     }
+    .mode.model .mode-tag { background: #f3e8ff; color: #7e22ce; }
+    .mode.selected.model {
+      border-color: #9333ea;
+      box-shadow: 0 0 0 3px rgb(147 51 234 / 0.15);
+    }
+    .dark .mode.selected.model {
+      border-color: #a855f7;
+      box-shadow: 0 0 0 3px rgb(168 85 247 / 0.2);
+    }
+    .mode.selected.model .mode-selected-pill { color: #7e22ce; }
     .mode.selected.flatlay .mode-selected-pill { color: #0369a1; }
     .mode-title { font-size: 0.92rem; font-weight: 800; margin: 0 0 0.3rem; line-height: 1.25; }
     .mode-for { font-size: 0.75rem; color: var(--muted); margin: 0; line-height: 1.35; }
@@ -344,7 +355,7 @@
       .modes-primary {
         gap: 0.35rem;
         margin-bottom: 0.4rem;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(2, 1fr);
       }
       .modes-primary .mode {
         padding: 0.58rem 0.4rem;
@@ -368,6 +379,9 @@
       }
       .modes-primary .mode.selected.lingerie {
         box-shadow: 0 0 0 2px rgb(219 39 119 / 0.2);
+      }
+      .modes-primary .mode.selected.flatlay {
+        box-shadow: 0 0 0 2px rgb(2 132 199 / 0.2);
       }
       .modes-primary .mode-for,
       .modes-primary .mode-tag,
@@ -433,7 +447,7 @@
   </header>
 
   <main class="main">
-    <p class="subtitle">Pick <b>Auto</b>, <b>Framed</b>, or <b>Collage</b> — more studio &amp; framed modes in the accordion below.</p>
+    <p class="subtitle">Pick a mode below — <b>Auto</b>, <b>Framed</b>, <b>Collage</b>, or <b>Flat-Lay</b>. More modes in the accordion.</p>
 
     <!-- FORM -->
     <section class="card" id="panel-form">
@@ -455,6 +469,12 @@
           <p class="mode-title"><span class="mode-short">Collage</span><span class="mode-long">Collage · Multi-Scenario</span></p>
           <p class="mode-for"><b>Front+back collage:</b> 20 front KB options · 25 back — studio + framed each</p>
           <span class="mode-tag">Up to 72 ranked · multi-layout back ~₹41 band · test #1</span>
+          <span class="mode-selected-pill">✓ Selected</span>
+        </button>
+        <button type="button" class="mode studio flatlay flatlay-featured" data-id="mo_flatlay" data-tag="Flat-lay apparel tops crop tops white studio lowest shipping" data-name="Flat-Lay Apparel Lowest ₹" data-flatlay="1">
+          <p class="mode-title"><span class="mode-short">Flat-Lay</span><span class="mode-long">Flat-Lay Apparel Lowest ₹</span></p>
+          <p class="mode-for"><b>For:</b> Flat-lay tops, crop tops, tees on white — targets ₹39–₹51</p>
+          <span class="mode-tag">11 scenarios · portrait 703×1024 + framed 1024</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
       </div>
@@ -490,10 +510,10 @@
           <span class="mode-tag">Try ₹20–40 without frame · verify on Meesho</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
-        <button type="button" class="mode studio flatlay" data-id="mo_flatlay" data-tag="Flat-lay apparel tops crop tops white studio lowest shipping" data-name="Flat-Lay Apparel Lowest ₹" data-flatlay="1">
-          <p class="mode-title">Flat-Lay Apparel Lowest ₹</p>
-          <p class="mode-for"><b>For:</b> Flat-lay tops, crop tops, tees on white — targets ₹39–₹51</p>
-          <span class="mode-tag">11 scenarios · portrait 703×1024 + framed 1024 · verify on Meesho</span>
+        <button type="button" class="mode studio model" data-id="mo_model" data-tag="Model photo on-person apparel lowest shipping framed 1024" data-name="Model Photo Lowest ₹" data-model="1">
+          <p class="mode-title">Model Photo Lowest ₹</p>
+          <p class="mode-for"><b>For:</b> On-person / model shots — framed 1024 · ~₹39–₹51</p>
+          <span class="mode-tag">6 scenarios · native + portrait 703×1024 · verify on Meesho</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode framed" data-id="mo_framed_low" data-tag="Framed Best Rate indoor" data-name="Framed Best Rate">
@@ -600,10 +620,11 @@
           <h3 id="reframe-title">Customize frame</h3>
           <button type="button" class="reframe-close" id="reframe-close" aria-label="Close">×</button>
         </div>
-        <p class="reframe-note" id="reframe-note">Change border color, promotion sticker, or switch to studio white (no frame).</p>
+        <p class="reframe-note" id="reframe-note">Border/sticker changes keep the same file-size target (~₹ band). Switch mode only if you need a different look.</p>
         <div class="reframe-preview"><img id="reframe-preview-img" alt="Preview" /></div>
         <div class="reframe-mode-row">
           <button type="button" class="reframe-mode-btn selected" data-mode="framed" id="reframe-mode-framed">Border + sticker</button>
+          <button type="button" class="reframe-mode-btn" data-mode="frame_only" id="reframe-mode-frame-only">Border only</button>
           <button type="button" class="reframe-mode-btn" data-mode="studio" id="reframe-mode-studio">No frame (studio)</button>
         </div>
         <div id="reframe-frame-controls">
@@ -639,7 +660,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=88"></script>
+  <script src="/own-api.js?v=89"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -699,6 +720,7 @@
       var reframeApply = document.getElementById("reframe-apply");
       var reframeFrameControls = document.getElementById("reframe-frame-controls");
       var reframeModeFramed = document.getElementById("reframe-mode-framed");
+      var reframeModeFrameOnly = document.getElementById("reframe-mode-frame-only");
       var reframeModeStudio = document.getElementById("reframe-mode-studio");
       var MR = window.MeeshoReframe;
       var RECOMMENDED_BORDER = "purple";
@@ -835,9 +857,16 @@
 
       function syncReframeModeUi() {
         var framed = reframeDisplayMode === "framed";
+        var frameOnly = reframeDisplayMode === "frame_only";
+        var studio = reframeDisplayMode === "studio";
         reframeModeFramed.classList.toggle("selected", framed);
-        reframeModeStudio.classList.toggle("selected", !framed);
-        reframeFrameControls.classList.toggle("hidden", !framed);
+        reframeModeFrameOnly.classList.toggle("selected", frameOnly);
+        reframeModeStudio.classList.toggle("selected", studio);
+        reframeFrameControls.classList.toggle("hidden", studio);
+        if (frameOnly && FS) {
+          reframeStickerTemplate.value = "none";
+          updateReframeTemplateDesc();
+        }
       }
 
       function loadImageFromDataUrl(dataUrl) {
@@ -862,8 +891,9 @@
         reframeIndex = index;
         reframePreviewImg.src = r.imageUrl;
         var meta = r.reframeMeta;
-        const isStudioKind = meta.kind === "collage_studio" || meta.kind === "studio";
-        reframeDisplayMode = isStudioKind ? "studio" : "framed";
+        var isStudioKind = meta.kind === "collage_studio" || meta.kind === "studio";
+        var stickerNone = meta.frameStyle && meta.frameStyle.stickerTemplate === "none";
+        reframeDisplayMode = isStudioKind ? "studio" : stickerNone ? "frame_only" : "framed";
         if (meta.frameStyle) {
           syncReframeBorderUi(meta.frameStyle.borderColor || DEFAULT_BORDER_COLOR);
           reframeStickerTemplate.value = FS.normalizeStickerTemplate(meta.frameStyle.stickerTemplate || RECOMMENDED_STICKER);
@@ -905,10 +935,23 @@
           r.height = variant.height;
           r.tagName = variant.label + " · " + fileSizeKb + " KB · customized";
           if (r.reframeMeta) {
+            var preserveKb =
+              r.reframeMeta.tier && (r.reframeMeta.tier.preserveKb || r.reframeMeta.tier.targetKb || r.reframeMeta.tier.slabKb);
+            if (!preserveKb) preserveKb = fileSizeKb;
             r.reframeMeta.frameStyle = {
               borderColor: frame.borderColor,
-              stickerTemplate: frame.stickerTemplate,
+              stickerTemplate:
+                reframeDisplayMode === "frame_only" ? "none" : frame.stickerTemplate,
             };
+            if (reframeDisplayMode === "studio") {
+              r.reframeMeta.kind = "collage_studio";
+              r.reframeMeta.studioBase = true;
+              r.reframeMeta.tier = { targetKb: preserveKb, preserveKb: preserveKb };
+            } else {
+              r.reframeMeta.kind = "framed_slab";
+              r.reframeMeta.studioBase = false;
+              r.reframeMeta.tier = { slabKb: preserveKb, preserveKb: preserveKb };
+            }
           }
           var card = resultsGrid.querySelector('[data-result-index="' + reframeIndex + '"]');
           if (card) {
@@ -1257,6 +1300,7 @@
         var isAuto = selected && selected.dataset.auto === "1";
         var isLingerie = selected && selected.dataset.lingerie === "1";
         var isFlatlay = selected && selected.dataset.flatlay === "1";
+        var isModel = selected && selected.dataset.model === "1";
         lastUploadDataUrl = previewUrl;
         processingTitle.textContent = isAuto
           ? "Auto — trying all strategies…"
@@ -1264,7 +1308,9 @@
             ? "Collage — studio + framed scenarios…"
             : isFlatlay
               ? "Flat-Lay — portrait + framed scenarios…"
-              : "Running " + selected.dataset.name + "…";
+              : isModel
+                ? "Model Photo — framed 1024 scenarios…"
+                : "Running " + selected.dataset.name + "…";
         processingHint.textContent = window.__MEESHO_USE_SERVER__
           ? (isAuto
               ? "Running on server — you can switch tabs; progress updates below."
@@ -1272,14 +1318,18 @@
                 ? "Server processing up to 72 scenarios — tab may stay in background."
                 : isFlatlay
                   ? "Server trying 11 flat-lay scenarios — targets ₹39–₹51 band."
-                  : "Server optimizing — runs in background, not in this browser tab.")
+                  : isModel
+                    ? "Server trying 6 model-photo scenarios — targets ₹39–₹51 band."
+                    : "Server optimizing — runs in background, not in this browser tab.")
           : (isAuto
               ? "In-browser processing — keep this tab open and on screen for fastest runs."
               : isLingerie
                 ? "In-browser — up to 72 scenarios. Keep this tab active (3–6 min)."
                 : isFlatlay
-                  ? "In-browser — 11 flat-lay scenarios (portrait 703×1024, framed 1024). Keep tab active."
-                  : "In-browser — keep this tab open while optimizing.");
+                  ? "In-browser — 11 flat-lay scenarios. Keep tab active."
+                  : isModel
+                    ? "In-browser — 6 model-photo scenarios. Keep tab active."
+                    : "In-browser — keep this tab open while optimizing.");
         resetProcessingProgress();
         show("processing");
 
@@ -1317,6 +1367,10 @@
       });
       reframeModeFramed.addEventListener("click", function () {
         reframeDisplayMode = "framed";
+        syncReframeModeUi();
+      });
+      reframeModeFrameOnly.addEventListener("click", function () {
+        reframeDisplayMode = "frame_only";
         syncReframeModeUi();
       });
       reframeModeStudio.addEventListener("click", function () {
