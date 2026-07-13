@@ -302,8 +302,24 @@
   /** Collage-style lowered square canvases — full body on white (not split panel). */
   const FULL_LENGTH_FRONT_LAYOUTS = [
     {
+      layout: "fl_f_700_tight",
+      priority: 1,
+      side: 700,
+      coverage: 0.78,
+      panelTag: "square 700 tight",
+      tiers: FULL_LENGTH_FRONT_KB_TIERS,
+    },
+    {
+      layout: "fl_f_650_tight",
+      priority: 2,
+      side: 650,
+      coverage: 0.74,
+      panelTag: "square 650 tight",
+      tiers: FULL_LENGTH_FRONT_KB_TIERS,
+    },
+    {
       layout: "fl_f_900_std",
-      priority: 0,
+      priority: 5,
       side: 900,
       coverage: 0.72,
       panelTag: "square 900",
@@ -407,6 +423,15 @@
       tiers: FULL_LENGTH_KB_TIERS_STUDIO,
     },
     {
+      layout: "fl_pt_480",
+      portraitW: 480,
+      portraitH: 720,
+      coverage: 0.82,
+      priority: 35,
+      panelTag: "portrait 480×720",
+      tiers: FULL_LENGTH_KB_TIERS_STUDIO,
+    },
+    {
       layout: "fl_cap_900",
       capMaxSide: 900,
       priority: 36,
@@ -426,6 +451,37 @@
       priority: 40,
       panelTag: "trim cap 700",
       tiers: FULL_LENGTH_KB_TIERS_STUDIO,
+    },
+  ];
+  /** Aggressive content crop — shrinks enlarged dress to beat high shipping tiers. */
+  const FULL_LENGTH_CROP_LAYOUTS = [
+    {
+      layout: "fl_crop_650",
+      capMaxSide: 650,
+      priority: 0,
+      panelTag: "tight crop · 650px",
+      tiers: FULL_LENGTH_FRONT_KB_TIERS,
+    },
+    {
+      layout: "fl_crop_600",
+      capMaxSide: 600,
+      priority: 1,
+      panelTag: "tight crop · 600px",
+      tiers: FULL_LENGTH_FRONT_KB_TIERS,
+    },
+    {
+      layout: "fl_crop_550",
+      capMaxSide: 550,
+      priority: 2,
+      panelTag: "tight crop · 550px",
+      tiers: FULL_LENGTH_FRONT_KB_TIERS,
+    },
+    {
+      layout: "fl_crop_500",
+      capMaxSide: 500,
+      priority: 3,
+      panelTag: "tight crop · 500px",
+      tiers: FULL_LENGTH_FRONT_KB_TIERS,
     },
   ];
   const FLATLAY_LAYOUTS = [
@@ -816,6 +872,7 @@
     if (path === "full_length_portrait") {
       if (fileKb === 52) return 146;
       if (fileKb >= 53 && fileKb <= 60) return 55;
+      if (fileKb === 44 && maxSide <= 720) return 66;
       if (fileKb > FULL_LENGTH_MAX_KB) return Math.max(fileKb, 120);
       if (maxSide > FULL_LENGTH_MAX_OUTER) return Math.max(fileKb, 70);
       return fileKb <= 65 ? fileKb : fileKb;
@@ -833,6 +890,7 @@
       if (fileKb <= 65) return fileKb;
     }
     if (path === "full_length_square") {
+      if (fileKb === 44 && maxSide <= 720) return 66;
       if (fileKb === 44 && maxSide <= 1020) return 66;
       if (fileKb === 48 && maxSide >= 980) return 71;
       if (fileKb === 52) return 146;
@@ -1482,10 +1540,23 @@
     }));
   }
 
+  function fullLengthCropTiers(layoutSpec) {
+    return layoutSpec.tiers.map((tier) => ({
+      targetKb: tier.targetKb,
+      framedTargetKb: tier.framedTargetKb,
+      label: `${layoutSpec.panelTag} · ${tier.label}`,
+      lowest: !!tier.lowest,
+      recommended: !!tier.recommended,
+    }));
+  }
+
   function withFullLengthLayout(profile, layout, priority, suffix = "") {
     const tag = suffix ? ` ${suffix}` : "";
     const isBack = isFullLengthBackLayout(layout, profile.id);
-    const isExtra = String(layout).startsWith("fl_pt_") || String(layout).startsWith("fl_cap_");
+    const isExtra =
+      String(layout).startsWith("fl_pt_") ||
+      String(layout).startsWith("fl_cap_") ||
+      String(layout).startsWith("fl_crop_");
     const path = isBack ? "full_length_panel" : isExtra ? "full_length_portrait" : "full_length_square";
     return {
       ...profile,
@@ -1507,6 +1578,21 @@
     const split = isLingerieSplitCollage(img, collageOpts);
     const base = profileFullLength();
     const profiles = [];
+
+    const cropProfiles = FULL_LENGTH_CROP_LAYOUTS.map((layoutSpec) =>
+      withFullLengthLayout(
+        {
+          ...base,
+          id: `full_length_${layoutSpec.layout}`,
+          tiers: fullLengthCropTiers(layoutSpec),
+          splitCollage: false,
+        },
+        layoutSpec.layout,
+        layoutSpec.priority,
+        `· ${layoutSpec.panelTag}`
+      )
+    );
+    profiles.push(...cropProfiles);
 
     const frontProfiles = FULL_LENGTH_FRONT_LAYOUTS.map((layoutSpec) =>
       withFullLengthLayout(
@@ -1563,7 +1649,8 @@
       const back = isFullLengthBackLayout(profile.studioLayout, profile.id);
       const extra =
         String(profile.studioLayout).startsWith("fl_pt_") ||
-        String(profile.studioLayout).startsWith("fl_cap_");
+        String(profile.studioLayout).startsWith("fl_cap_") ||
+        String(profile.studioLayout).startsWith("fl_crop_");
       return {
         ...profile,
         id: `${profile.id}_framed`,
@@ -1594,7 +1681,35 @@
     return { side: 900, coverage: 0.72 };
   }
 
+  function prepareFullLengthTightCropCanvas(img, capMaxSide) {
+    let trimmed = trimContentMargins(imageToWhiteCanvas(img), 0.004);
+    const bounds = contentBoundsFromCanvas(trimmed);
+    if (bounds) {
+      trimmed = cropCanvasRect(trimmed, bounds.minX, bounds.minY, bounds.maxX, bounds.maxY);
+      trimmed = trimContentMargins(trimmed, 0.008);
+    }
+    const max = Math.max(trimmed.width, trimmed.height);
+    if (max <= capMaxSide) return trimmed;
+    const scale = capMaxSide / max;
+    const w = Math.round(trimmed.width * scale);
+    const h = Math.round(trimmed.height * scale);
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(trimmed, 0, 0, trimmed.width, trimmed.height, 0, 0, w, h);
+    return c;
+  }
+
   function prepareFullLengthLayoutCanvas(img, layout, splitCollage = false) {
+    if (String(layout).startsWith("fl_crop_")) {
+      const spec = FULL_LENGTH_CROP_LAYOUTS.find((s) => s.layout === layout);
+      return prepareFullLengthTightCropCanvas(img, spec?.capMaxSide ?? 600);
+    }
     if (String(layout).startsWith("fl_b_")) {
       return prepareLingeriePanelCanvas(img, "right", fullLengthLayoutOptions(layout));
     }
@@ -3336,10 +3451,76 @@
 
   function findFullLengthLayoutSpec(layout) {
     return (
+      FULL_LENGTH_CROP_LAYOUTS.find((s) => s.layout === layout) ||
       FULL_LENGTH_FRONT_LAYOUTS.find((s) => s.layout === layout) ||
       FULL_LENGTH_BACK_LAYOUTS.find((s) => s.layout === layout) ||
       FULL_LENGTH_EXTRA_LAYOUTS.find((s) => s.layout === layout)
     );
+  }
+
+  function fullLengthDimensionCatalog() {
+    const rows = (arr, group) =>
+      arr.map((s) => ({
+        id: s.layout,
+        label: s.panelTag,
+        group,
+      }));
+    return [
+      ...rows(FULL_LENGTH_CROP_LAYOUTS, "crop"),
+      ...rows(FULL_LENGTH_FRONT_LAYOUTS, "square"),
+      ...rows(FULL_LENGTH_EXTRA_LAYOUTS, "portrait"),
+      ...rows(FULL_LENGTH_BACK_LAYOUTS, "back"),
+    ];
+  }
+
+  function fullLengthPathForLayout(layoutId) {
+    const lid = String(layoutId || "");
+    if (lid.startsWith("fl_b_")) return "full_length_panel";
+    if (lid.startsWith("fl_pt_") || lid.startsWith("fl_cap_") || lid.startsWith("fl_crop_")) {
+      return "full_length_portrait";
+    }
+    return "full_length_square";
+  }
+
+  async function renderFullLengthDimensionVariant(sourceImg, layoutId, meta) {
+    await loadMozjpeg();
+    const canvas = prepareFullLengthLayoutCanvas(sourceImg, layoutId, meta.splitCollage);
+    let whiteRatio =
+      meta.whiteRatio ?? Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
+    const preserveKb =
+      meta.tier?.preserveKb ?? meta.tier?.targetKb ?? meta.tier?.slabKb ?? 44;
+    const isFramed = meta.kind === "collage_framed" || meta.kind === "framed_slab";
+    let finalCanvas = canvas;
+    if (isFramed && meta.kind !== "collage_studio" && meta.studioBase !== true) {
+      const style = meta.frameStyle
+        ? parseFrameStyle(meta.frameStyle)
+        : defaultFrameStyle();
+      finalCanvas = prepareFramedCanvas(
+        finalCanvas,
+        meta.framedMaxSide ?? MEESHO_FRAMED_MAX_SIDE,
+        style
+      );
+      whiteRatio = Math.max(measureNearWhiteRatio(finalCanvas), measureWhiteRatio(finalCanvas));
+    }
+    const profile = {
+      id: meta.profileId,
+      path: meta.processingPath || fullLengthPathForLayout(layoutId),
+      studio: !isFramed,
+      collageFramed: meta.kind === "collage_framed",
+      absMinQ: meta.absMinQ ?? 16,
+      modeName: "Full-length",
+    };
+    const tier = { targetKb: preserveKb, slabKb: preserveKb, label: "dimension" };
+    const variant = await buildVariantForTier(finalCanvas, whiteRatio, profile, tier);
+    const spec = findFullLengthLayoutSpec(layoutId);
+    variant.reframeMeta = {
+      ...meta,
+      studioLayout: layoutId,
+      whiteRatio,
+      tier: { ...meta.tier, preserveKb, targetKb: preserveKb },
+    };
+    variant.modeName = spec ? `Full-length · ${spec.panelTag}` : variant.modeName;
+    return variant;
   }
 
   function findApparelLayoutSpec(layout, profileId) {
@@ -3728,7 +3909,7 @@
           api: "own",
           service: "own-api.js",
           processing: "client",
-          version: 94,
+          version: 95,
           platform: "cloudflare-static",
         },
       };
@@ -3946,6 +4127,8 @@
   window.MeeshoProcessor = { optimize: optimizeForServer };
   window.MeeshoReframe = {
     renderCustomVariant,
+    renderFullLengthDimensionVariant,
+    fullLengthDimensionCatalog,
     blobToDataUrl,
     estimateMeeshoInr,
     kb,

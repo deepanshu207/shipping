@@ -5,7 +5,18 @@
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const processor = env.PROCESSOR_URL || "";
+    const processor = (env.PROCESSOR_URL || "").trim();
+
+    if (url.pathname === "/processor-config.js") {
+      const origin = processor.replace(/\/$/, "");
+      const body = `window.__MEESHO_PROCESSOR_ORIGIN__=${JSON.stringify(origin)};`;
+      return new Response(body, {
+        headers: {
+          "Content-Type": "application/javascript; charset=utf-8",
+          "Cache-Control": "no-store",
+        },
+      });
+    }
 
     if (url.pathname === "/api/health" && !processor) {
       return new Response(
@@ -14,7 +25,7 @@ export default {
           api: "own",
           service: "cloudflare-worker",
           processing: "client",
-          version: 94,
+          version: 95,
         }),
         { headers: { "Content-Type": "application/json; charset=utf-8" } }
       );

@@ -12,5 +12,7 @@
     "not_found_handling": "single-page-application",
     "binding": "ASSETS"
   },
-  "compatibility_flags": ["nodejs_compat"]
+  "compatibility_flags": ["nodejs_compat"],
+  /** Set PROCESSOR_URL secret to your server.py host (Railway/Fly) for background server processing on mobile. */
+  "vars": {}
 }

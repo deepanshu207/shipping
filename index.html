@@ -246,6 +246,23 @@
     .badge.try-first { background: #fef3c7; color: #b45309; }
     .result-label { font-size: 0.8rem; font-weight: 700; line-height: 1.35; }
     .result-meta { font-size: 0.72rem; color: var(--muted); }
+    .dim-row {
+      display: flex; flex-direction: column; gap: 0.25rem; margin-top: 0.35rem;
+    }
+    .dim-row label { font-size: 0.68rem; font-weight: 600; color: var(--muted); }
+    .dim-picker {
+      width: 100%; font-size: 0.72rem; padding: 0.35rem 0.4rem;
+      border: 1px solid var(--border); border-radius: 0.45rem; background: var(--card);
+      color: inherit;
+    }
+    .processing-mode-badge {
+      display: inline-block; font-size: 0.68rem; font-weight: 700; padding: 0.15rem 0.45rem;
+      border-radius: 999px; margin-left: 0.35rem; vertical-align: middle;
+    }
+    .processing-mode-badge.server { background: #ecfdf5; color: #047857; }
+    .processing-mode-badge.client { background: #fef3c7; color: #b45309; }
+    .dark .processing-mode-badge.server { background: rgb(5 150 105 / 0.2); color: #6ee7b7; }
+    .dark .processing-mode-badge.client { background: rgb(245 158 11 / 0.15); color: #fcd34d; }
     .download {
       margin-top: auto; text-align: center; text-decoration: none;
       background: var(--emerald); color: #fff; font-size: 0.8rem; font-weight: 800;
@@ -637,6 +654,10 @@
           <button type="button" class="reframe-close" id="reframe-close" aria-label="Close">×</button>
         </div>
         <p class="reframe-note" id="reframe-note">Border/sticker changes keep the same file-size target (~₹ band). Switch mode only if you need a different look.</p>
+        <div class="field hidden" id="reframe-dim-wrap">
+          <label for="reframe-dim-picker">Keep dimensions</label>
+          <select id="reframe-dim-picker" class="dim-picker" aria-label="Dimension layout"></select>
+        </div>
         <div class="reframe-preview"><img id="reframe-preview-img" alt="Preview" /></div>
         <div class="reframe-mode-row">
           <button type="button" class="reframe-mode-btn selected" data-mode="framed" id="reframe-mode-framed">Border + sticker</button>
@@ -676,7 +697,8 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=94"></script>
+  <script src="/processor-config.js"></script>
+  <script src="/own-api.js?v=95"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -738,7 +760,96 @@
       var reframeModeFramed = document.getElementById("reframe-mode-framed");
       var reframeModeFrameOnly = document.getElementById("reframe-mode-frame-only");
       var reframeModeStudio = document.getElementById("reframe-mode-studio");
+      var reframeDimWrap = document.getElementById("reframe-dim-wrap");
+      var reframeDimPicker = document.getElementById("reframe-dim-picker");
       var MR = window.MeeshoReframe;
+      var lastIsFullLength = false;
+      var wakeLockRef = null;
+      function buildDimPickerHtml(currentLayout) {
+        if (!MR || !MR.fullLengthDimensionCatalog) return "";
+        var opts = MR.fullLengthDimensionCatalog();
+        var groups = { crop: "Tight crop", square: "Square", portrait: "Portrait / cap", back: "Back panel" };
+        var html = "";
+        var lastGroup = "";
+        opts.forEach(function (o) {
+          if (o.group !== lastGroup) {
+            if (lastGroup) html += "</optgroup>";
+            html += '<optgroup label="' + esc(groups[o.group] || o.group) + '">';
+            lastGroup = o.group;
+          }
+          html +=
+            '<option value="' +
+            esc(o.id) +
+            '"' +
+            (o.id === currentLayout ? " selected" : "") +
+            ">" +
+            esc(o.label) +
+            "</option>";
+        });
+        if (lastGroup) html += "</optgroup>";
+        return html;
+      }
+
+      async function applyDimensionToResult(index, layoutId) {
+        if (!MR || !lastUploadDataUrl || index < 0) return;
+        var r = lastResults[index];
+        if (!r || !r.reframeMeta || !layoutId) return;
+        try {
+          await MR.loadMozjpeg();
+          var sourceImg = await loadImageFromDataUrl(lastUploadDataUrl);
+          var variant = await MR.renderFullLengthDimensionVariant(sourceImg, layoutId, r.reframeMeta);
+          var imageUrl = await MR.blobToDataUrl(variant.blob);
+          var fileSizeKb = MR.kb(variant.bytes);
+          var estimatedShippingInr = MR.estimateMeeshoInr(variant);
+          r.imageUrl = imageUrl;
+          r.fileSizeKb = fileSizeKb;
+          r.estimatedShippingInr = estimatedShippingInr;
+          r.shippingCharge = String(estimatedShippingInr);
+          r.width = variant.width;
+          r.height = variant.height;
+          r.reframeMeta = variant.reframeMeta || r.reframeMeta;
+          r.tagName = (variant.modeName || "Full-length") + " · " + fileSizeKb + " KB";
+          var card = resultsGrid.querySelector('[data-result-index="' + index + '"]');
+          if (card) {
+            card.querySelector(".result-img img").src = imageUrl;
+            card.querySelector(".result-label").textContent = r.tagName;
+            card.querySelector(".result-meta").textContent =
+              "Est. ~₹" + estimatedShippingInr + " · " + fileSizeKb + " KB · " + variant.width + "×" + variant.height;
+            card.querySelector(".download").href = imageUrl;
+            var picker = card.querySelector(".dim-picker");
+            if (picker) picker.value = layoutId;
+          }
+          if (reframeIndex === index) reframePreviewImg.src = imageUrl;
+        } catch (err) {
+          setError(err.message || "Could not switch dimensions.");
+        }
+      }
+
+      async function acquireWakeLock() {
+        try {
+          if (wakeLockRef) return;
+          if (navigator.wakeLock && document.visibilityState === "visible") {
+            wakeLockRef = await navigator.wakeLock.request("screen");
+          }
+        } catch (e) { /* optional */ }
+      }
+
+      function releaseWakeLock() {
+        if (wakeLockRef) {
+          wakeLockRef.release().catch(function () {});
+          wakeLockRef = null;
+        }
+      }
+
+      function updateProcessingModeBadge(serverMode) {
+        var title = processingTitle;
+        var old = title.querySelector(".processing-mode-badge");
+        if (old) old.remove();
+        var span = document.createElement("span");
+        span.className = "processing-mode-badge " + (serverMode ? "server" : "client");
+        span.textContent = serverMode ? "Server" : "In-browser";
+        title.appendChild(span);
+      }
       var RECOMMENDED_BORDER = "purple";
       var RECOMMENDED_STICKER = "limited_time";
       var DEFAULT_BORDER_COLOR = "#7C3AED";
@@ -920,6 +1031,12 @@
         }
         updateReframeTemplateDesc();
         syncReframeModeUi();
+        if (lastIsFullLength && reframeDimWrap && reframeDimPicker && MR && MR.fullLengthDimensionCatalog) {
+          reframeDimWrap.classList.remove("hidden");
+          reframeDimPicker.innerHTML = buildDimPickerHtml(meta.studioLayout || "");
+        } else if (reframeDimWrap) {
+          reframeDimWrap.classList.add("hidden");
+        }
         reframeBackdrop.classList.remove("hidden");
         reframeBackdrop.setAttribute("aria-hidden", "false");
       }
@@ -1195,8 +1312,8 @@
         setProcessingProgress(0, "Preparing upload…");
       }
 
-      function poll(requestId, isAuto, isLingerie) {
-        var maxAttempts = isAuto ? 480 : isLingerie ? 480 : 200;
+      function poll(requestId, isAuto, isLingerie, isFullLength) {
+        var maxAttempts = isAuto || isLingerie || isFullLength ? 480 : 200;
         return new Promise(function (resolve, reject) {
           var attempts = 0;
           function tick() {
@@ -1226,10 +1343,12 @@
         return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
       }
 
-      function showResults(results, modeName, isLingerie) {
+      function showResults(results, modeName, isLingerie, isFullLength) {
         lastResults = results.slice();
+        lastIsFullLength = !!isFullLength;
         resultsTitle.textContent = modeName + " · " + results.length + " ranked pick" + (results.length === 1 ? "" : "s");
         var canEdit = !!(MR && lastUploadDataUrl);
+        var dimCatalog = isFullLength && MR && MR.fullLengthDimensionCatalog;
         resultsGrid.innerHTML = results.map(function (r, i) {
           var fname = "meesho-" + r.fileSizeKb + "kb-" + (i + 1) + ".jpg";
           var rank = r.autoRank || (i + 1);
@@ -1266,6 +1385,13 @@
                   (!r.autoRank && r.lowest ? '<span class="badge">Lowest est.</span>' : "")) +
                 '<div class="result-label">' + esc(r.tagName || "Variant " + rank) + '</div>' +
                 '<div class="result-meta">Est. ~₹' + (r.estimatedShippingInr || r.fileSizeKb) + " · " + r.fileSizeKb + " KB · " + (r.width || "?") + "×" + (r.height || "?") + "</div>" +
+                (dimCatalog && r.reframeMeta
+                  ? '<div class="dim-row" onclick="event.stopPropagation()"><label>Keep dimensions</label><select class="dim-picker" data-result-index="' +
+                    i +
+                    '" aria-label="Dimension layout">' +
+                    buildDimPickerHtml(r.reframeMeta.studioLayout || "") +
+                    "</select></div>"
+                  : "") +
                 (editable ? '<p class="result-edit-hint">Tap to change border / sticker / no frame</p>' : "") +
                 '<a class="download" href="' + r.imageUrl + '" download="' + fname + '" onclick="event.stopPropagation()">Download JPEG</a>' +
               '</div></article>'
@@ -1274,6 +1400,13 @@
         resultsGrid.querySelectorAll(".result--clickable").forEach(function (card) {
           card.addEventListener("click", function () {
             openReframeEditor(parseInt(card.getAttribute("data-result-index"), 10));
+          });
+        });
+        resultsGrid.querySelectorAll(".dim-picker").forEach(function (sel) {
+          sel.addEventListener("change", function (e) {
+            e.stopPropagation();
+            var idx = parseInt(sel.getAttribute("data-result-index"), 10);
+            applyDimensionToResult(idx, sel.value);
           });
         });
         show("results");
@@ -1308,6 +1441,7 @@
       }
 
       generateBtn.addEventListener("click", function () {
+        var run = function () {
         if (!selected || !imageFile) {
           setError(!selected ? "Choose a compression mode first." : "Upload an image first.");
           return;
@@ -1318,6 +1452,7 @@
         var isFlatlay = selected && selected.dataset.flatlay === "1";
         var isModel = selected && selected.dataset.model === "1";
         var isFullLength = selected && selected.dataset.fulllength === "1";
+        var serverMode = !!window.__MEESHO_USE_SERVER__;
         lastUploadDataUrl = previewUrl;
         processingTitle.textContent = isAuto
           ? "Auto — trying all strategies…"
@@ -1330,9 +1465,9 @@
                 : isFullLength
                   ? "Full-Length — Collage-style scenarios (lowered dims)…"
                   : "Running " + selected.dataset.name + "…";
-        processingHint.textContent = window.__MEESHO_USE_SERVER__
+        processingHint.textContent = serverMode
           ? (isAuto
-              ? "Running on server — you can switch tabs; progress updates below."
+              ? "Running on server — safe to switch tabs or lock phone; progress updates below."
               : isLingerie
                 ? "Server processing up to 72 scenarios — tab may stay in background."
                 : isFlatlay
@@ -1340,7 +1475,7 @@
                   : isModel
                     ? "Server trying 6 model-photo scenarios — targets ₹39–₹51 band."
                     : isFullLength
-                      ? "Server — Collage-style full-length: square/panel + portrait extras, studio + framed."
+                      ? "Server — Collage-style full-length with tight crops. Tab can background."
                       : "Server optimizing — runs in background, not in this browser tab.")
           : (isAuto
               ? "In-browser processing — keep this tab open and on screen for fastest runs."
@@ -1351,10 +1486,12 @@
                   : isModel
                     ? "In-browser — 6 model-photo scenarios. Keep tab active."
                     : isFullLength
-                      ? "In-browser — Collage-style full-length. Try square 900 · 44KB framed for ~₹66."
+                      ? "In-browser — set PROCESSOR_URL for server mode. Keep tab active on mobile."
                       : "In-browser — keep this tab open while optimizing.");
+        updateProcessingModeBadge(serverMode);
         resetProcessingProgress();
         show("processing");
+        acquireWakeLock();
 
         var form = new FormData();
         form.append("tagId", selected.dataset.id);
@@ -1371,15 +1508,20 @@
           .then(function (_ref) {
             if (!_ref.ok || !_ref.d.requestId) throw new Error((_ref.d && _ref.d.message) || "Upload failed");
             setProcessingProgress(3, "Upload complete — optimizing…");
-            return poll(_ref.d.requestId, isAuto, isLingerie);
+            return poll(_ref.d.requestId, isAuto, isLingerie, isFullLength);
           })
           .then(function (results) {
-            showResults(results, selected.dataset.name, isLingerie);
+            releaseWakeLock();
+            showResults(results, selected.dataset.name, isLingerie, isFullLength);
           })
           .catch(function (err) {
+            releaseWakeLock();
             show("form");
             setError(err.message || "Something went wrong.");
           });
+        };
+        var apiReadyPromise = window.__MEESHO_API_READY__ || Promise.resolve(false);
+        apiReadyPromise.then(run);
       });
 
       document.getElementById("btn-new").addEventListener("click", resetForm);
@@ -1407,6 +1549,11 @@
         syncReframeBorderUi(reframeBorderHex.value);
       });
       reframeStickerTemplate.addEventListener("change", updateReframeTemplateDesc);
+      if (reframeDimPicker) {
+        reframeDimPicker.addEventListener("change", function () {
+          if (reframeIndex >= 0) applyDimensionToResult(reframeIndex, reframeDimPicker.value);
+        });
+      }
       reframeApply.addEventListener("click", applyReframeEdit);
 
       document.getElementById("theme-btn").addEventListener("click", function () {
@@ -1416,9 +1563,10 @@
 
       selected = document.querySelector(".mode.selected") || document.querySelector(".mode.auto");
       var apiReadyPromise = window.__MEESHO_API_READY__ || Promise.resolve(false);
-      apiReadyPromise.then(function () {
+      apiReadyPromise.then(function (serverMode) {
         syncModeUI();
         updateGenerate();
+        updateProcessingModeBadge(!!serverMode);
       });
     })();
   </script>

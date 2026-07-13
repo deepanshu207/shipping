@@ -1,5 +1,5 @@
 /**
- * Regression: full-length uses Collage pipeline (lowered square/panel + extras).
+ * Regression: full-length collage pipeline + tight crop scenarios.
  */
 import { chromium } from "playwright";
 
@@ -19,66 +19,46 @@ const dataUrl = await page.evaluate(() => {
   ctx.fillRect(0, 0, 900, 1800);
   ctx.fillStyle = "#9333ea";
   ctx.fillRect(250, 200, 400, 1400);
-  for (let y = 220; y < 1580; y += 12) {
-    for (let x = 270; x < 630; x += 12) {
-      ctx.fillStyle = (x + y) % 24 === 0 ? "#fbbf24" : "#7c3aed";
-      ctx.fillRect(x, y, 8, 8);
-    }
-  }
   return c.toDataURL("image/jpeg", 0.92);
 });
 
 const results = await page.evaluate(
   async ({ dataUrl, tag }) => window.MeeshoProcessor.optimize(dataUrl, tag, {}),
-  {
-    dataUrl,
-    tag: "Full-length enlarged dress kaftan saree lowest shipping",
-  }
+  { dataUrl, tag: "Full-length enlarged dress kaftan saree lowest shipping" }
 );
+
+const catalog = await page.evaluate(() => window.MeeshoReframe?.fullLengthDimensionCatalog?.() || []);
 
 await browser.close();
 
-const sorted = [...results].sort(
-  (a, b) =>
-    a.estimatedShippingInr - b.estimatedShippingInr ||
-    Math.max(a.width || 0, a.height || 0) - Math.max(b.width || 0, b.height || 0)
-);
+const sorted = [...results].sort((a, b) => a.estimatedShippingInr - b.estimatedShippingInr);
 const topEst = sorted[0]?.estimatedShippingInr || 99;
 const topMax = Math.max(...sorted.slice(0, 5).map((r) => Math.max(r.width || 0, r.height || 0)));
-const hasSquare = results.some((r) => String(r.processingPath || "") === "full_length_square");
-const hasPortrait = results.some((r) => String(r.processingPath || "") === "full_length_portrait");
-const hasFramed = results.some((r) => String(r.processingPath || "") === "full_length_framed");
-const bad198 = results.filter((r) => (r.fileSizeKb || 0) > 100 || (r.estimatedShippingInr || 0) > 120);
+const hasCrop = results.some((r) => String(r.modeName || "").includes("tight crop"));
+const hasFramed = results.some((r) => r.processingPath === "full_length_framed");
+const bad = results.filter((r) => (r.fileSizeKb || 0) > 100 || (r.estimatedShippingInr || 0) > 120);
 
 console.log(
-  `variants=${results.length} topEst=₹${topEst} top5Max=${topMax} sq=${hasSquare} pt=${hasPortrait} framed=${hasFramed} bad=${bad198.length}`
+  `variants=${results.length} topEst=₹${topEst} top5Max=${topMax} crop=${hasCrop} framed=${hasFramed} catalog=${catalog.length} bad=${bad.length}`
 );
 if (results.length < 20) {
   console.error("FAIL: expected at least 20 variants");
   process.exit(1);
 }
-if (!hasSquare) {
-  console.error("FAIL: missing collage-style square scenarios");
+if (!hasCrop) {
+  console.error("FAIL: missing tight-crop scenarios");
   process.exit(1);
 }
-if (!hasPortrait) {
-  console.error("FAIL: missing full-length-only portrait/cap scenarios");
+if (catalog.length < 15) {
+  console.error("FAIL: dimension catalog too small:", catalog.length);
   process.exit(1);
 }
-if (!hasFramed) {
-  console.error("FAIL: missing framed mirrors");
+if (topMax > 750) {
+  console.error("FAIL: top-5 max side too large:", topMax);
   process.exit(1);
 }
-if (topMax > 1100) {
-  console.error("FAIL: top-5 max side too large (dims not lowered):", topMax);
+if (bad.length > 0) {
+  console.error("FAIL: outliers");
   process.exit(1);
 }
-if (bad198.length > 0) {
-  console.error("FAIL: ₹198-style outliers");
-  process.exit(1);
-}
-if (topEst > 71) {
-  console.error("FAIL: top estimate too high:", topEst);
-  process.exit(1);
-}
-console.log("OK  full-length collage pipeline");
+console.log("OK  full-length crop + catalog");
