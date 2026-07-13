@@ -111,7 +111,8 @@ class SPAHandler(SimpleHTTPRequestHandler):
     def _optimize_image(self, image_bytes: bytes, tag_name: str, frame_style: dict | None = None) -> list[dict]:
         is_auto = "auto" in str(tag_name or "").lower()
         is_lingerie = "collage" in str(tag_name or "").lower() or "multi-scenario" in str(tag_name or "").lower()
-        timeout = 600 if is_auto or is_lingerie else 180
+        is_flatlay = "flat-lay" in str(tag_name or "").lower() or "flatlay" in str(tag_name or "").lower() or "apparel lowest" in str(tag_name or "").lower()
+        timeout = 600 if is_auto or is_lingerie or is_flatlay else 180
         style = frame_style or {}
         payload = json.dumps(
             {
@@ -187,7 +188,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
                     "service": "server.py",
                     "processing": "server",
                     "engine": "browser-headless",
-                    "version": 87,
+                    "version": 88,
                 },
             )
             return True

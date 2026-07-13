@@ -10,7 +10,8 @@
     "verify:deploy": "node scripts/verify-deploy.mjs",
     "verify:api": "python3 scripts/verify-api.py",
     "test:mobile": "node scripts/test-mobile-browser.mjs",
-    "test:collage": "node scripts/test-collage-detect.mjs"
+    "test:collage": "node scripts/test-collage-detect.mjs",
+    "test:flatlay": "node scripts/test-flatlay.mjs"
   },
   "dependencies": {
     "@jsquash/jpeg": "^1.6.0",

@@ -187,6 +187,135 @@
       ],
     },
   ];
+  /**
+   * Flat-lay apparel (tops, crop tops, tees) — multi-scenario grid targeting ₹39–₹51 band.
+   * Model photos often land at 703×1024 framed · ~48–51 KB; flat-lays miss that without portrait + framed paths.
+   */
+  const FLATLAY_KB_TIERS_STUDIO = [
+    { targetKb: 39, label: "39KB · ~₹39", lowest: true },
+    { targetKb: 41, label: "41KB · ~₹41" },
+    { targetKb: 49, label: "49KB · ~₹49", recommended: true },
+    { targetKb: 51, label: "51KB · ~₹51" },
+  ];
+  const FLATLAY_KB_TIERS_FRAMED = [
+    { slabKb: 48, label: "48KB · ~₹48", lowest: true },
+    { slabKb: 49, label: "49KB · ~₹49" },
+    { slabKb: 51, label: "51KB · ~₹51", recommended: true },
+    { slabKb: 39, label: "39KB try" },
+    { slabKb: 41, label: "41KB try" },
+  ];
+  const FLATLAY_PORTRAIT_W = 703;
+  const FLATLAY_PORTRAIT_H = 1024;
+  const FLATLAY_MAX_VARIANTS = 56;
+  const FLATLAY_PROCESS_TIMEOUT_MS = 360000;
+  const FLATLAY_LAYOUTS = [
+    {
+      layout: "fp_703_ns",
+      type: "portrait_framed",
+      portraitW: FLATLAY_PORTRAIT_W,
+      portraitH: FLATLAY_PORTRAIT_H,
+      coverage: 0.9,
+      framedMaxSide: 1024,
+      noStickers: true,
+      priority: 0,
+      panelTag: "portrait 703×1024 framed",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fp_703",
+      type: "portrait_framed",
+      portraitW: FLATLAY_PORTRAIT_W,
+      portraitH: FLATLAY_PORTRAIT_H,
+      coverage: 0.88,
+      framedMaxSide: 1024,
+      priority: 8,
+      panelTag: "portrait 703×1024 + stickers",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "p_703_std",
+      type: "portrait_studio",
+      portraitW: FLATLAY_PORTRAIT_W,
+      portraitH: FLATLAY_PORTRAIT_H,
+      coverage: 0.9,
+      priority: 5,
+      panelTag: "portrait 703×1024 studio",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "native_f1024_ns",
+      type: "native_framed",
+      framedMaxSide: 1024,
+      noStickers: true,
+      priority: 12,
+      panelTag: "native · framed 1024",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "sq_900",
+      type: "square_studio",
+      side: 900,
+      coverage: 0.8,
+      priority: 20,
+      panelTag: "square 900",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "sq_1000",
+      type: "square_studio",
+      side: 1000,
+      coverage: 0.78,
+      priority: 25,
+      panelTag: "square 1000",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "sq_1200",
+      type: "square_studio",
+      side: 1200,
+      coverage: 0.72,
+      priority: 30,
+      panelTag: "square 1200",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "fsq_900_ns",
+      type: "square_framed",
+      side: 900,
+      coverage: 0.8,
+      framedMaxSide: 1024,
+      noStickers: true,
+      priority: 18,
+      panelTag: "square 900 · framed 1024",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "p_620_900",
+      type: "portrait_studio",
+      portraitW: 620,
+      portraitH: 900,
+      coverage: 0.86,
+      priority: 35,
+      panelTag: "portrait 620×900",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "native_studio",
+      type: "native_studio",
+      priority: 40,
+      panelTag: "native trimmed studio",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "native_f960_ns",
+      type: "native_framed",
+      framedMaxSide: 960,
+      noStickers: true,
+      priority: 45,
+      panelTag: "native · framed 960",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+  ];
   /** Large framed files — same 1280px cap; Meesho may tier on dimensions not KB alone. */
   const TIERS_FRAMED_PRO = [
     { slabKb: 177, label: "Large file ~177 KB", lowest: true },
@@ -246,6 +375,7 @@
     "framed_mid",
     "framed_compact",
     "framed_mini",
+    "flatlay_framed",
     "supplierden",
     "supplierden_heavy",
   ]);
@@ -477,7 +607,15 @@
       if (variant.profileId && String(variant.profileId).includes("full")) {
         return Math.max(fileKb, 78);
       }
+      if (pid.includes("flatlay_")) {
+        if (fileKb >= 37 && fileKb <= 44) return fileKb <= 40 ? 39 : 41;
+        if (fileKb <= 65) return fileKb;
+      }
       return fileKb;
+    }
+    if (path === "flatlay_portrait" || path === "flatlay_square") {
+      if (fileKb >= 37 && fileKb <= 44) return fileKb <= 40 ? 39 : 41;
+      if (fileKb <= 65) return fileKb;
     }
     const aspect = w / Math.max(1, h);
     if (aspect >= 1.42 && path.startsWith("studio")) {
@@ -531,6 +669,18 @@
       modeName: "Lingerie Studio",
       absMinQ: 26,
       lingerie: true,
+    };
+  }
+
+  function profileFlatlayApparel() {
+    return {
+      id: "flatlay_studio",
+      studio: true,
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+      path: "flatlay_portrait",
+      modeName: "Flat-Lay Apparel",
+      absMinQ: 22,
+      flatlayApparel: true,
     };
   }
 
@@ -1018,6 +1168,170 @@
     );
   }
 
+  function imageToWhiteCanvas(img) {
+    let w = img.width;
+    let h = img.height;
+    const max = Math.max(w, h);
+    if (max > MAX_SIDE) {
+      const scale = MAX_SIDE / max;
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+    }
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, w, h);
+    return c;
+  }
+
+  function prepareFlatlayPortraitCanvas(img, spec) {
+    const pw = spec.portraitW ?? FLATLAY_PORTRAIT_W;
+    const ph = spec.portraitH ?? FLATLAY_PORTRAIT_H;
+    const coverage = spec.coverage ?? 0.88;
+    const trimmed = trimContentMargins(imageToWhiteCanvas(img), 0.02);
+    const c = document.createElement("canvas");
+    c.width = pw;
+    c.height = ph;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, pw, ph);
+    const fitScale = Math.min((pw * coverage) / trimmed.width, (ph * coverage) / trimmed.height);
+    const dw = Math.round(trimmed.width * fitScale);
+    const dh = Math.round(trimmed.height * fitScale);
+    const dx = Math.round((pw - dw) / 2);
+    const dy = Math.round((ph - dh) / 2);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(trimmed, 0, 0, trimmed.width, trimmed.height, dx, dy, dw, dh);
+    return c;
+  }
+
+  function prepareFlatlayNativeStudio(img) {
+    return trimContentMargins(imageToWhiteCanvas(img), 0.02);
+  }
+
+  function flatlayFramedStyle(layoutSpec, frameStyle) {
+    if (layoutSpec.noStickers) {
+      return mergeFrameStyle(frameStyle, { stickerTemplate: "none" });
+    }
+    return frameStyle;
+  }
+
+  function prepareFlatlayLayoutCanvas(img, layoutSpec, frameStyle) {
+    const type = layoutSpec.type;
+    if (type === "portrait_studio") {
+      return prepareFlatlayPortraitCanvas(img, layoutSpec);
+    }
+    if (type === "square_studio") {
+      const trimmed = trimContentMargins(imageToWhiteCanvas(img), 0.02);
+      return prepareLingerieSquareCanvas(trimmed, {
+        side: layoutSpec.side,
+        coverage: layoutSpec.coverage,
+      });
+    }
+    if (type === "portrait_framed") {
+      const studio = prepareFlatlayPortraitCanvas(img, layoutSpec);
+      return prepareFramedCanvas(
+        studio,
+        layoutSpec.framedMaxSide ?? 1024,
+        flatlayFramedStyle(layoutSpec, frameStyle)
+      );
+    }
+    if (type === "square_framed") {
+      const trimmed = trimContentMargins(imageToWhiteCanvas(img), 0.02);
+      const sq = prepareLingerieSquareCanvas(trimmed, {
+        side: layoutSpec.side,
+        coverage: layoutSpec.coverage,
+      });
+      return prepareFramedCanvas(
+        sq,
+        layoutSpec.framedMaxSide ?? 1024,
+        flatlayFramedStyle(layoutSpec, frameStyle)
+      );
+    }
+    if (type === "native_studio") {
+      return prepareFlatlayNativeStudio(img);
+    }
+    if (type === "native_framed") {
+      const studio = prepareFlatlayNativeStudio(img);
+      return prepareFramedCanvas(
+        studio,
+        layoutSpec.framedMaxSide ?? 1024,
+        flatlayFramedStyle(layoutSpec, frameStyle)
+      );
+    }
+    return prepareCanvas(img, true);
+  }
+
+  function withFlatlayLayout(profile, layoutSpec) {
+    const isFramed = String(layoutSpec.type || "").includes("framed");
+    const path = isFramed
+      ? "flatlay_framed"
+      : layoutSpec.type === "square_studio"
+        ? "flatlay_square"
+        : "flatlay_portrait";
+    return {
+      ...profile,
+      id: `flatlay_${layoutSpec.layout}`,
+      modeName: `Flat-lay · ${layoutSpec.panelTag || layoutSpec.layout}`,
+      studio: !isFramed,
+      collageFramed: false,
+      path,
+      studioLayout: layoutSpec.layout,
+      flatlaySpec: layoutSpec,
+      flatlayPriority: layoutSpec.priority ?? 50,
+      framedMaxSide: layoutSpec.framedMaxSide,
+      tiers: layoutSpec.tiers,
+    };
+  }
+
+  function flatlayProfilesForImage() {
+    const base = profileFlatlayApparel();
+    return FLATLAY_LAYOUTS.map((layoutSpec) => withFlatlayLayout(base, layoutSpec)).sort(
+      (a, b) => (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99)
+    );
+  }
+
+  async function optimizeFlatlayApparelAll(img, frameStyle, onProgress) {
+    const profiles = flatlayProfilesForImage();
+    const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
+    const allVariants = [];
+    let done = 0;
+    for (const profile of profiles) {
+      const canvas = prepareFlatlayLayoutCanvas(img, profile.flatlaySpec, frameStyle);
+      const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
+      for (const tier of profile.tiers) {
+        if (onProgress) {
+          onProgress(
+            10 + (done / totalSteps) * 85,
+            `Flat-lay · ${profile.modeName} · ${tier.label}`
+          );
+        }
+        allVariants.push(
+          await buildVariantForTier(canvas, whiteRatio, profile, tier, {
+            showMode: true,
+            reframeMeta: buildReframeMeta(profile, tier, {
+              frameStyle: profile.studio ? null : flatlayFramedStyle(profile.flatlaySpec, frameStyle),
+              studioLayout: profile.studioLayout,
+              whiteRatio,
+            }),
+          })
+        );
+        done += 1;
+        await yieldToMain();
+      }
+    }
+    return finalizeAutoVariants(allVariants, {
+      maxVariants: FLATLAY_MAX_VARIANTS,
+      minVariants: 1,
+    });
+  }
+
   function contentBoundsFromCanvas(canvas) {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     const { width, height } = canvas;
@@ -1222,7 +1536,8 @@
     const sorted = dedupeAutoVariants(variants).sort(
       (a, b) =>
         estimateMeeshoInr(a) - estimateMeeshoInr(b) ||
-        (a.lingeriePriority ?? a.autoPriority ?? 99) - (b.lingeriePriority ?? b.autoPriority ?? 99) ||
+        (a.lingeriePriority ?? a.flatlayPriority ?? a.autoPriority ?? 99) -
+          (b.lingeriePriority ?? b.flatlayPriority ?? b.autoPriority ?? 99) ||
         a.bytes - b.bytes
     );
     const capped = sorted.slice(0, maxVariants);
@@ -1284,9 +1599,20 @@
     return tag.includes("collage") || tag.includes("multi-scenario");
   }
 
+  function isFlatlayTagName(tagName) {
+    const tag = String(tagName || "").toLowerCase();
+    return (
+      tag.includes("flat-lay") ||
+      tag.includes("flatlay") ||
+      tag.includes("apparel lowest") ||
+      tag.includes("crop top flat")
+    );
+  }
+
   function staleProcessingMs(tagName) {
     if (isAutoTagName(tagName)) return AUTO_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     if (isLingerieTagName(tagName)) return LINGERIE_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
+    if (isFlatlayTagName(tagName)) return FLATLAY_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     return PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
   }
 
@@ -1631,6 +1957,14 @@
 
     if (tag.includes("auto lowest") || tag.includes("auto detect") || tag.includes("auto shipping")) {
       return { id: "auto_all", auto: true, modeName: "Auto Lowest Shipping" };
+    }
+    if (
+      tag.includes("flat-lay") ||
+      tag.includes("flatlay") ||
+      tag.includes("apparel lowest") ||
+      tag.includes("crop top flat")
+    ) {
+      return { id: "flatlay_all", flatlayApparel: true, modeName: "Flat-Lay Apparel Lowest ₹" };
     }
     if (
       tag.includes("bra collage") ||
@@ -2306,6 +2640,18 @@
 
   function resolveReframeBaseCanvas(sourceImg, meta) {
     if (meta.studioLayout) {
+      if (String(meta.profileId || "").includes("flatlay_")) {
+        const spec = FLATLAY_LAYOUTS.find((s) => s.layout === meta.studioLayout);
+        if (spec) {
+          const style = meta.frameStyle
+            ? {
+                borderColor: meta.frameStyle.borderColor,
+                stickerTemplate: meta.frameStyle.stickerTemplate,
+              }
+            : null;
+          return prepareFlatlayLayoutCanvas(sourceImg, spec, style);
+        }
+      }
       return prepareLingerieLayoutCanvas(sourceImg, meta.studioLayout);
     }
     const useStudio = meta.studioBase !== false && meta.kind !== "framed_slab";
@@ -2493,6 +2839,9 @@
     if (profile.lingerie) {
       return optimizeLingerieAll(img, frameStyle, onProgress);
     }
+    if (profile.flatlayApparel) {
+      return optimizeFlatlayApparelAll(img, frameStyle, onProgress);
+    }
     if (onProgress) onProgress(15, `Running ${profile.modeName || profile.id}…`);
     const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide, frameStyle);
     const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
@@ -2578,11 +2927,14 @@
     PROCESSING.add(id);
     const isAuto = isAutoTagName(tagName);
     const isLingerie = isLingerieTagName(tagName);
+    const isFlatlay = isFlatlayTagName(tagName);
     const timeoutMs = isAuto
       ? AUTO_PROCESS_TIMEOUT_MS
       : isLingerie
         ? LINGERIE_PROCESS_TIMEOUT_MS
-        : PROCESS_TIMEOUT_MS;
+        : isFlatlay
+          ? FLATLAY_PROCESS_TIMEOUT_MS
+          : PROCESS_TIMEOUT_MS;
     const deadline = Date.now() + timeoutMs;
     const checkDeadline = () => {
       if (Date.now() > deadline) throw new Error("Image processing timeout");
@@ -2631,7 +2983,7 @@
           api: "own",
           service: "own-api.js",
           processing: "client",
-          version: 87,
+          version: 88,
           platform: "cloudflare-static",
         },
       };
