@@ -14,7 +14,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
 ROOT = REPO
-PORT = 8000
+PORT = int(os.environ.get("PORT", "8000"))
 
 mimetypes.add_type("application/javascript", ".mjs")
 mimetypes.add_type("application/wasm", ".wasm")
