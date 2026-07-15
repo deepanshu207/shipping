@@ -198,6 +198,15 @@
     .dark .error { background: rgb(127 29 29 / 0.3); color: #fca5a5; }
     .hidden { display: none !important; }
     .processing { text-align: center; padding: 2.5rem 1rem; }
+    .processing-badge {
+      display: inline-block; margin: 0.35rem 0 0.5rem; padding: 0.25rem 0.65rem;
+      border-radius: 999px; font-size: 0.78rem; font-weight: 700;
+      background: #dbeafe; color: #1d4ed8;
+    }
+    .processing-badge.client { background: #fef3c7; color: #b45309; }
+    .processing-resume {
+      margin: 0.65rem 0 0; font-size: 0.82rem; color: var(--muted); line-height: 1.45;
+    }
     .spinner {
       width: 2.75rem; height: 2.75rem; margin: 0 auto 1rem;
       border: 3px solid var(--border); border-top-color: var(--emerald);
@@ -618,7 +627,9 @@
         </div>
       </div>
       <h2 id="processing-title">Optimizing…</h2>
+      <p class="processing-badge hidden" id="processing-badge"></p>
       <p style="color:var(--muted);margin:0" id="processing-hint">Usually takes 10–30 seconds. Please wait.</p>
+      <p class="processing-resume hidden" id="processing-resume"></p>
     </section>
 
     <!-- RESULTS -->
@@ -676,7 +687,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=90"></script>
+  <script src="/own-api.js?v=91"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -698,6 +709,8 @@
       var resultsGrid = document.getElementById("results-grid");
       var processingTitle = document.getElementById("processing-title");
       var processingHint = document.getElementById("processing-hint");
+      var processingBadge = document.getElementById("processing-badge");
+      var processingResume = document.getElementById("processing-resume");
       var processingStage = document.getElementById("processing-stage");
       var processingPercent = document.getElementById("processing-percent");
       var processingBar = document.getElementById("processing-bar");
@@ -742,6 +755,8 @@
       var RECOMMENDED_BORDER = "purple";
       var RECOMMENDED_STICKER = "limited_time";
       var DEFAULT_BORDER_COLOR = "#7C3AED";
+      var ACTIVE_JOB_KEY = "meesho:activeJob";
+      var ACTIVE_JOB_TTL_MS = 6 * 60 * 60 * 1000;
 
       function clamp255(n) {
         return Math.min(255, Math.max(0, parseInt(n, 10) || 0));
@@ -1184,6 +1199,113 @@
         return new Promise(function (r) { setTimeout(r, ms); });
       }
 
+      var wakeLockSentinel = null;
+      var pollAbort = false;
+
+      function saveActiveJob(job) {
+        try {
+          localStorage.setItem(ACTIVE_JOB_KEY, JSON.stringify(job));
+        } catch (e) { /* quota */ }
+      }
+
+      function loadActiveJob() {
+        try {
+          var raw = localStorage.getItem(ACTIVE_JOB_KEY);
+          if (!raw) return null;
+          var job = JSON.parse(raw);
+          if (!job || !job.requestId) return null;
+          if (Date.now() - (job.startedAt || 0) > ACTIVE_JOB_TTL_MS) {
+            clearActiveJob();
+            return null;
+          }
+          return job;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function clearActiveJob() {
+        var job = loadActiveJob();
+        try { localStorage.removeItem(ACTIVE_JOB_KEY); } catch (e) { /* ignore */ }
+        pollAbort = true;
+        releaseWakeLock();
+        if (job && job.requestId) untrackBackgroundJob(job.requestId);
+      }
+
+      function updateProcessingBadge(serverMode) {
+        if (!processingBadge) return;
+        processingBadge.classList.remove("hidden", "client");
+        if (serverMode) {
+          processingBadge.textContent = "Server mode — safe to switch apps";
+        } else {
+          processingBadge.textContent = "In-browser — background tracking on";
+          processingBadge.classList.add("client");
+        }
+      }
+
+      function updateProcessingResume(requestId) {
+        if (!processingResume) return;
+        processingResume.classList.remove("hidden");
+        processingResume.textContent = "Job " + requestId + " — you can switch apps or lock your phone. Reopen this page anytime to pick up results.";
+      }
+
+      async function acquireWakeLock() {
+        if (!navigator.wakeLock) return;
+        try {
+          wakeLockSentinel = await navigator.wakeLock.request("screen");
+        } catch (e) { /* denied */ }
+      }
+
+      function releaseWakeLock() {
+        if (wakeLockSentinel) {
+          try { wakeLockSentinel.release(); } catch (e) { /* ignore */ }
+          wakeLockSentinel = null;
+        }
+      }
+
+      function pollDelayMs() {
+        return document.hidden ? 2800 : 900;
+      }
+
+      async function requestBgNotifyPermission() {
+        if (!("Notification" in window) || Notification.permission !== "default") return;
+        try { await Notification.requestPermission(); } catch (e) { /* ignore */ }
+      }
+
+      function trackBackgroundJob(job) {
+        if (!navigator.serviceWorker) return;
+        navigator.serviceWorker.ready.then(function (reg) {
+          var target = reg.active || reg.waiting || reg.installing;
+          if (!target) return;
+          target.postMessage({
+            type: "TRACK_JOB",
+            requestId: job.requestId,
+            origin: location.origin,
+            modeName: job.modeName,
+            isLingerie: !!job.isLingerie,
+            isAuto: !!job.isAuto,
+            maxMs: job.isAuto || job.isLingerie ? 45 * 60 * 1000 : 25 * 60 * 1000,
+          });
+        });
+      }
+
+      function untrackBackgroundJob(requestId) {
+        if (!navigator.serviceWorker || !requestId) return;
+        navigator.serviceWorker.ready.then(function (reg) {
+          var target = reg.active || reg.waiting || reg.installing;
+          if (!target) return;
+          target.postMessage({ type: "UNTRACK_JOB", requestId: requestId });
+        });
+      }
+
+      function registerServiceWorker() {
+        if (!("serviceWorker" in navigator)) return Promise.resolve(null);
+        return navigator.serviceWorker.register("/sw.js?v=91").catch(function (err) {
+          console.warn("[ui] service worker register failed:", err);
+          return null;
+        });
+      }
+
       function setProcessingProgress(percent, stageText) {
         var pct = Math.max(0, Math.min(100, Math.round(percent || 0)));
         processingPercent.textContent = pct + "%";
@@ -1196,11 +1318,13 @@
       }
 
       function poll(requestId, isAuto, isLingerie) {
-        var maxAttempts = isAuto ? 480 : isLingerie ? 480 : 200;
+        var maxAttempts = isAuto ? 480 : isLingerie ? 480 : 240;
+        pollAbort = false;
         return new Promise(function (resolve, reject) {
           var attempts = 0;
           function tick() {
-            fetch("/api/meesho/request-status/" + requestId, { credentials: "include" })
+            if (pollAbort) return reject(new Error("Cancelled"));
+            fetch("/api/meesho/request-status/" + requestId, { credentials: "include", cache: "no-store" })
               .then(function (r) { return r.json(); })
               .then(function (d) {
                 if (typeof d.progress === "number") {
@@ -1213,13 +1337,75 @@
                 if (d.status === "failed") {
                   return reject(new Error(d.message || d.progressLabel || "Optimization failed. Try another photo or mode."));
                 }
-                if (++attempts >= maxAttempts) return reject(new Error("Timed out. Please try again."));
-                setTimeout(tick, 800);
+                if (++attempts >= maxAttempts) return reject(new Error("Timed out. Reopen this page — your job may still finish in the background."));
+                setTimeout(tick, pollDelayMs());
               })
-              .catch(reject);
+              .catch(function (err) {
+                if (++attempts >= maxAttempts) return reject(err);
+                setTimeout(tick, pollDelayMs());
+              });
           }
           tick();
         });
+      }
+
+      function runJobFlow(job) {
+        var serverMode = !!window.__MEESHO_USE_SERVER__;
+        updateProcessingBadge(serverMode);
+        updateProcessingResume(job.requestId);
+        processingTitle.textContent = job.modeName + "…";
+        processingHint.textContent = serverMode
+          ? "Server is working — switch apps or lock your phone. We'll notify you when done."
+          : "Processing in this browser — switch apps OK, but don't force-close the tab. We'll notify you when done.";
+        resetProcessingProgress();
+        show("processing");
+        acquireWakeLock();
+        requestBgNotifyPermission();
+        trackBackgroundJob(job);
+        return poll(job.requestId, job.isAuto, job.isLingerie)
+          .then(function (results) {
+            clearActiveJob();
+            showResults(results, job.modeName, job.isLingerie);
+          })
+          .catch(function (err) {
+            releaseWakeLock();
+            if (pollAbort) return;
+            show("form");
+            setError(err.message || "Something went wrong.");
+          });
+      }
+
+      function resumeActiveJobIfAny() {
+        var job = loadActiveJob();
+        if (!job) return;
+        runJobFlow(job);
+      }
+
+      function handleServiceWorkerMessage(event) {
+        var data = event.data || {};
+        if (data.type === "JOB_UPDATE" && data.requestId) {
+          var active = loadActiveJob();
+          if (!active || active.requestId !== data.requestId) return;
+          if (typeof data.progress === "number") {
+            setProcessingProgress(data.progress, data.progressLabel || processingStage.textContent);
+          }
+        }
+        if (data.type === "JOB_DONE" && data.results && data.results.length) {
+          var doneJob = loadActiveJob();
+          if (!doneJob || doneJob.requestId !== data.requestId) return;
+          clearActiveJob();
+          showResults(data.results, data.modeName || doneJob.modeName, !!(data.isLingerie || doneJob.isLingerie));
+        }
+        if (data.type === "JOB_FAILED" && data.requestId) {
+          var failedJob = loadActiveJob();
+          if (!failedJob || failedJob.requestId !== data.requestId) return;
+          clearActiveJob();
+          show("form");
+          setError(data.message || "Optimization failed.");
+        }
+        if (data.type === "OPEN_JOB") {
+          resumeActiveJobIfAny();
+        }
       }
 
       function esc(s) {
@@ -1303,6 +1489,7 @@
         if (oldImg) oldImg.remove();
         fileInput.value = "";
         setError("");
+        clearActiveJob();
         updateGenerate();
         show("form");
       }
@@ -1319,6 +1506,9 @@
         var isModel = selected && selected.dataset.model === "1";
         var isFullLength = selected && selected.dataset.fulllength === "1";
         lastUploadDataUrl = previewUrl;
+        var modeName = selected.dataset.name;
+        var serverMode = !!window.__MEESHO_USE_SERVER__;
+        updateProcessingBadge(serverMode);
         processingTitle.textContent = isAuto
           ? "Auto — trying all strategies…"
           : isLingerie
@@ -1329,32 +1519,14 @@
                 ? "Model Photo — framed 1024 scenarios…"
                 : isFullLength
                   ? "Full-Length — fit + cap scenarios…"
-                  : "Running " + selected.dataset.name + "…";
-        processingHint.textContent = window.__MEESHO_USE_SERVER__
-          ? (isAuto
-              ? "Running on server — you can switch tabs; progress updates below."
-              : isLingerie
-                ? "Server processing up to 72 scenarios — tab may stay in background."
-                : isFlatlay
-                  ? "Server trying 11 flat-lay scenarios — targets ₹39–₹51 band."
-                  : isModel
-                    ? "Server trying 6 model-photo scenarios — targets ₹39–₹51 band."
-                    : isFullLength
-                      ? "Server trying 10 full-length scenarios — caps tall images to 1024px."
-                      : "Server optimizing — runs in background, not in this browser tab.")
-          : (isAuto
-              ? "In-browser processing — keep this tab open and on screen for fastest runs."
-              : isLingerie
-                ? "In-browser — up to 72 scenarios. Keep this tab active (3–6 min)."
-                : isFlatlay
-                  ? "In-browser — 11 flat-lay scenarios. Keep tab active."
-                  : isModel
-                    ? "In-browser — 6 model-photo scenarios. Keep tab active."
-                    : isFullLength
-                      ? "In-browser — 10 full-length scenarios. Keep tab active."
-                      : "In-browser — keep this tab open while optimizing.");
+                  : "Running " + modeName + "…";
+        processingHint.textContent = serverMode
+          ? "Server is working — switch apps or lock your phone. We'll notify you when done."
+          : "Processing in this browser — switch apps OK, but don't force-close the tab. We'll notify you when done.";
         resetProcessingProgress();
         show("processing");
+        acquireWakeLock();
+        requestBgNotifyPermission();
 
         var form = new FormData();
         form.append("tagId", selected.dataset.id);
@@ -1370,17 +1542,46 @@
           .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
           .then(function (_ref) {
             if (!_ref.ok || !_ref.d.requestId) throw new Error((_ref.d && _ref.d.message) || "Upload failed");
-            setProcessingProgress(3, "Upload complete — optimizing…");
-            return poll(_ref.d.requestId, isAuto, isLingerie);
+            var job = {
+              requestId: _ref.d.requestId,
+              modeName: modeName,
+              isAuto: isAuto,
+              isLingerie: isLingerie,
+              startedAt: Date.now(),
+            };
+            saveActiveJob(job);
+            updateProcessingResume(job.requestId);
+            trackBackgroundJob(job);
+            setProcessingProgress(3, "Upload complete — optimizing in background…");
+            return poll(job.requestId, isAuto, isLingerie);
           })
           .then(function (results) {
-            showResults(results, selected.dataset.name, isLingerie);
+            clearActiveJob();
+            showResults(results, modeName, isLingerie);
           })
           .catch(function (err) {
+            releaseWakeLock();
+            if (pollAbort) return;
             show("form");
             setError(err.message || "Something went wrong.");
           });
       });
+
+      window.addEventListener("beforeunload", function (e) {
+        if (loadActiveJob() && !window.__MEESHO_USE_SERVER__) {
+          e.preventDefault();
+          e.returnValue = "";
+        }
+      });
+
+      document.addEventListener("visibilitychange", function () {
+        if (!loadActiveJob()) return;
+        if (!document.hidden) acquireWakeLock();
+      });
+
+      if (navigator.serviceWorker) {
+        navigator.serviceWorker.addEventListener("message", handleServiceWorkerMessage);
+      }
 
       document.getElementById("btn-new").addEventListener("click", resetForm);
 
@@ -1415,10 +1616,12 @@
       });
 
       selected = document.querySelector(".mode.selected") || document.querySelector(".mode.auto");
+      registerServiceWorker();
       var apiReadyPromise = window.__MEESHO_API_READY__ || Promise.resolve(false);
       apiReadyPromise.then(function () {
         syncModeUI();
         updateGenerate();
+        resumeActiveJobIfAny();
       });
     })();
   </script>
