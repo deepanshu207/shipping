@@ -1939,10 +1939,81 @@
     return new Promise((resolve) => setTimeout(resolve, 0));
   }
 
+  const JOB_IMAGE_DB = "meesho-job-images";
+  const JOB_IMAGE_STORE = "sources";
+
+  function openJobImageDb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(JOB_IMAGE_DB, 1);
+      req.onerror = () => reject(req.error);
+      req.onupgradeneeded = () => {
+        req.result.createObjectStore(JOB_IMAGE_STORE);
+      };
+      req.onsuccess = () => resolve(req.result);
+    });
+  }
+
+  async function saveJobImage(id, file) {
+    try {
+      const db = await openJobImageDb();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(JOB_IMAGE_STORE, "readwrite");
+        tx.objectStore(JOB_IMAGE_STORE).put(file, id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch (e) {
+      console.warn("[own-api] job image save failed:", e);
+    }
+  }
+
+  async function loadJobImage(id) {
+    try {
+      const db = await openJobImageDb();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(JOB_IMAGE_STORE, "readonly");
+        const get = tx.objectStore(JOB_IMAGE_STORE).get(id);
+        get.onsuccess = () => resolve(get.result || null);
+        get.onerror = () => reject(get.error);
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  async function deleteJobImage(id) {
+    try {
+      const db = await openJobImageDb();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(JOB_IMAGE_STORE, "readwrite");
+        tx.objectStore(JOB_IMAGE_STORE).delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function resumeJobIfNeeded(id) {
+    const req = loadRequest(id);
+    if (!req || req.status !== "processing" || PROCESSING.has(id)) return;
+    const image = await loadJobImage(id);
+    if (!image) return;
+    void processImage(id, image, req.tagName, req.frameStyle || parseFrameStyle({}));
+  }
+
+  async function resumeInterruptedJobs() {
+    for (const id of readIndex()) {
+      await resumeJobIfNeeded(id);
+    }
+  }
+
   function persistRequest(id, req) {
     const payload = {
       createdAt: req.createdAt,
       tagName: req.tagName,
+      frameStyle: req.frameStyle || null,
       status: req.status,
       progress: typeof req.progress === "number" ? req.progress : 0,
       progressLabel: req.progressLabel || "",
@@ -3338,6 +3409,7 @@
     } finally {
       PROCESSING.delete(id);
       persistRequest(id, req);
+      void deleteJobImage(id);
     }
   }
 
@@ -3358,7 +3430,7 @@
           api: "own",
           service: "own-api.js",
           processing: "client",
-          version: 90,
+          version: 91,
           platform: "cloudflare-static",
         },
       };
@@ -3414,13 +3486,16 @@
       };
       STORE.requests.set(id, req);
       persistRequest(id, req);
-      void processImage(id, image, tagName, frameStyle);
+      void saveJobImage(id, image).then(() => {
+        void processImage(id, image, tagName, frameStyle);
+      });
       return { status: 200, body: { requestId: id } };
     }
 
     const poll = path.match(/^\/api\/meesho\/request(?:-status)?\/([^/]+)$/);
     if (poll && method === "GET") {
       const id = poll[1];
+      void resumeJobIfNeeded(id);
       const req = loadRequest(id);
       if (!req) return { status: 404, body: { message: "Request not found" } };
       if (req.status === "completed") {
@@ -3561,13 +3636,14 @@
     window.XMLHttpRequest = OwnXHR;
   }
 
-  window.__MEESHO_API_READY__ = initApiMode().then(() => {
+  window.__MEESHO_API_READY__ = initApiMode().then(async () => {
     installNetworkShims();
+    await resumeInterruptedJobs();
     window.__MEESHO_USE_SERVER__ = useServerProcessing;
     console.info(
       useServerProcessing
-        ? "[own-api] server processing — runs in background, tab can stay open"
-        : "[own-api] client processing — keep this tab active for fastest runs"
+        ? "[own-api] server processing — safe to switch apps; job tracked in background"
+        : "[own-api] in-browser processing — switch apps OK; keep tab open for fastest runs"
     );
     return useServerProcessing;
   });
