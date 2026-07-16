@@ -58,6 +58,13 @@
     .theme-btn .moon { display: none; }
     .dark .theme-btn .sun { display: none; }
     .dark .theme-btn .moon { display: block; }
+    .mode-badge {
+      font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 999px;
+      margin-left: auto; margin-right: 0.5rem; white-space: nowrap;
+    }
+    .mode-badge.server { background: #dbeafe; color: #1d4ed8; }
+    .mode-badge.phone { background: #fef3c7; color: #b45309; }
+    .processing-job-id { margin: 0.35rem 0 0; font-size: 0.8rem; color: var(--muted); }
     .main {
       position: relative; z-index: 1; max-width: 820px; margin: 0 auto;
       padding: 1.75rem 1.15rem 2.5rem;
@@ -450,6 +457,7 @@
       <img src="/logo-mark.svg?v=2" alt="" />
       <span>Meesho Image Generator</span>
     </div>
+    <span class="mode-badge phone hidden" id="processing-mode-badge" aria-live="polite"></span>
     <button type="button" class="theme-btn" id="theme-btn" aria-label="Toggle theme">
       <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/></svg>
       <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
@@ -618,7 +626,9 @@
         </div>
       </div>
       <h2 id="processing-title">Optimizing…</h2>
+      <p class="processing-job-id hidden" id="processing-job-id"></p>
       <p style="color:var(--muted);margin:0" id="processing-hint">Usually takes 10–30 seconds. Please wait.</p>
+      <button type="button" class="btn-secondary hidden" id="btn-refresh-job" style="margin-top:0.75rem">Refresh status</button>
     </section>
 
     <!-- RESULTS -->
@@ -676,7 +686,8 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=90"></script>
+  <script src="/processor-config.js"></script>
+  <script src="/own-api.js?v=93"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -698,6 +709,9 @@
       var resultsGrid = document.getElementById("results-grid");
       var processingTitle = document.getElementById("processing-title");
       var processingHint = document.getElementById("processing-hint");
+      var processingJobId = document.getElementById("processing-job-id");
+      var btnRefreshJob = document.getElementById("btn-refresh-job");
+      var processingModeBadge = document.getElementById("processing-mode-badge");
       var processingStage = document.getElementById("processing-stage");
       var processingPercent = document.getElementById("processing-percent");
       var processingBar = document.getElementById("processing-bar");
@@ -742,6 +756,9 @@
       var RECOMMENDED_BORDER = "purple";
       var RECOMMENDED_STICKER = "limited_time";
       var DEFAULT_BORDER_COLOR = "#7C3AED";
+      var SERVER_JOB_KEY = "meesho:serverJob";
+      var SERVER_JOB_TTL_MS = 6 * 60 * 60 * 1000;
+      var pollAbort = false;
 
       function clamp255(n) {
         return Math.min(255, Math.max(0, parseInt(n, 10) || 0));
@@ -1184,6 +1201,65 @@
         return new Promise(function (r) { setTimeout(r, ms); });
       }
 
+      function updateProcessingModeBadge(serverMode) {
+        if (!processingModeBadge) return;
+        processingModeBadge.classList.remove("hidden", "server", "phone");
+        if (serverMode) {
+          processingModeBadge.textContent = "Server";
+          processingModeBadge.classList.add("server");
+        } else {
+          processingModeBadge.textContent = "Phone only";
+          processingModeBadge.classList.add("phone");
+        }
+      }
+
+      function saveServerJob(job) {
+        try {
+          localStorage.setItem(SERVER_JOB_KEY, JSON.stringify(job));
+        } catch (e) { /* quota */ }
+      }
+
+      function loadServerJob() {
+        try {
+          var raw = localStorage.getItem(SERVER_JOB_KEY);
+          if (!raw) return null;
+          var job = JSON.parse(raw);
+          if (!job || !job.requestId) return null;
+          if (Date.now() - (job.startedAt || 0) > SERVER_JOB_TTL_MS) {
+            clearServerJob();
+            return null;
+          }
+          return job;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function clearServerJob() {
+        pollAbort = true;
+        try { localStorage.removeItem(SERVER_JOB_KEY); } catch (e) { /* ignore */ }
+        if (processingJobId) processingJobId.classList.add("hidden");
+        if (btnRefreshJob) btnRefreshJob.classList.add("hidden");
+      }
+
+      function showServerJobId(requestId) {
+        if (!processingJobId) return;
+        processingJobId.textContent = "Job ID: " + requestId + " — saved on server; reopen this page anytime.";
+        processingJobId.classList.remove("hidden");
+        if (btnRefreshJob) btnRefreshJob.classList.remove("hidden");
+      }
+
+      function fetchJobStatus(requestId) {
+        return fetch("/api/meesho/request-status/" + requestId, {
+          credentials: "include",
+          cache: "no-store",
+        }).then(function (r) {
+          if (r.status === 404) throw new Error("Job not found on server — it may have expired. Generate again.");
+          if (!r.ok) throw new Error("Could not reach server (" + r.status + ")");
+          return r.json();
+        });
+      }
+
       function setProcessingProgress(percent, stageText) {
         var pct = Math.max(0, Math.min(100, Math.round(percent || 0)));
         processingPercent.textContent = pct + "%";
@@ -1195,13 +1271,20 @@
         setProcessingProgress(0, "Preparing upload…");
       }
 
-      function poll(requestId, isAuto, isLingerie) {
-        var maxAttempts = isAuto ? 480 : isLingerie ? 480 : 200;
+      function poll(requestId, isAuto, isLingerie, serverMode) {
+        pollAbort = false;
+        var attempts = 0;
+        var slow = false;
+        var softLimit = serverMode ? 120 : (isAuto || isLingerie ? 480 : 200);
+
         return new Promise(function (resolve, reject) {
-          var attempts = 0;
+          function delay() {
+            if (slow) return 4000;
+            return serverMode ? 2000 : 800;
+          }
           function tick() {
-            fetch("/api/meesho/request-status/" + requestId, { credentials: "include" })
-              .then(function (r) { return r.json(); })
+            if (pollAbort) return reject(new Error("Cancelled"));
+            fetchJobStatus(requestId)
               .then(function (d) {
                 if (typeof d.progress === "number") {
                   setProcessingProgress(d.progress, d.progressLabel || processingStage.textContent);
@@ -1211,15 +1294,52 @@
                   return resolve(d.results);
                 }
                 if (d.status === "failed") {
-                  return reject(new Error(d.message || d.progressLabel || "Optimization failed. Try another photo or mode."));
+                  return reject(new Error(d.message || d.progressLabel || "Optimization failed."));
                 }
-                if (++attempts >= maxAttempts) return reject(new Error("Timed out. Please try again."));
-                setTimeout(tick, 800);
+                attempts++;
+                if (!serverMode && attempts >= softLimit) {
+                  return reject(new Error("Timed out. Please try again."));
+                }
+                if (serverMode && !slow && attempts >= softLimit) {
+                  slow = true;
+                  processingHint.textContent =
+                    "Server still working (may be waking from sleep). You can close this tab — reopen later and tap Refresh status.";
+                }
+                setTimeout(tick, delay());
               })
-              .catch(reject);
+              .catch(function (err) {
+                attempts++;
+                if (!serverMode && attempts >= softLimit) return reject(err);
+                if (serverMode && !slow && attempts >= softLimit) {
+                  slow = true;
+                  processingHint.textContent =
+                    "Waiting for server to wake up… Close tab OK — job continues on server. Reopen and tap Refresh status.";
+                }
+                setTimeout(tick, delay());
+              });
           }
           tick();
         });
+      }
+
+      function resumeServerJobIfAny() {
+        if (!window.__MEESHO_USE_SERVER__) return;
+        var job = loadServerJob();
+        if (!job) return;
+        show("processing");
+        processingTitle.textContent = job.modeName + "…";
+        processingHint.textContent = "Checking server for your saved job…";
+        showServerJobId(job.requestId);
+        pollAbort = false;
+        poll(job.requestId, job.isAuto, job.isLingerie, true)
+          .then(function (results) {
+            clearServerJob();
+            showResults(results, job.modeName, job.isLingerie);
+          })
+          .catch(function (err) {
+            if (pollAbort) return;
+            processingHint.textContent = err.message || "Still processing or job expired.";
+          });
       }
 
       function esc(s) {
@@ -1303,6 +1423,7 @@
         if (oldImg) oldImg.remove();
         fileInput.value = "";
         setError("");
+        clearServerJob();
         updateGenerate();
         show("form");
       }
@@ -1312,13 +1433,20 @@
           setError(!selected ? "Choose a compression mode first." : "Upload an image first.");
           return;
         }
+        var serverMode = !!window.__MEESHO_USE_SERVER__;
+        if (!serverMode && (selected.dataset.auto === "1" || selected.dataset.lingerie === "1")) {
+          setError("Collage/Auto needs server processing. Deploy Render and set PROCESSOR_URL on Cloudflare, then hard-refresh.");
+          return;
+        }
         setError("");
         var isAuto = selected && selected.dataset.auto === "1";
         var isLingerie = selected && selected.dataset.lingerie === "1";
         var isFlatlay = selected && selected.dataset.flatlay === "1";
         var isModel = selected && selected.dataset.model === "1";
         var isFullLength = selected && selected.dataset.fulllength === "1";
+        var modeName = selected.dataset.name;
         lastUploadDataUrl = previewUrl;
+        updateProcessingModeBadge(serverMode);
         processingTitle.textContent = isAuto
           ? "Auto — trying all strategies…"
           : isLingerie
@@ -1329,30 +1457,10 @@
                 ? "Model Photo — framed 1024 scenarios…"
                 : isFullLength
                   ? "Full-Length — fit + cap scenarios…"
-                  : "Running " + selected.dataset.name + "…";
-        processingHint.textContent = window.__MEESHO_USE_SERVER__
-          ? (isAuto
-              ? "Running on server — you can switch tabs; progress updates below."
-              : isLingerie
-                ? "Server processing up to 72 scenarios — tab may stay in background."
-                : isFlatlay
-                  ? "Server trying 11 flat-lay scenarios — targets ₹39–₹51 band."
-                  : isModel
-                    ? "Server trying 6 model-photo scenarios — targets ₹39–₹51 band."
-                    : isFullLength
-                      ? "Server trying 10 full-length scenarios — caps tall images to 1024px."
-                      : "Server optimizing — runs in background, not in this browser tab.")
-          : (isAuto
-              ? "In-browser processing — keep this tab open and on screen for fastest runs."
-              : isLingerie
-                ? "In-browser — up to 72 scenarios. Keep this tab active (3–6 min)."
-                : isFlatlay
-                  ? "In-browser — 11 flat-lay scenarios. Keep tab active."
-                  : isModel
-                    ? "In-browser — 6 model-photo scenarios. Keep tab active."
-                    : isFullLength
-                      ? "In-browser — 10 full-length scenarios. Keep tab active."
-                      : "In-browser — keep this tab open while optimizing.");
+                  : "Running " + modeName + "…";
+        processingHint.textContent = serverMode
+          ? "Uploading to server — then you can close this tab. Reopen later and tap Refresh status."
+          : "Processing on this phone — keep the tab open.";
         resetProcessingProgress();
         show("processing");
 
@@ -1370,16 +1478,44 @@
           .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
           .then(function (_ref) {
             if (!_ref.ok || !_ref.d.requestId) throw new Error((_ref.d && _ref.d.message) || "Upload failed");
-            setProcessingProgress(3, "Upload complete — optimizing…");
-            return poll(_ref.d.requestId, isAuto, isLingerie);
+            var job = {
+              requestId: _ref.d.requestId,
+              modeName: modeName,
+              isAuto: isAuto,
+              isLingerie: isLingerie,
+              startedAt: Date.now(),
+            };
+            if (serverMode) {
+              saveServerJob(job);
+              showServerJobId(job.requestId);
+            }
+            setProcessingProgress(3, serverMode ? "Server optimizing…" : "Optimizing…");
+            return poll(job.requestId, isAuto, isLingerie, serverMode);
           })
           .then(function (results) {
-            showResults(results, selected.dataset.name, isLingerie);
+            clearServerJob();
+            showResults(results, modeName, isLingerie);
           })
           .catch(function (err) {
+            if (pollAbort) return;
+            if (serverMode && loadServerJob()) {
+              processingHint.textContent =
+                "Upload sent — server may still be working. Close tab OK. Reopen and tap Refresh status.";
+              return;
+            }
             show("form");
             setError(err.message || "Something went wrong.");
           });
+      });
+
+      if (btnRefreshJob) {
+        btnRefreshJob.addEventListener("click", function () {
+          resumeServerJobIfAny();
+        });
+      }
+
+      document.addEventListener("visibilitychange", function () {
+        if (!document.hidden) resumeServerJobIfAny();
       });
 
       document.getElementById("btn-new").addEventListener("click", resetForm);
@@ -1419,6 +1555,8 @@
       apiReadyPromise.then(function () {
         syncModeUI();
         updateGenerate();
+        updateProcessingModeBadge(!!window.__MEESHO_USE_SERVER__);
+        resumeServerJobIfAny();
       });
     })();
   </script>

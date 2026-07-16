@@ -23,6 +23,8 @@ OPTIMIZE_SCRIPT = REPO / "scripts" / "optimize-stdin.mjs"
 BROWSER_OPTIMIZE_SCRIPT = REPO / "scripts" / "browser-optimize.mjs"
 
 MOCK_REQUESTS: dict[str, dict] = {}
+REQUESTS_DIR = Path(os.environ.get("MEESHO_REQUESTS_DIR", "/tmp/meesho-requests"))
+REQUEST_TTL_SEC = int(os.environ.get("MEESHO_REQUEST_TTL_SEC", str(6 * 3600)))
 GUEST_USER = {
     "id": "guest-local",
     "email": "guest@localhost",
@@ -31,6 +33,89 @@ GUEST_USER = {
     "role": "USER",
     "picture": None,
 }
+
+
+def _ensure_requests_dir() -> None:
+    REQUESTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _request_record_path(request_id: str) -> Path:
+    return REQUESTS_DIR / f"{request_id}.json"
+
+
+def _serialize_request(req: dict) -> dict:
+    return {
+        "created_at": req.get("created_at"),
+        "tag_id": req.get("tag_id", ""),
+        "tag_name": req.get("tag_name", "Product"),
+        "frame_style": req.get("frame_style") or {},
+        "status": req.get("status", "processing"),
+        "results": req.get("results") or [],
+        "error": req.get("error"),
+        "progress": req.get("progress", 0),
+        "progressLabel": req.get("progressLabel", ""),
+        "processing": bool(req.get("processing")),
+    }
+
+
+def _persist_request_disk(request_id: str, req: dict) -> None:
+    try:
+        _ensure_requests_dir()
+        payload = _serialize_request(req)
+        payload["request_id"] = request_id
+        _request_record_path(request_id).write_text(json.dumps(payload), encoding="utf-8")
+    except OSError as exc:
+        print(f"[persist] {request_id}: {exc}")
+
+
+def _load_request_disk(request_id: str) -> dict | None:
+    path = _request_record_path(request_id)
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if time.time() - float(data.get("created_at") or 0) > REQUEST_TTL_SEC:
+            path.unlink(missing_ok=True)
+            return None
+        return {
+            "created_at": data.get("created_at", time.time()),
+            "tag_id": data.get("tag_id", ""),
+            "tag_name": data.get("tag_name", "Product"),
+            "frame_style": data.get("frame_style") or {},
+            "image_bytes": None,
+            "status": data.get("status", "processing"),
+            "results": data.get("results") or [],
+            "error": data.get("error"),
+            "progress": data.get("progress", 0),
+            "progressLabel": data.get("progressLabel", ""),
+            "processing": False,
+        }
+    except (OSError, json.JSONDecodeError, TypeError):
+        return None
+
+
+def _get_request(request_id: str) -> dict | None:
+    req = MOCK_REQUESTS.get(request_id)
+    if req:
+        return req
+    loaded = _load_request_disk(request_id)
+    if loaded:
+        MOCK_REQUESTS[request_id] = loaded
+    return loaded
+
+
+def _hydrate_requests_from_disk() -> None:
+    try:
+        _ensure_requests_dir()
+        for path in REQUESTS_DIR.glob("*.json"):
+            rid = path.stem
+            if rid in MOCK_REQUESTS:
+                continue
+            loaded = _load_request_disk(rid)
+            if loaded:
+                MOCK_REQUESTS[rid] = loaded
+    except OSError as exc:
+        print(f"[hydrate] {exc}")
 
 
 class SPAHandler(SimpleHTTPRequestHandler):
@@ -153,15 +238,17 @@ class SPAHandler(SimpleHTTPRequestHandler):
         return json.loads(proc.stdout.decode("utf-8"))
 
     def _process_request(self, request_id: str) -> None:
-        req = MOCK_REQUESTS.get(request_id)
+        req = _get_request(request_id)
         if not req or req.get("status") != "processing":
             return
         req["processing"] = True
         req["progress"] = 5
         req["progressLabel"] = "Server received image…"
+        _persist_request_disk(request_id, req)
         try:
             req["progress"] = 12
             req["progressLabel"] = "Server optimizing (same logic as browser)…"
+            _persist_request_disk(request_id, req)
             req["results"] = self._optimize_image(req["image_bytes"], req["tag_name"], req.get("frame_style"))
             req["status"] = "completed"
             req["progress"] = 100
@@ -173,6 +260,8 @@ class SPAHandler(SimpleHTTPRequestHandler):
             req["progressLabel"] = "Failed"
         finally:
             req["processing"] = False
+            req["image_bytes"] = None
+            _persist_request_disk(request_id, req)
 
     def _start_process(self, request_id: str) -> None:
         thread = threading.Thread(target=self._process_request, args=(request_id,), daemon=True)
@@ -190,7 +279,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
                     "service": "server.py",
                     "processing": "server",
                     "engine": "browser-headless",
-                    "version": 90,
+                    "version": 93,
                 },
             )
             return True
@@ -253,6 +342,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
                 "progress": 2,
                 "progressLabel": "Queued on server…",
             }
+            _persist_request_disk(request_id, MOCK_REQUESTS[request_id])
             self._start_process(request_id)
             self._json_response(200, {"requestId": request_id})
             return True
@@ -260,7 +350,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
         request_match = re.fullmatch(r"/api/meesho/request(?:-status)?/([^/]+)", path)
         if request_match and self.command == "GET":
             request_id = request_match.group(1)
-            req = MOCK_REQUESTS.get(request_id)
+            req = _get_request(request_id)
             if not req:
                 self._json_response(404, {"message": "Request not found"})
                 return True
@@ -395,6 +485,7 @@ def free_port(port: int) -> None:
 
 if __name__ == "__main__":
     os.chdir(ROOT)
+    _hydrate_requests_from_disk()
     free_port(PORT)
     try:
         httpd = ReuseTCPServer(("", PORT), SPAHandler)

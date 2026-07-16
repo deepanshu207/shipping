@@ -1,11 +1,24 @@
 /**
- * Cloudflare Worker — static assets + optional API proxy to a Node processor.
- * Set PROCESSOR_URL (e.g. https://your-railway-app.up.railway.app) for server-side image work.
+ * Cloudflare Worker — static assets + API proxy to Render processor (PROCESSOR_URL).
+ * Set PROCESSOR_URL for true server-side background processing.
  */
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const processor = env.PROCESSOR_URL || "";
+
+    if (url.pathname === "/processor-config.js") {
+      const origin = processor ? processor.replace(/\/$/, "") : "";
+      const body = origin
+        ? `window.__MEESHO_PROCESSOR_ORIGIN__=${JSON.stringify(origin)};`
+        : "window.__MEESHO_PROCESSOR_ORIGIN__=null;";
+      return new Response(body, {
+        headers: {
+          "Content-Type": "application/javascript; charset=utf-8",
+          "Cache-Control": "no-store",
+        },
+      });
+    }
 
     if (url.pathname === "/api/health" && !processor) {
       return new Response(
@@ -14,7 +27,7 @@ export default {
           api: "own",
           service: "cloudflare-worker",
           processing: "client",
-          version: 90,
+          version: 93,
         }),
         { headers: { "Content-Type": "application/json; charset=utf-8" } }
       );

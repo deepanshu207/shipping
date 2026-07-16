@@ -620,13 +620,19 @@
       useServerProcessing = true;
       return;
     }
-    try {
-      const res = await origFetch("/api/health", { cache: "no-store" });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.processing === "server") useServerProcessing = true;
-    } catch {
-      /* client fallback */
+    for (let attempt = 0; attempt < 6; attempt++) {
+      try {
+        const res = await origFetch("/api/health", { cache: "no-store" });
+        if (!res.ok) throw new Error("health " + res.status);
+        const data = await res.json();
+        if (data.processing === "server") {
+          useServerProcessing = true;
+          return;
+        }
+        return;
+      } catch {
+        if (attempt < 5) await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+      }
     }
   }
 
@@ -3358,7 +3364,7 @@
           api: "own",
           service: "own-api.js",
           processing: "client",
-          version: 90,
+          version: 93,
           platform: "cloudflare-static",
         },
       };
@@ -3566,8 +3572,8 @@
     window.__MEESHO_USE_SERVER__ = useServerProcessing;
     console.info(
       useServerProcessing
-        ? "[own-api] server processing — runs in background, tab can stay open"
-        : "[own-api] client processing — keep this tab active for fastest runs"
+        ? "[own-api] server mode — jobs run on Render; close tab anytime and reopen to fetch results"
+        : "[own-api] phone mode — set PROCESSOR_URL on Cloudflare for background server processing"
     );
     return useServerProcessing;
   });
