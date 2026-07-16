@@ -620,13 +620,19 @@
       useServerProcessing = true;
       return;
     }
-    try {
-      const res = await origFetch("/api/health", { cache: "no-store" });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.processing === "server") useServerProcessing = true;
-    } catch {
-      /* client fallback */
+    for (let attempt = 0; attempt < 6; attempt++) {
+      try {
+        const res = await origFetch("/api/health", { cache: "no-store" });
+        if (!res.ok) throw new Error("health " + res.status);
+        const data = await res.json();
+        if (data.processing === "server") {
+          useServerProcessing = true;
+          return;
+        }
+        return;
+      } catch {
+        if (attempt < 5) await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+      }
     }
   }
 
@@ -3430,7 +3436,7 @@
           api: "own",
           service: "own-api.js",
           processing: "client",
-          version: 91,
+          version: 92,
           platform: "cloudflare-static",
         },
       };
@@ -3640,10 +3646,16 @@
     installNetworkShims();
     await resumeInterruptedJobs();
     window.__MEESHO_USE_SERVER__ = useServerProcessing;
+    const onWake = () => {
+      if (!document.hidden) void resumeInterruptedJobs();
+    };
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("focus", onWake);
+    window.addEventListener("pageshow", onWake);
     console.info(
       useServerProcessing
-        ? "[own-api] server processing — safe to switch apps; job tracked in background"
-        : "[own-api] in-browser processing — switch apps OK; keep tab open for fastest runs"
+        ? "[own-api] server mode — processing on Render; safe to switch apps"
+        : "[own-api] client mode — keep tab open; switching apps may pause work"
     );
     return useServerProcessing;
   });

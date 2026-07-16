@@ -630,6 +630,7 @@
       <p class="processing-badge hidden" id="processing-badge"></p>
       <p style="color:var(--muted);margin:0" id="processing-hint">Usually takes 10–30 seconds. Please wait.</p>
       <p class="processing-resume hidden" id="processing-resume"></p>
+      <button type="button" class="btn-secondary hidden" id="btn-check-status" style="margin-top:0.75rem">Check status now</button>
     </section>
 
     <!-- RESULTS -->
@@ -687,7 +688,8 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=91"></script>
+  <script src="/processor-config.js"></script>
+  <script src="/own-api.js?v=92"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -711,6 +713,7 @@
       var processingHint = document.getElementById("processing-hint");
       var processingBadge = document.getElementById("processing-badge");
       var processingResume = document.getElementById("processing-resume");
+      var btnCheckStatus = document.getElementById("btn-check-status");
       var processingStage = document.getElementById("processing-stage");
       var processingPercent = document.getElementById("processing-percent");
       var processingBar = document.getElementById("processing-bar");
@@ -1230,23 +1233,36 @@
         pollAbort = true;
         releaseWakeLock();
         if (job && job.requestId) untrackBackgroundJob(job.requestId);
+        if (btnCheckStatus) btnCheckStatus.classList.add("hidden");
       }
 
       function updateProcessingBadge(serverMode) {
         if (!processingBadge) return;
         processingBadge.classList.remove("hidden", "client");
         if (serverMode) {
-          processingBadge.textContent = "Server mode — safe to switch apps";
+          processingBadge.textContent = "Server mode — switch apps freely";
         } else {
-          processingBadge.textContent = "In-browser — background tracking on";
+          processingBadge.textContent = "Phone mode — keep this tab open";
           processingBadge.classList.add("client");
         }
       }
 
-      function updateProcessingResume(requestId) {
+      function updateProcessingResume(requestId, serverMode) {
         if (!processingResume) return;
         processingResume.classList.remove("hidden");
-        processingResume.textContent = "Job " + requestId + " — you can switch apps or lock your phone. Reopen this page anytime to pick up results.";
+        if (serverMode) {
+          processingResume.textContent =
+            "Job " + requestId + " — server is working. Switch apps or lock phone; tap Check status or wait for notification.";
+        } else {
+          processingResume.textContent =
+            "Job " + requestId + " — keep this tab open (don't swipe it away). Switching apps may slow or pause work.";
+        }
+        if (btnCheckStatus) btnCheckStatus.classList.remove("hidden");
+      }
+
+      function showSlowProcessingHint() {
+        processingHint.textContent =
+          "Still working — server may be waking up (first run after idle can take ~1 min). Tap Check status or leave this page open.";
       }
 
       async function acquireWakeLock() {
@@ -1263,8 +1279,9 @@
         }
       }
 
-      function pollDelayMs() {
-        return document.hidden ? 2800 : 900;
+      function pollDelayMs(slow) {
+        if (slow) return 4500;
+        return document.hidden ? 2200 : 1000;
       }
 
       async function requestBgNotifyPermission() {
@@ -1272,8 +1289,18 @@
         try { await Notification.requestPermission(); } catch (e) { /* ignore */ }
       }
 
+      function fetchJobStatus(requestId) {
+        return fetch("/api/meesho/request-status/" + requestId, {
+          credentials: "include",
+          cache: "no-store",
+        }).then(function (r) {
+          if (!r.ok) throw new Error("Status check failed (" + r.status + ")");
+          return r.json();
+        });
+      }
+
       function trackBackgroundJob(job) {
-        if (!navigator.serviceWorker) return;
+        if (!job.serverMode || !navigator.serviceWorker) return;
         navigator.serviceWorker.ready.then(function (reg) {
           var target = reg.active || reg.waiting || reg.installing;
           if (!target) return;
@@ -1284,8 +1311,19 @@
             modeName: job.modeName,
             isLingerie: !!job.isLingerie,
             isAuto: !!job.isAuto,
-            maxMs: job.isAuto || job.isLingerie ? 45 * 60 * 1000 : 25 * 60 * 1000,
+            serverMode: true,
+            startedAt: job.startedAt || Date.now(),
+            maxMs: job.isAuto || job.isLingerie ? 50 * 60 * 1000 : 30 * 60 * 1000,
           });
+        });
+      }
+
+      function pingBackgroundJob(requestId) {
+        if (!navigator.serviceWorker || !requestId) return;
+        navigator.serviceWorker.ready.then(function (reg) {
+          var target = reg.active || reg.waiting || reg.installing;
+          if (!target) return;
+          target.postMessage({ type: "PING_JOB", requestId: requestId });
         });
       }
 
@@ -1298,12 +1336,22 @@
         });
       }
 
+      var swReadyPromise = null;
       function registerServiceWorker() {
         if (!("serviceWorker" in navigator)) return Promise.resolve(null);
-        return navigator.serviceWorker.register("/sw.js?v=91").catch(function (err) {
-          console.warn("[ui] service worker register failed:", err);
-          return null;
-        });
+        if (!swReadyPromise) {
+          swReadyPromise = navigator.serviceWorker
+            .register("/sw.js?v=92")
+            .then(function (reg) {
+              return navigator.serviceWorker.ready.then(function () { return reg; });
+            })
+            .catch(function (err) {
+              console.warn("[ui] service worker register failed:", err);
+              swReadyPromise = null;
+              return null;
+            });
+        }
+        return swReadyPromise;
       }
 
       function setProcessingProgress(percent, stageText) {
@@ -1317,52 +1365,93 @@
         setProcessingProgress(0, "Preparing upload…");
       }
 
-      function poll(requestId, isAuto, isLingerie) {
-        var maxAttempts = isAuto ? 480 : isLingerie ? 480 : 240;
+      function applyJobStatus(d) {
+        if (typeof d.progress === "number") {
+          setProcessingProgress(d.progress, d.progressLabel || processingStage.textContent);
+        }
+        if (d.status === "completed" && d.results && d.results.length) {
+          setProcessingProgress(100, d.progressLabel || "Done");
+          return { done: true, results: d.results };
+        }
+        if (d.status === "failed") {
+          return {
+            done: true,
+            failed: true,
+            message: d.message || d.progressLabel || "Optimization failed.",
+          };
+        }
+        return { done: false };
+      }
+
+      function poll(requestId, isAuto, isLingerie, serverMode) {
         pollAbort = false;
+        var attempts = 0;
+        var slow = false;
+        var softLimit = isAuto || isLingerie ? 90 : 60;
+
         return new Promise(function (resolve, reject) {
-          var attempts = 0;
           function tick() {
             if (pollAbort) return reject(new Error("Cancelled"));
-            fetch("/api/meesho/request-status/" + requestId, { credentials: "include", cache: "no-store" })
-              .then(function (r) { return r.json(); })
+            fetchJobStatus(requestId)
               .then(function (d) {
-                if (typeof d.progress === "number") {
-                  setProcessingProgress(d.progress, d.progressLabel || processingStage.textContent);
+                var outcome = applyJobStatus(d);
+                if (outcome.done && outcome.results) return resolve(outcome.results);
+                if (outcome.done && outcome.failed) return reject(new Error(outcome.message));
+                attempts++;
+                if (!slow && attempts >= softLimit) {
+                  slow = true;
+                  showSlowProcessingHint();
                 }
-                if (d.status === "completed" && d.results && d.results.length) {
-                  setProcessingProgress(100, d.progressLabel || "Done");
-                  return resolve(d.results);
-                }
-                if (d.status === "failed") {
-                  return reject(new Error(d.message || d.progressLabel || "Optimization failed. Try another photo or mode."));
-                }
-                if (++attempts >= maxAttempts) return reject(new Error("Timed out. Reopen this page — your job may still finish in the background."));
-                setTimeout(tick, pollDelayMs());
+                setTimeout(tick, pollDelayMs(slow));
               })
               .catch(function (err) {
-                if (++attempts >= maxAttempts) return reject(err);
-                setTimeout(tick, pollDelayMs());
+                attempts++;
+                if (!slow && attempts >= softLimit) {
+                  slow = true;
+                  showSlowProcessingHint();
+                }
+                setTimeout(tick, pollDelayMs(true));
               });
           }
           tick();
         });
       }
 
+      function checkActiveJobNow() {
+        var job = loadActiveJob();
+        if (!job) return Promise.resolve(null);
+        pingBackgroundJob(job.requestId);
+        return fetchJobStatus(job.requestId).then(function (d) {
+          var outcome = applyJobStatus(d);
+          if (outcome.done && outcome.results) {
+            clearActiveJob();
+            showResults(outcome.results, job.modeName, job.isLingerie);
+            return outcome.results;
+          }
+          if (outcome.done && outcome.failed) {
+            clearActiveJob();
+            show("form");
+            setError(outcome.message);
+            return null;
+          }
+          return null;
+        });
+      }
+
       function runJobFlow(job) {
-        var serverMode = !!window.__MEESHO_USE_SERVER__;
+        var serverMode = !!job.serverMode;
         updateProcessingBadge(serverMode);
-        updateProcessingResume(job.requestId);
+        updateProcessingResume(job.requestId, serverMode);
         processingTitle.textContent = job.modeName + "…";
         processingHint.textContent = serverMode
-          ? "Server is working — switch apps or lock your phone. We'll notify you when done."
-          : "Processing in this browser — switch apps OK, but don't force-close the tab. We'll notify you when done.";
+          ? "Server is working — switch apps freely. First request after idle may take ~1 min."
+          : "Processing on this phone — keep the tab open; don't swipe it away from recents.";
         resetProcessingProgress();
         show("processing");
         acquireWakeLock();
-        requestBgNotifyPermission();
+        if (serverMode) requestBgNotifyPermission();
         trackBackgroundJob(job);
-        return poll(job.requestId, job.isAuto, job.isLingerie)
+        return poll(job.requestId, job.isAuto, job.isLingerie, serverMode)
           .then(function (results) {
             clearActiveJob();
             showResults(results, job.modeName, job.isLingerie);
@@ -1370,6 +1459,11 @@
           .catch(function (err) {
             releaseWakeLock();
             if (pollAbort) return;
+            var stillActive = loadActiveJob();
+            if (stillActive && stillActive.requestId === job.requestId) {
+              showSlowProcessingHint();
+              return;
+            }
             show("form");
             setError(err.message || "Something went wrong.");
           });
@@ -1378,7 +1472,11 @@
       function resumeActiveJobIfAny() {
         var job = loadActiveJob();
         if (!job) return;
-        runJobFlow(job);
+        if (panelProcessing.classList.contains("hidden")) {
+          runJobFlow(job);
+          return;
+        }
+        checkActiveJobNow();
       }
 
       function handleServiceWorkerMessage(event) {
@@ -1386,9 +1484,7 @@
         if (data.type === "JOB_UPDATE" && data.requestId) {
           var active = loadActiveJob();
           if (!active || active.requestId !== data.requestId) return;
-          if (typeof data.progress === "number") {
-            setProcessingProgress(data.progress, data.progressLabel || processingStage.textContent);
-          }
+          applyJobStatus(data);
         }
         if (data.type === "JOB_DONE" && data.results && data.results.length) {
           var doneJob = loadActiveJob();
@@ -1507,77 +1603,102 @@
         var isFullLength = selected && selected.dataset.fulllength === "1";
         lastUploadDataUrl = previewUrl;
         var modeName = selected.dataset.name;
-        var serverMode = !!window.__MEESHO_USE_SERVER__;
-        updateProcessingBadge(serverMode);
-        processingTitle.textContent = isAuto
-          ? "Auto — trying all strategies…"
-          : isLingerie
-            ? "Collage — studio + framed scenarios…"
-            : isFlatlay
-              ? "Flat-Lay — portrait + framed scenarios…"
-              : isModel
-                ? "Model Photo — framed 1024 scenarios…"
-                : isFullLength
-                  ? "Full-Length — fit + cap scenarios…"
-                  : "Running " + modeName + "…";
-        processingHint.textContent = serverMode
-          ? "Server is working — switch apps or lock your phone. We'll notify you when done."
-          : "Processing in this browser — switch apps OK, but don't force-close the tab. We'll notify you when done.";
-        resetProcessingProgress();
-        show("processing");
-        acquireWakeLock();
-        requestBgNotifyPermission();
 
-        var form = new FormData();
-        form.append("tagId", selected.dataset.id);
-        form.append("tagName", selected.dataset.tag);
-        var frame = getFrameSettingsFromUi();
-        form.append("frameBorderColor", frame.borderColor);
-        form.append("frameStickerTemplate", frame.stickerTemplate);
-        persistFrameDefaults();
-        form.append("image", imageFile);
+        var apiReadyPromise = window.__MEESHO_API_READY__ || Promise.resolve(false);
+        Promise.all([apiReadyPromise, registerServiceWorker()]).then(function (_ref) {
+          var serverMode = !!window.__MEESHO_USE_SERVER__;
+          updateProcessingBadge(serverMode);
+          processingTitle.textContent = isAuto
+            ? "Auto — trying all strategies…"
+            : isLingerie
+              ? "Collage — studio + framed scenarios…"
+              : isFlatlay
+                ? "Flat-Lay — portrait + framed scenarios…"
+                : isModel
+                  ? "Model Photo — framed 1024 scenarios…"
+                  : isFullLength
+                    ? "Full-Length — fit + cap scenarios…"
+                    : "Running " + modeName + "…";
+          processingHint.textContent = serverMode
+            ? "Uploading to server — switch apps freely after upload starts."
+            : "Processing on this phone — keep tab open; don't swipe it away.";
+          resetProcessingProgress();
+          show("processing");
+          acquireWakeLock();
+          if (serverMode) requestBgNotifyPermission();
 
-        setProcessingProgress(1, "Uploading image…");
-        fetch("/api/meesho/getLowestShippingCharge", { method: "POST", body: form, credentials: "include" })
-          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-          .then(function (_ref) {
-            if (!_ref.ok || !_ref.d.requestId) throw new Error((_ref.d && _ref.d.message) || "Upload failed");
-            var job = {
-              requestId: _ref.d.requestId,
-              modeName: modeName,
-              isAuto: isAuto,
-              isLingerie: isLingerie,
-              startedAt: Date.now(),
-            };
-            saveActiveJob(job);
-            updateProcessingResume(job.requestId);
-            trackBackgroundJob(job);
-            setProcessingProgress(3, "Upload complete — optimizing in background…");
-            return poll(job.requestId, isAuto, isLingerie);
-          })
-          .then(function (results) {
-            clearActiveJob();
-            showResults(results, modeName, isLingerie);
-          })
-          .catch(function (err) {
-            releaseWakeLock();
-            if (pollAbort) return;
-            show("form");
-            setError(err.message || "Something went wrong.");
-          });
+          var form = new FormData();
+          form.append("tagId", selected.dataset.id);
+          form.append("tagName", selected.dataset.tag);
+          var frame = getFrameSettingsFromUi();
+          form.append("frameBorderColor", frame.borderColor);
+          form.append("frameStickerTemplate", frame.stickerTemplate);
+          persistFrameDefaults();
+          form.append("image", imageFile);
+
+          setProcessingProgress(1, "Uploading image…");
+          return fetch("/api/meesho/getLowestShippingCharge", { method: "POST", body: form, credentials: "include" })
+            .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+            .then(function (_ref2) {
+              if (!_ref2.ok || !_ref2.d.requestId) throw new Error((_ref2.d && _ref2.d.message) || "Upload failed");
+              var job = {
+                requestId: _ref2.d.requestId,
+                modeName: modeName,
+                isAuto: isAuto,
+                isLingerie: isLingerie,
+                serverMode: serverMode,
+                startedAt: Date.now(),
+              };
+              saveActiveJob(job);
+              updateProcessingResume(job.requestId, serverMode);
+              trackBackgroundJob(job);
+              setProcessingProgress(3, serverMode ? "Server optimizing…" : "Optimizing on device…");
+              return poll(job.requestId, isAuto, isLingerie, serverMode);
+            })
+            .then(function (results) {
+              clearActiveJob();
+              showResults(results, modeName, isLingerie);
+            })
+            .catch(function (err) {
+              releaseWakeLock();
+              if (pollAbort) return;
+              var stillActive = loadActiveJob();
+              if (stillActive) {
+                showSlowProcessingHint();
+                return;
+              }
+              show("form");
+              setError(err.message || "Something went wrong.");
+            });
+        });
       });
 
+      if (btnCheckStatus) {
+        btnCheckStatus.addEventListener("click", function () {
+          setProcessingProgress(processingPercent.textContent.replace("%", "") || 0, "Checking status…");
+          checkActiveJobNow().catch(function (err) {
+            setError(err.message || "Could not check status.");
+          });
+        });
+      }
+
       window.addEventListener("beforeunload", function (e) {
-        if (loadActiveJob() && !window.__MEESHO_USE_SERVER__) {
+        var job = loadActiveJob();
+        if (job && !job.serverMode) {
           e.preventDefault();
           e.returnValue = "";
         }
       });
 
       document.addEventListener("visibilitychange", function () {
-        if (!loadActiveJob()) return;
-        if (!document.hidden) acquireWakeLock();
+        if (!document.hidden) {
+          acquireWakeLock();
+          resumeActiveJobIfAny();
+        }
       });
+
+      window.addEventListener("focus", resumeActiveJobIfAny);
+      window.addEventListener("pageshow", resumeActiveJobIfAny);
 
       if (navigator.serviceWorker) {
         navigator.serviceWorker.addEventListener("message", handleServiceWorkerMessage);
@@ -1621,6 +1742,21 @@
       apiReadyPromise.then(function () {
         syncModeUI();
         updateGenerate();
+        var params = new URLSearchParams(location.search);
+        var resumeId = params.get("resumeJob");
+        if (resumeId) {
+          var existing = loadActiveJob();
+          if (!existing || existing.requestId !== resumeId) {
+            saveActiveJob({
+              requestId: resumeId,
+              modeName: "Optimization",
+              isAuto: false,
+              isLingerie: false,
+              serverMode: !!window.__MEESHO_USE_SERVER__,
+              startedAt: Date.now(),
+            });
+          }
+        }
         resumeActiveJobIfAny();
       });
     })();
