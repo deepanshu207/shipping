@@ -65,120 +65,104 @@
   ];
   const SUPPLIERDEN_MAX_VARIANTS = 56;
   const SUPPLIERDEN_PROCESS_TIMEOUT_MS = 420000;
+  /** SupplierDen reference output — total canvas 703×1024 incl. thin purple frame (not inner+scale). */
+  const SUPPLIERDEN_EXACT_OUTER_W = 703;
+  const SUPPLIERDEN_EXACT_OUTER_H = 1024;
+  const SUPPLIERDEN_EXACT_BORDER_PX = 10;
   /**
-   * Tall kaftan / dress — portrait fit with feet/optical anchor, purple frame, max side ≤1024.
-   * Native 1280 framed alone often tiers ~₹79 on Meesho; portrait+cap hits ~₹50.
+   * Exact outer dimensions matching SupplierDen — 703×1024 total, ~15% top / ~5% bottom / ~10% side margins.
+   * Old portrait_framed + thick border scaled to 1024 produced ~724×1024 and still tiered ~₹79 on Meesho.
    */
   const SUPPLIERDEN_TALL_LAYOUTS = [
     {
-      layout: "sd_fp703_feet",
-      type: "portrait_framed",
-      portraitW: 703,
-      portraitH: 1024,
-      coverage: 0.7,
-      verticalAnchor: "feet",
-      framedMaxSide: 1024,
+      layout: "sd_exact703",
+      type: "exact_framed",
+      outerW: 703,
+      outerH: 1024,
+      borderPx: 10,
+      topMarginRatio: 0.15,
+      bottomMarginRatio: 0.05,
+      sideMarginRatio: 0.1,
       priority: 0,
-      panelTag: "703×1024 feet-anchor",
+      panelTag: "exact 703×1024 · SupplierDen match",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
-      layout: "sd_fp703_opt",
-      type: "portrait_framed",
-      portraitW: 703,
-      portraitH: 1024,
-      coverage: 0.72,
-      verticalAnchor: "optical",
-      framedMaxSide: 1024,
+      layout: "sd_exact703_tight",
+      type: "exact_framed",
+      outerW: 703,
+      outerH: 1024,
+      borderPx: 10,
+      topMarginRatio: 0.12,
+      bottomMarginRatio: 0.04,
+      sideMarginRatio: 0.08,
       priority: 1,
-      panelTag: "703×1024 optical-center",
+      panelTag: "exact 703×1024 · tight fill",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
-      layout: "sd_fp703_ctr",
-      type: "portrait_framed",
-      portraitW: 703,
-      portraitH: 1024,
-      coverage: 0.68,
-      verticalAnchor: "center",
-      framedMaxSide: 1024,
+      layout: "sd_exact703_loose",
+      type: "exact_framed",
+      outerW: 703,
+      outerH: 1024,
+      borderPx: 10,
+      topMarginRatio: 0.18,
+      bottomMarginRatio: 0.06,
+      sideMarginRatio: 0.12,
       priority: 2,
-      panelTag: "703×1024 centered",
+      panelTag: "exact 703×1024 · loose fill",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
-      layout: "sd_fp703_mid",
-      type: "portrait_framed",
-      portraitW: 703,
-      portraitH: 1024,
-      coverage: 0.74,
-      verticalAnchor: "feet",
-      framedMaxSide: 1024,
+      layout: "sd_exact703_b12",
+      type: "exact_framed",
+      outerW: 703,
+      outerH: 1024,
+      borderPx: 12,
+      topMarginRatio: 0.15,
+      bottomMarginRatio: 0.05,
+      sideMarginRatio: 0.1,
       priority: 3,
-      panelTag: "703×1024 mid fill",
+      panelTag: "exact 703×1024 · border 12",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
-      layout: "sd_fp650_feet",
-      type: "portrait_framed",
-      portraitW: 650,
-      portraitH: 940,
-      coverage: 0.72,
-      verticalAnchor: "feet",
-      framedMaxSide: 960,
+      layout: "sd_exact680",
+      type: "exact_framed",
+      outerW: 680,
+      outerH: 990,
+      borderPx: 10,
+      topMarginRatio: 0.15,
+      bottomMarginRatio: 0.05,
+      sideMarginRatio: 0.1,
       priority: 5,
-      panelTag: "650×940 feet-anchor",
+      panelTag: "exact 680×990",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
-      layout: "sd_fp580_feet",
-      type: "portrait_framed",
-      portraitW: 580,
-      portraitH: 900,
-      coverage: 0.72,
-      verticalAnchor: "feet",
-      framedMaxSide: 960,
+      layout: "sd_exact640",
+      type: "exact_framed",
+      outerW: 640,
+      outerH: 960,
+      borderPx: 10,
+      topMarginRatio: 0.15,
+      bottomMarginRatio: 0.05,
+      sideMarginRatio: 0.1,
       priority: 7,
-      panelTag: "580×900 feet-anchor",
+      panelTag: "exact 640×960",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
-      layout: "sd_fp620_feet",
-      type: "portrait_framed",
-      portraitW: 620,
-      portraitH: 900,
-      coverage: 0.7,
-      verticalAnchor: "feet",
-      framedMaxSide: 960,
+      layout: "sd_exact600",
+      type: "exact_framed",
+      outerW: 600,
+      outerH: 880,
+      borderPx: 10,
+      topMarginRatio: 0.14,
+      bottomMarginRatio: 0.05,
+      sideMarginRatio: 0.1,
       priority: 9,
-      panelTag: "620×900 feet-anchor",
-      tiers: TIERS_SUPPLIERDEN_TALL,
-    },
-    {
-      layout: "sd_cap900",
-      type: "native_capped_framed",
-      capMaxSide: 900,
-      framedMaxSide: 960,
-      priority: 11,
-      panelTag: "capped 900 framed",
-      tiers: TIERS_SUPPLIERDEN_TALL,
-    },
-    {
-      layout: "sd_cap960",
-      type: "native_capped_framed",
-      capMaxSide: 960,
-      framedMaxSide: 960,
-      priority: 13,
-      panelTag: "capped 960 framed",
-      tiers: TIERS_SUPPLIERDEN_TALL,
-    },
-    {
-      layout: "sd_cap1024",
-      type: "native_capped_framed",
-      capMaxSide: 1024,
-      framedMaxSide: 1024,
-      priority: 15,
-      panelTag: "capped 1024 framed",
+      panelTag: "exact 600×880",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
   ];
@@ -1078,7 +1062,7 @@
       tiers: TIERS_SUPPLIERDEN_50,
       path: "supplierden_match_50",
       modeName: "SupplierDen Match ₹50",
-      framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+      framedMaxSide: 1024,
       frameStyleOverride: {
         borderColor: SUPPLIERDEN_MATCH_PURPLE,
         stickerTemplate: "supplierden_match",
@@ -1105,7 +1089,7 @@
       studioLayout: layoutSpec.layout,
       flatlaySpec: layoutSpec,
       flatlayPriority: layoutSpec.priority ?? 50,
-      framedMaxSide: layoutSpec.framedMaxSide,
+      framedMaxSide: layoutSpec.framedMaxSide ?? layoutSpec.outerH ?? 1024,
       tiers: layoutSpec.tiers || TIERS_SUPPLIERDEN_TALL,
     };
   }
@@ -1652,82 +1636,58 @@
     return trimContentMargins(imageToWhiteCanvas(img), 0.012);
   }
 
-  /** Portrait placement — feet-anchor keeps full-length dress clear; optical lifts subject slightly. */
-  function fitSubjectIntoPortrait(trimmed, pw, ph, coverage, anchor = "feet") {
-    const fitScale = Math.min((pw * coverage) / trimmed.width, (ph * coverage) / trimmed.height);
+  /** Fit subject inside photo area with fixed margin ratios (SupplierDen reference: ~15% top, ~5% bottom, ~10% sides). */
+  function fitSubjectWithMargins(trimmed, areaW, areaH, margins) {
+    const topM = areaH * (margins.top ?? 0.15);
+    const bottomM = areaH * (margins.bottom ?? 0.05);
+    const sideM = areaW * (margins.side ?? 0.1);
+    const availW = Math.max(1, areaW - sideM * 2);
+    const availH = Math.max(1, areaH - topM - bottomM);
+    const fitScale = Math.min(availW / trimmed.width, availH / trimmed.height);
     const dw = Math.round(trimmed.width * fitScale);
     const dh = Math.round(trimmed.height * fitScale);
-    const dx = Math.round((pw - dw) / 2);
-    const bottomMargin = Math.max(8, Math.round(ph * 0.018));
-    const topMargin = Math.max(8, Math.round(ph * 0.022));
-    let dy;
-    if (anchor === "feet") {
-      dy = ph - dh - bottomMargin;
-    } else if (anchor === "optical") {
-      dy = Math.round((ph - dh) * 0.36);
-    } else {
-      dy = Math.round((ph - dh) / 2);
-    }
-    dy = Math.max(topMargin, Math.min(ph - dh - bottomMargin, dy));
+    const dx = Math.round(sideM + (availW - dw) / 2);
+    const dy = Math.round(topM + (availH - dh) / 2);
     return { dx, dy, dw, dh };
   }
 
-  function prepareSupplierDenPortraitCanvas(img, spec) {
-    const pw = spec.portraitW ?? 703;
-    const ph = spec.portraitH ?? 1024;
-    const coverage = spec.coverage ?? 0.7;
-    const anchor = spec.verticalAnchor ?? "feet";
+  /**
+   * SupplierDen exact output — fixed outer canvas (e.g. 703×1024 total), thin purple border, centered subject.
+   * Matches SupplierDen reference: white studio → portrait frame → stickers, not native-tall + scale-down.
+   */
+  function prepareSupplierDenExactFramedCanvas(img, spec, frameStyle) {
+    const outerW = spec.outerW ?? SUPPLIERDEN_EXACT_OUTER_W;
+    const outerH = spec.outerH ?? SUPPLIERDEN_EXACT_OUTER_H;
+    const border = spec.borderPx ?? SUPPLIERDEN_EXACT_BORDER_PX;
+    const style = { ...defaultFrameStyle(), ...(frameStyle || {}) };
+    const photoW = outerW - border * 2;
+    const photoH = outerH - border * 2;
     const trimmed = prepareSupplierDenSubjectCanvas(img);
+    const margins = {
+      top: spec.topMarginRatio ?? 0.15,
+      bottom: spec.bottomMarginRatio ?? 0.05,
+      side: spec.sideMarginRatio ?? 0.1,
+    };
+    const { dx, dy, dw, dh } = fitSubjectWithMargins(trimmed, photoW, photoH, margins);
     const c = document.createElement("canvas");
-    c.width = pw;
-    c.height = ph;
+    c.width = outerW;
+    c.height = outerH;
     const ctx = c.getContext("2d");
+    ctx.fillStyle = normalizeBorderColor(style.borderColor);
+    ctx.fillRect(0, 0, outerW, outerH);
     ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, pw, ph);
-    const { dx, dy, dw, dh } = fitSubjectIntoPortrait(trimmed, pw, ph, coverage, anchor);
+    ctx.fillRect(border, border, photoW, photoH);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(trimmed, 0, 0, trimmed.width, trimmed.height, dx, dy, dw, dh);
-    return c;
-  }
-
-  function prepareSupplierDenNativeCapped(img, maxSide = 1024) {
-    const trimmed = prepareSupplierDenSubjectCanvas(img);
-    const max = Math.max(trimmed.width, trimmed.height);
-    if (max <= maxSide) return trimmed;
-    const scale = maxSide / max;
-    const w = Math.round(trimmed.width * scale);
-    const h = Math.round(trimmed.height * scale);
-    const c = document.createElement("canvas");
-    c.width = w;
-    c.height = h;
-    const ctx = c.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, w, h);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(trimmed, 0, 0, trimmed.width, trimmed.height, 0, 0, w, h);
+    ctx.drawImage(trimmed, 0, 0, trimmed.width, trimmed.height, border + dx, border + dy, dw, dh);
+    drawFramedOverlays(ctx, border, photoW, photoH, style.stickerTemplate);
     return c;
   }
 
   /** SupplierDen layout prep — isolated from flatlay/full-length portrait centering. */
   function prepareSupplierDenLayoutCanvas(img, layoutSpec, frameStyle) {
-    const type = layoutSpec.type;
-    if (type === "portrait_framed") {
-      const studio = prepareSupplierDenPortraitCanvas(img, layoutSpec);
-      return prepareFramedCanvas(
-        studio,
-        layoutSpec.framedMaxSide ?? 1024,
-        flatlayFramedStyle(layoutSpec, frameStyle)
-      );
-    }
-    if (type === "native_capped_framed") {
-      const studio = prepareSupplierDenNativeCapped(img, layoutSpec.capMaxSide ?? 1024);
-      return prepareFramedCanvas(
-        studio,
-        layoutSpec.framedMaxSide ?? 1024,
-        flatlayFramedStyle(layoutSpec, frameStyle)
-      );
+    if (layoutSpec.type === "exact_framed") {
+      return prepareSupplierDenExactFramedCanvas(img, layoutSpec, frameStyle);
     }
     return prepareFlatlayLayoutCanvas(img, layoutSpec, frameStyle);
   }
@@ -2167,10 +2127,11 @@
     return results;
   }
 
-  /** SupplierDen — prefer max side ≤1024 (₹50 band); drop 1280-class fallbacks when portrait exists. */
+  /** SupplierDen — prefer exact 703×1024, then any max side ≤1024. */
   function finalizeSupplierDenVariants(variants, options = {}) {
+    const exact703 = variants.filter((v) => v.width === 703 && v.height === 1024);
     const portraitBand = variants.filter((v) => Math.max(v.width, v.height) <= 1024);
-    const pool = portraitBand.length > 0 ? portraitBand : variants;
+    const pool = exact703.length > 0 ? exact703 : portraitBand.length > 0 ? portraitBand : variants;
     return finalizeAutoVariants(pool, options);
   }
 
@@ -3187,20 +3148,20 @@
   function drawSupplierDenMatchOverlays(ctx, border, photoW, photoH) {
     const scale = Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
     const delivery = renderFreeDeliverySticker(scale);
-    const badge = renderBestChoiceOfferBadge(scale * 0.92);
+    const badge = renderBestChoiceOfferBadge(scale * 0.95);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(
       delivery.canvas,
-      border + photoW * 0.03,
-      border + photoH * 0.06,
+      border + photoW * 0.04,
+      border + photoH * 0.42 - delivery.height / 2,
       delivery.width,
       delivery.height
     );
     ctx.drawImage(
       badge.canvas,
-      border + photoW * 0.62,
-      border + photoH * 0.04,
+      border + photoW * 0.5 - badge.width / 2,
+      border + photoH * 0.38 - badge.height / 2,
       badge.width,
       badge.height
     );
