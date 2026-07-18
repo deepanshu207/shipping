@@ -390,6 +390,14 @@ function stickerCompositesForTemplate(templateId, border, width, height) {
       left: Math.round(border + width * 0.5 - badgeSize / 2),
       top: Math.round(border + height * 0.38 - badgeSize / 2),
     });
+  } else if (template === "supplierden_one") {
+    const delivery = freeDeliverySvg(scale);
+    const deliveryH = Math.max(34 * scale, 52 * scale) + 20 * scale;
+    composites.push({
+      input: delivery,
+      left: Math.round(border + width * 0.04),
+      top: Math.round(border + height * 0.42 - deliveryH / 2),
+    });
   } else {
     composites.push({ input: specialOfferSvg(scale), left: offerLeft, top: offerTop });
     composites.push({ input: hotSaleSvg(burstScale), left: burstLeft, top: burstTop });
@@ -440,9 +448,15 @@ function estimateMeeshoInr(item) {
   return fileKb;
 }
 
+function isSupplierDenOneStickerTagName(tagName) {
+  const tag = String(tagName || "").toLowerCase();
+  return tag.includes("one sticker") || tag.includes("1 sticker");
+}
+
 function isSupplierDenTagName(tagName) {
   const tag = String(tagName || "").toLowerCase();
   return (
+    isSupplierDenOneStickerTagName(tagName) ||
     tag.includes("supplierden match") ||
     tag.includes("supplierden ₹50") ||
     tag.includes("supplierden 50") ||
@@ -518,15 +532,19 @@ async function prepareSupplierDenExactBuffer(imageBuffer, spec, frameStyleInput)
   return { buffer, width: outerW, height: outerH, whiteRatio };
 }
 
-async function generateSupplierDenVariants(imageBuffer, frameStyleInput) {
+async function generateSupplierDenVariants(imageBuffer, frameStyleInput, categoryName) {
   const built = [];
+  const frameStyle =
+    isSupplierDenOneStickerTagName(categoryName)
+      ? { ...parseFrameStyle(frameStyleInput || {}), stickerTemplate: "supplierden_one" }
+      : frameStyleInput;
   for (const layoutSpec of SUPPLIERDEN_TALL_LAYOUTS) {
     const profile = {
       id: `supplierden_${layoutSpec.layout}`,
       path: "supplierden_match_50",
       modeName: `Tall · ${layoutSpec.panelTag}`,
     };
-    const prepared = await prepareSupplierDenExactBuffer(imageBuffer, layoutSpec, frameStyleInput);
+    const prepared = await prepareSupplierDenExactBuffer(imageBuffer, layoutSpec, frameStyle);
     for (const tier of layoutSpec.tiers) {
       const jpeg = await compressBusyToSlab(prepared.buffer, tier.slabKb);
       built.push({
@@ -1082,7 +1100,7 @@ async function generateAutoVariants(imageBuffer, categoryName, frameStyleInput) 
 export async function generateAllVariants(imageBuffer, categoryName, frameStyleInput) {
   const rotated = await sharp(imageBuffer).rotate().toBuffer();
   const built = isSupplierDenTagName(categoryName)
-    ? await generateSupplierDenVariants(imageBuffer, frameStyleInput)
+    ? await generateSupplierDenVariants(imageBuffer, frameStyleInput, categoryName)
     : (await (async () => {
         const profile = resolveProcessingProfile(rotated, categoryName);
         if (profile.auto) {

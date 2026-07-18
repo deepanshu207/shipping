@@ -19,6 +19,11 @@ export const STICKER_TEMPLATES = [
     name: "Tall dress promo",
     desc: "FREE DELIVERY + BEST CHOICE OFFER",
   },
+  {
+    id: "supplierden_one",
+    name: "Tall dress · free delivery",
+    desc: "FREE DELIVERY sticker only",
+  },
   { id: "none", name: "Frame only", desc: "Border color only — no stickers" },
   { id: "mega_sale", name: "Mega Sale", desc: "Large MEGA SALE badge top-right" },
   { id: "best_price", name: "Best Price", desc: "BEST PRICE ribbon corner" },
@@ -28,7 +33,7 @@ export const STICKER_TEMPLATES = [
 ];
 
 const TEMPLATE_IDS = new Set(STICKER_TEMPLATES.map((t) => t.id));
-const TEMPLATE_ALIASES = { supplierden: "supplierden_match" };
+const TEMPLATE_ALIASES = { supplierden: "supplierden_match", supplierden_one_sticker: "supplierden_one" };
 const PRESET_ALIASES = { supplierden: "purple" };
 
 export function normalizeBorderColor(input) {

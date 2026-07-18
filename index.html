@@ -590,6 +590,12 @@
           <span class="mode-tag">10 scenarios · capped 1024/960 · targets ₹39–₹51 band</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
+        <button type="button" class="mode framed tall50" data-id="mo_supplierden_50_one" data-tag="Tall dress kaftan ₹50 supplierden one sticker lowest shipping" data-name="Tall 1 sticker" data-tall50="1" data-tall-one="1">
+          <p class="mode-title">Tall 1 sticker</p>
+          <p class="mode-for"><b>For:</b> Full-length dress / kaftan — exact 703×1024 purple frame, FREE DELIVERY only (~₹50)</p>
+          <span class="mode-tag">49 ranked · single sticker · ~44–52 KB</span>
+          <span class="mode-selected-pill">✓ Selected</span>
+        </button>
         <button type="button" class="mode framed" data-id="mo_framed_low" data-tag="Framed Best Rate indoor" data-name="Framed Best Rate">
           <p class="mode-title">Framed Best Rate</p>
           <p class="mode-for"><b>For:</b> Mid slabs — targets ₹66–₹71 tier</p>
@@ -749,7 +755,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=104"></script>
+  <script src="/own-api.js?v=107"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1477,6 +1483,7 @@
         if (!framedSettings) return;
         var isCollage = selected && selected.dataset.lingerie === "1";
         var isTall50 = selected && selected.dataset.tall50 === "1";
+        var isTallOne = selected && selected.dataset.tallOne === "1";
         framedSettings.classList.remove("hidden");
         framedSettings.setAttribute("aria-hidden", "false");
         if (!isCollage) {
@@ -1486,7 +1493,10 @@
         framedSettings.classList.toggle("framed-settings--inactive", false);
         updateTemplateDesc();
         if (framedNote) {
-          if (isTall50) {
+          if (isTallOne) {
+            framedNote.innerHTML =
+              "Same <b>49 tall scenarios</b> as Tall ₹50 (703×1024 exact), but with a <b>single FREE DELIVERY sticker</b> only — no second promo badge. Border color still applies. <b>Tap any result</b> after generation to tweak.";
+          } else if (isTall50) {
             framedNote.innerHTML =
               "Your <b>border color</b> and <b>promotion sticker</b> selections above apply to all 49 tall scenarios (703×1024 exact). Pick <b>Tall dress promo</b> for the classic FREE DELIVERY look. <b>Tap any result</b> after generation to tweak further.";
           } else if (isCollage) {
@@ -1536,6 +1546,10 @@
           btn.classList.add("selected");
           btn.setAttribute("aria-pressed", "true");
           selected = btn;
+          if (btn.dataset.tallOne === "1" && stickerTemplate && FS) {
+            stickerTemplate.value = "supplierden_one";
+            updateTemplateDesc();
+          }
           syncModeUI();
           setError("");
           updateGenerate();
@@ -1930,6 +1944,7 @@
         var isModel = selected && selected.dataset.model === "1";
         var isFullLength = selected && selected.dataset.fulllength === "1";
         var isTall50 = selected && selected.dataset.tall50 === "1";
+        var isTallOne = selected && selected.dataset.tallOne === "1";
         lastUploadDataUrl = previewUrl;
         var modeName = selected.dataset.name;
         var serverMode = !!window.__MEESHO_USE_SERVER__;
@@ -1944,9 +1959,11 @@
                 ? "Model Photo — framed 1024 scenarios…"
                 : isFullLength
                   ? "Full-Length — fit + cap scenarios…"
-                  : isTall50
-                    ? "Tall — 703×1024 exact scenarios…"
-                    : "Running " + modeName + "…";
+                  : isTallOne
+                    ? "Tall 1 sticker — 703×1024 exact scenarios…"
+                    : isTall50
+                      ? "Tall — 703×1024 exact scenarios…"
+                      : "Running " + modeName + "…";
         processingHint.textContent = serverMode
           ? "Server is working — switch apps or lock your phone. We'll notify you when done."
           : "Processing in this browser — switch apps OK, but don't force-close the tab. We'll notify you when done.";

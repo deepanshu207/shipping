@@ -650,6 +650,11 @@
       name: "Tall dress promo",
       desc: "FREE DELIVERY + BEST CHOICE OFFER",
     },
+    {
+      id: "supplierden_one",
+      name: "Tall dress · free delivery",
+      desc: "FREE DELIVERY sticker only",
+    },
     { id: "none", name: "Frame only", desc: "No promotion stickers" },
     { id: "mega_sale", name: "Mega Sale", desc: "Large MEGA SALE badge" },
     { id: "best_price", name: "Best Price", desc: "BEST PRICE corner ribbon" },
@@ -658,7 +663,7 @@
     { id: "super_offer", name: "Super Offer", desc: "SUPER OFFER + 50% OFF" },
   ];
   const STICKER_TEMPLATE_IDS = new Set(STICKER_TEMPLATE_META.map((t) => t.id));
-  const STICKER_TEMPLATE_ALIASES = { supplierden: "supplierden_match" };
+  const STICKER_TEMPLATE_ALIASES = { supplierden: "supplierden_match", supplierden_one_sticker: "supplierden_one" };
   const BORDER_PRESET_ALIASES = { supplierden: "purple" };
   const SUPPLIERDEN_MATCH_PURPLE = "#7C3AED";
   const FRAME_BORDER_RATIO = 0.048;
@@ -1071,11 +1076,15 @@
     };
   }
 
-  function resolveSupplierDenFrameStyle(frameStyle) {
+  function resolveSupplierDenFrameStyle(frameStyle, tagName) {
     const user = parseFrameStyle(frameStyle || {});
+    let stickerTemplate = normalizeStickerTemplate(user.stickerTemplate);
+    if (isSupplierDenOneStickerTagName(tagName)) {
+      stickerTemplate = "supplierden_one";
+    }
     return {
       borderColor: normalizeBorderColor(user.borderColor),
-      stickerTemplate: normalizeStickerTemplate(user.stickerTemplate),
+      stickerTemplate,
     };
   }
 
@@ -1102,9 +1111,9 @@
     );
   }
 
-  async function optimizeSupplierDenAll(img, frameStyle, onProgress) {
+  async function optimizeSupplierDenAll(img, frameStyle, onProgress, tagName) {
     const profiles = supplierDenProfilesForImage();
-    const activeStyle = resolveSupplierDenFrameStyle(frameStyle);
+    const activeStyle = resolveSupplierDenFrameStyle(frameStyle, tagName);
     const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
     const allVariants = [];
     let done = 0;
@@ -2245,9 +2254,15 @@
     );
   }
 
+  function isSupplierDenOneStickerTagName(tagName) {
+    const tag = String(tagName || "").toLowerCase();
+    return tag.includes("one sticker") || tag.includes("1 sticker");
+  }
+
   function isSupplierDenTagName(tagName) {
     const tag = String(tagName || "").toLowerCase();
     return (
+      isSupplierDenOneStickerTagName(tagName) ||
       tag.includes("supplierden match") ||
       tag.includes("supplierden ₹50") ||
       tag.includes("supplierden 50") ||
@@ -3209,6 +3224,20 @@
     return { canvas: c, width: size, height: size };
   }
 
+  function drawSupplierDenOneStickerOverlay(ctx, border, photoW, photoH) {
+    const scale = Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
+    const delivery = renderFreeDeliverySticker(scale);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(
+      delivery.canvas,
+      border + photoW * 0.04,
+      border + photoH * 0.42 - delivery.height / 2,
+      delivery.width,
+      delivery.height
+    );
+  }
+
   function drawSupplierDenMatchOverlays(ctx, border, photoW, photoH) {
     const scale = Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
     const delivery = renderFreeDeliverySticker(scale);
@@ -3270,6 +3299,11 @@
 
     if (template === "supplierden_match") {
       drawSupplierDenMatchOverlays(ctx, border, photoW, photoH);
+      return;
+    }
+
+    if (template === "supplierden_one") {
+      drawSupplierDenOneStickerOverlay(ctx, border, photoW, photoH);
       return;
     }
 
@@ -3349,6 +3383,12 @@
       primary: { type: "free_delivery", x: 0.12, y: 0.42, label: "Free delivery" },
       secondary: { type: "best_choice", x: 0.5, y: 0.38, label: "Best choice offer" },
     },
+    supplierden_one: {
+      dual: false,
+      singleOnly: true,
+      primary: { type: "free_delivery", x: 0.12, y: 0.42, label: "Free delivery" },
+      secondary: null,
+    },
     limited_time: {
       dual: true,
       primary: { type: "limited_time", x: 0.64, y: 0.09, label: "Limited time badge" },
@@ -3412,6 +3452,7 @@
     const template = normalizeStickerTemplate(templateId);
     const defs = STICKER_SLOT_DEFS[template] || STICKER_SLOT_DEFS.classic_promo;
     const stickers = [defaultStickerSlotFromDef(defs.primary)];
+    if (defs.singleOnly) return stickers;
     if (defs.secondary) {
       stickers.push(defaultStickerSlotFromDef(defs.secondary));
     } else {
@@ -3524,7 +3565,7 @@
     const template = normalizeStickerTemplate(templateId);
     const defs = STICKER_SLOT_DEFS[template] || STICKER_SLOT_DEFS.classic_promo;
     return {
-      dual: !!(defs.dual && defs.secondary),
+      dual: !!(defs.dual && defs.secondary) && !defs.singleOnly,
       primary: defs.primary,
       secondary: defs.secondary,
     };
@@ -4250,7 +4291,7 @@
       return optimizeFullLengthAll(img, frameStyle, onProgress);
     }
     if (profile.supplierDenAll) {
-      return optimizeSupplierDenAll(img, frameStyle, onProgress);
+      return optimizeSupplierDenAll(img, frameStyle, onProgress, tagName);
     }
     if (onProgress) onProgress(15, `Running ${profile.modeName || profile.id}…`);
     const style = mergeFrameStyle(frameStyle, profile.frameStyleOverride);
