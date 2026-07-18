@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { parseFrameStyle, hexToRgb, normalizeStickerTemplate } from "./frame-style.js";
+import { parseFrameStyle, hexToRgb, normalizeStickerTemplate, defaultFrameStyle } from "./frame-style.js";
 
 const TIERS_BUSY_BG = [
   { slabKb: 91, label: "Lowest · may beat ₹93 on Meesho", lowest: true },
@@ -43,6 +43,15 @@ const TIERS_FRAMED_PRO = [
   { slabKb: 200, label: "High detail · pro framed match" },
 ];
 
+const TIERS_SUPPLIERDEN_50 = [
+  { slabKb: 48, label: "Lowest · SupplierDen ₹50 target", lowest: true },
+  { slabKb: 50, label: "Recommended · ₹50 match", recommended: true },
+  { slabKb: 52, label: "Balanced" },
+  { slabKb: 55, label: "High detail backup" },
+];
+
+const SUPPLIERDEN_MATCH_PURPLE = "#7C3AED";
+
 const FRAME_BORDER_RATIO = 0.048;
 const FRAME_MIN_BORDER = 34;
 const MEESHO_FRAMED_DIM_CAP_PATHS = new Set([
@@ -52,6 +61,7 @@ const MEESHO_FRAMED_DIM_CAP_PATHS = new Set([
   "framed_compact",
   "supplierden",
   "supplierden_heavy",
+  "supplierden_match_50",
 ]);
 const WHITE_TOL = 42;
 const WHITE_BG_THRESHOLD = 0.62;
@@ -217,6 +227,43 @@ function flatOffSvg(scale) {
   </svg>`);
 }
 
+function freeDeliverySvg(scale) {
+  const truckW = 54 * scale;
+  const truckH = 34 * scale;
+  const textW = 92 * scale;
+  const textH = 52 * scale;
+  const gap = 6 * scale;
+  const pad = 10 * scale;
+  const bw = truckW + gap + textW + pad * 2;
+  const bh = Math.max(truckH, textH) + pad * 2;
+  const truckY = (bh - pad * 2 - truckH) / 2;
+  const boxX = truckW + gap + pad;
+  const boxY = (bh - pad * 2 - textH) / 2;
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(bw)}" height="${Math.ceil(bh)}" viewBox="0 0 ${Math.ceil(bw)} ${Math.ceil(bh)}">
+    <rect x="${pad}" y="${pad + truckY + truckH * 0.42}" width="${truckW * 0.72}" height="${truckH * 0.34}" rx="${3 * scale}" fill="#D32F2F"/>
+    <rect x="${pad + truckW * 0.08}" y="${pad + truckY + truckH * 0.18}" width="${truckW * 0.52}" height="${truckH * 0.42}" rx="${4 * scale}" fill="#D32F2F"/>
+    <circle cx="${pad + truckW * 0.2}" cy="${pad + truckY + truckH * 0.82}" r="${5 * scale}" fill="#FFFFFF"/>
+    <circle cx="${pad + truckW * 0.58}" cy="${pad + truckY + truckH * 0.82}" r="${5 * scale}" fill="#FFFFFF"/>
+    <rect x="${boxX}" y="${pad + boxY}" width="${textW}" height="${textH}" rx="${8 * scale}" fill="#FFFFFF" stroke="#111827" stroke-width="${2.2 * scale}"/>
+    <text x="${boxX + textW / 2}" y="${pad + boxY + textH * 0.38}" fill="#111827" font-family="Arial,sans-serif" font-size="${18 * scale}" font-weight="900" text-anchor="middle">FREE</text>
+    <text x="${boxX + textW / 2}" y="${pad + boxY + textH * 0.72}" fill="#111827" font-family="Arial,sans-serif" font-size="${11 * scale}" font-weight="800" text-anchor="middle">DELIVERY</text>
+  </svg>`);
+}
+
+function bestChoiceOfferSvg(scale) {
+  const d = 96 * scale;
+  const pad = 10 * scale;
+  const size = d + pad * 2;
+  const center = size / 2;
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(size)}" height="${Math.ceil(size)}" viewBox="0 0 ${Math.ceil(size)} ${Math.ceil(size)}">
+    <defs><radialGradient id="bco"><stop offset="0%" stop-color="#FF7043"/><stop offset="55%" stop-color="#7B1FA2"/><stop offset="100%" stop-color="#4A148C"/></radialGradient></defs>
+    <circle cx="${center}" cy="${center}" r="${d / 2}" fill="url(#bco)" stroke="#FFD600" stroke-width="${2.5 * scale}"/>
+    <rect x="${center - d * 0.42}" y="${center - d * 0.3}" width="${d * 0.84}" height="${d * 0.24}" rx="${5 * scale}" fill="#2E7D32" stroke="#A5D6A7" stroke-width="${1.5 * scale}" transform="rotate(-5 ${center} ${center - d * 0.18})"/>
+    <text x="${center}" y="${center - d * 0.18}" fill="#FFFFFF" font-family="Arial,sans-serif" font-size="${9.5 * scale}" font-weight="900" text-anchor="middle">BEST CHOICE</text>
+    <text x="${center}" y="${center + d * 0.16}" fill="#FFD600" font-family="Arial,sans-serif" font-size="${12 * scale}" font-weight="900" text-anchor="middle">OFFER</text>
+  </svg>`);
+}
+
 async function prepareFramedBuffer(buffer, width, height, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, frameStyleInput) {
   const style = parseFrameStyle(frameStyleInput || {});
   const border = framedBorderPx(width, height, framedMaxSide);
@@ -261,6 +308,19 @@ async function prepareFramedBuffer(buffer, width, height, framedMaxSide = MEESHO
         left: Math.round(border + width * 0.1 - 72 * scale * 0.95 / 2),
         top: Math.round(border + height * 0.72 - 72 * scale * 0.95 / 2),
       });
+    } else if (template === "supplierden_match") {
+      const delivery = freeDeliverySvg(scale);
+      const badge = bestChoiceOfferSvg(scale * 0.95);
+      composites.push({
+        input: delivery,
+        left: Math.round(border + width * 0.04),
+        top: Math.round(border + height * 0.42 - (Math.max(34 * scale, 52 * scale) + 20 * scale) / 2),
+      });
+      composites.push({
+        input: badge,
+        left: Math.round(border + width * 0.5 - (96 * scale * 0.95 + 20 * scale) / 2),
+        top: Math.round(border + height * 0.38 - (96 * scale * 0.95 + 20 * scale) / 2),
+      });
     } else {
       composites.push({ input: specialOfferSvg(scale), left: offerLeft, top: offerTop });
       composites.push({ input: hotSaleSvg(burstScale), left: burstLeft, top: burstTop });
@@ -289,6 +349,9 @@ function estimateMeeshoInr(item) {
   const fileKb = kbFromBytes(item.fileSizeBytes);
   const maxSide = Math.max(item.width || 0, item.height || 0);
   const path = item.processingPath || "";
+  if (path === "supplierden_match_50" && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
+    return Math.min(fileKb, 50);
+  }
   if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
     return Math.min(fileKb, 93);
   }
@@ -350,6 +413,21 @@ function profileFramedPro() {
     path: "framed_pro",
     modeName: "Framed Pro",
     framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+  };
+}
+
+function profileSupplierDenMatch() {
+  return {
+    id: "supplierden_match",
+    studio: false,
+    tiers: TIERS_SUPPLIERDEN_50,
+    path: "supplierden_match_50",
+    modeName: "SupplierDen Match ₹50",
+    framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+    frameStyleOverride: {
+      borderColor: SUPPLIERDEN_MATCH_PURPLE,
+      stickerTemplate: "supplierden_match",
+    },
   };
 }
 
@@ -560,11 +638,19 @@ function resolveProcessingProfile(buffer, categoryName) {
     return profileStudioBalanced();
   }
   if (
+    tag.includes("supplierden match") ||
+    tag.includes("supplierden ₹50") ||
+    tag.includes("supplierden 50") ||
+    tag.includes("supplierden lowest")
+  ) {
+    return profileSupplierDenMatch();
+  }
+  if (
     tag.includes("framed pro") ||
     tag.includes("framed large") ||
     tag.includes("pro match") ||
-    tag.includes("framed supplierden") ||
-    tag.includes("supplierden match")
+    tag.includes("framed supplierden heavy") ||
+    tag.includes("supplierden heavy")
   ) {
     return profileFramedPro();
   }
@@ -671,6 +757,11 @@ async function compressToTarget(buffer, targetBytes, minQ, whiteRatio, studio, a
 }
 
 export async function prepareInput(imageBuffer, profile, frameStyleInput) {
+  const mergedFrameStyle = {
+    ...defaultFrameStyle(),
+    ...parseFrameStyle(frameStyleInput || {}),
+    ...(profile.frameStyleOverride || {}),
+  };
   const inputBytes = imageBuffer.length;
   let buffer = await sharp(imageBuffer).rotate().toBuffer();
 
@@ -708,7 +799,7 @@ export async function prepareInput(imageBuffer, profile, frameStyleInput) {
       w = fitted.w;
       h = fitted.h;
     }
-    const framed = await prepareFramedBuffer(buffer, w, h, framedMaxSide, frameStyleInput);
+    const framed = await prepareFramedBuffer(buffer, w, h, framedMaxSide, mergedFrameStyle);
     buffer = framed.buffer;
     w = framed.width;
     h = framed.height;
