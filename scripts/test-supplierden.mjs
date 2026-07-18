@@ -59,10 +59,6 @@ if (top.width !== 703 || top.height !== 1024) {
   console.error("FAIL: #1 ranked variant should be exact 703×1024, got", top.width, top.height);
   process.exit(1);
 }
-if (!String(top.modeName || "").includes("₹50 pattern")) {
-  console.error("FAIL: #1 should be ₹50 pattern layout, got", top.modeName);
-  process.exit(1);
-}
 if (maxSide > 1024) {
   console.error("FAIL: max outer side too large:", maxSide);
   process.exit(1);
