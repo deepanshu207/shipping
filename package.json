@@ -12,7 +12,8 @@
     "test:mobile": "node scripts/test-mobile-browser.mjs",
     "test:collage": "node scripts/test-collage-detect.mjs",
     "test:flatlay": "node scripts/test-flatlay.mjs",
-    "test:full-length": "node scripts/test-full-length.mjs"
+    "test:full-length": "node scripts/test-full-length.mjs",
+    "test:supplierden": "node scripts/test-supplierden.mjs"
   },
   "dependencies": {
     "@jsquash/jpeg": "^1.6.0",

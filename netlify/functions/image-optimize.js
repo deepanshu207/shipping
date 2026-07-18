@@ -50,6 +50,79 @@ const TIERS_SUPPLIERDEN_50 = [
   { slabKb: 55, label: "High detail backup" },
 ];
 
+const TIERS_SUPPLIERDEN_TALL = [
+  { slabKb: 44, label: "44KB · lowest try", lowest: true },
+  { slabKb: 46, label: "46KB · low band" },
+  { slabKb: 48, label: "48KB · ₹50 target", recommended: true },
+  { slabKb: 49, label: "49KB" },
+  { slabKb: 50, label: "50KB · match", recommended: true },
+  { slabKb: 51, label: "51KB" },
+  { slabKb: 52, label: "52KB" },
+];
+
+const SUPPLIERDEN_TALL_LAYOUTS = [
+  {
+    layout: "sd_exact703",
+    outerW: 703,
+    outerH: 1024,
+    borderPx: 10,
+    topMarginRatio: 0.15,
+    bottomMarginRatio: 0.05,
+    sideMarginRatio: 0.1,
+    priority: 0,
+    panelTag: "exact 703×1024 · SupplierDen match",
+    tiers: TIERS_SUPPLIERDEN_TALL,
+  },
+  {
+    layout: "sd_exact703_tight",
+    outerW: 703,
+    outerH: 1024,
+    borderPx: 10,
+    topMarginRatio: 0.12,
+    bottomMarginRatio: 0.04,
+    sideMarginRatio: 0.08,
+    priority: 1,
+    panelTag: "exact 703×1024 · tight fill",
+    tiers: TIERS_SUPPLIERDEN_TALL,
+  },
+  {
+    layout: "sd_exact703_loose",
+    outerW: 703,
+    outerH: 1024,
+    borderPx: 10,
+    topMarginRatio: 0.18,
+    bottomMarginRatio: 0.06,
+    sideMarginRatio: 0.12,
+    priority: 2,
+    panelTag: "exact 703×1024 · loose fill",
+    tiers: TIERS_SUPPLIERDEN_TALL,
+  },
+  {
+    layout: "sd_exact680",
+    outerW: 680,
+    outerH: 990,
+    borderPx: 10,
+    topMarginRatio: 0.15,
+    bottomMarginRatio: 0.05,
+    sideMarginRatio: 0.1,
+    priority: 5,
+    panelTag: "exact 680×990",
+    tiers: TIERS_SUPPLIERDEN_TALL,
+  },
+  {
+    layout: "sd_exact640",
+    outerW: 640,
+    outerH: 960,
+    borderPx: 10,
+    topMarginRatio: 0.15,
+    bottomMarginRatio: 0.05,
+    sideMarginRatio: 0.1,
+    priority: 7,
+    panelTag: "exact 640×960",
+    tiers: TIERS_SUPPLIERDEN_TALL,
+  },
+];
+
 const SUPPLIERDEN_MATCH_PURPLE = "#7C3AED";
 
 const FRAME_BORDER_RATIO = 0.048;
@@ -310,16 +383,18 @@ async function prepareFramedBuffer(buffer, width, height, framedMaxSide = MEESHO
       });
     } else if (template === "supplierden_match") {
       const delivery = freeDeliverySvg(scale);
-      const badge = bestChoiceOfferSvg(scale * 0.92);
+      const badge = bestChoiceOfferSvg(scale * 0.95);
+      const deliveryH = Math.max(34 * scale, 52 * scale) + 20 * scale;
+      const badgeSize = 96 * scale * 0.95 + 20 * scale;
       composites.push({
         input: delivery,
-        left: Math.round(border + width * 0.03),
-        top: Math.round(border + height * 0.06),
+        left: Math.round(border + width * 0.04),
+        top: Math.round(border + height * 0.42 - deliveryH / 2),
       });
       composites.push({
         input: badge,
-        left: Math.round(border + width * 0.62),
-        top: Math.round(border + height * 0.04),
+        left: Math.round(border + width * 0.5 - badgeSize / 2),
+        top: Math.round(border + height * 0.38 - badgeSize / 2),
       });
     } else {
       composites.push({ input: specialOfferSvg(scale), left: offerLeft, top: offerTop });
@@ -349,13 +424,151 @@ function estimateMeeshoInr(item) {
   const fileKb = kbFromBytes(item.fileSizeBytes);
   const maxSide = Math.max(item.width || 0, item.height || 0);
   const path = item.processingPath || "";
-  if (path === "supplierden_match_50" && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
+  if (path === "supplierden_match_50") {
+    if (maxSide > 0 && maxSide <= 1024 && fileKb >= 37 && fileKb <= 55) return Math.min(fileKb, 50);
+    if (maxSide > 1024 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 79);
     return Math.min(fileKb, 50);
   }
   if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
     return Math.min(fileKb, 93);
   }
   return fileKb;
+}
+
+function isSupplierDenTagName(tagName) {
+  const tag = String(tagName || "").toLowerCase();
+  return (
+    tag.includes("supplierden match") ||
+    tag.includes("supplierden ₹50") ||
+    tag.includes("supplierden 50") ||
+    tag.includes("supplierden lowest")
+  );
+}
+
+async function prepareSupplierDenExactBuffer(imageBuffer, spec, frameStyleInput) {
+  const outerW = spec.outerW ?? 703;
+  const outerH = spec.outerH ?? 1024;
+  const border = spec.borderPx ?? 10;
+  const margins = {
+    top: spec.topMarginRatio ?? 0.15,
+    bottom: spec.bottomMarginRatio ?? 0.05,
+    side: spec.sideMarginRatio ?? 0.1,
+  };
+  const photoW = outerW - border * 2;
+  const photoH = outerH - border * 2;
+
+  const trimmed = await sharp(imageBuffer)
+    .rotate()
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .trim({ threshold: 12, background: { r: 255, g: 255, b: 255 } })
+    .toBuffer();
+  const tmeta = await sharp(trimmed).metadata();
+  const tw = tmeta.width || 1;
+  const th = tmeta.height || 1;
+
+  const topM = photoH * margins.top;
+  const bottomM = photoH * margins.bottom;
+  const sideM = photoW * margins.side;
+  const availW = Math.max(1, photoW - sideM * 2);
+  const availH = Math.max(1, photoH - topM - bottomM);
+  const fitScale = Math.min(availW / tw, availH / th);
+  const dw = Math.round(tw * fitScale);
+  const dh = Math.round(th * fitScale);
+  const innerDx = Math.round(sideM + (availW - dw) / 2);
+  const innerDy = Math.round(topM + (availH - dh) / 2);
+
+  const style = {
+    ...defaultFrameStyle(),
+    ...parseFrameStyle(frameStyleInput || {}),
+    borderColor: SUPPLIERDEN_MATCH_PURPLE,
+    stickerTemplate: "supplierden_match",
+  };
+  const bg = hexToRgb(style.borderColor);
+  const subject = await sharp(trimmed).resize(dw, dh, { fit: "fill" }).toBuffer();
+  const whitePlate = await sharp({
+    create: { width: photoW, height: photoH, channels: 3, background: { r: 255, g: 255, b: 255 } },
+  })
+    .png()
+    .toBuffer();
+  const plateWithSubject = await sharp(whitePlate)
+    .composite([{ input: subject, left: innerDx, top: innerDy }])
+    .png()
+    .toBuffer();
+
+  const scale = Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
+  const delivery = freeDeliverySvg(scale);
+  const badge = bestChoiceOfferSvg(scale * 0.95);
+  const deliveryH = Math.max(34 * scale, 52 * scale) + 20 * scale;
+  const badgeSize = 96 * scale * 0.95 + 20 * scale;
+  const buffer = await sharp({
+    create: { width: outerW, height: outerH, channels: 3, background: bg },
+  })
+    .composite([
+      { input: plateWithSubject, left: border, top: border },
+      {
+        input: delivery,
+        left: Math.round(border + photoW * 0.04),
+        top: Math.round(border + photoH * 0.42 - deliveryH / 2),
+      },
+      {
+        input: badge,
+        left: Math.round(border + photoW * 0.5 - badgeSize / 2),
+        top: Math.round(border + photoH * 0.38 - badgeSize / 2),
+      },
+    ])
+    .png()
+    .toBuffer();
+
+  const rawCheck = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const whiteRatio = measureNearWhiteRatioRaw(
+    rawCheck.data,
+    rawCheck.info.width,
+    rawCheck.info.height,
+    rawCheck.info.channels
+  );
+
+  return { buffer, width: outerW, height: outerH, whiteRatio };
+}
+
+async function generateSupplierDenVariants(imageBuffer, frameStyleInput) {
+  const built = [];
+  for (const layoutSpec of SUPPLIERDEN_TALL_LAYOUTS) {
+    const profile = {
+      id: `supplierden_${layoutSpec.layout}`,
+      path: "supplierden_match_50",
+      modeName: `SupplierDen · ${layoutSpec.panelTag}`,
+    };
+    const prepared = await prepareSupplierDenExactBuffer(imageBuffer, layoutSpec, frameStyleInput);
+    for (const tier of layoutSpec.tiers) {
+      const jpeg = await compressBusyToSlab(prepared.buffer, tier.slabKb);
+      built.push({
+        buffer: jpeg,
+        fileSizeBytes: jpeg.length,
+        fileSizeKb: kbFromBytes(jpeg.length),
+        tagName: `[${profile.modeName}] ${tier.label} · ${prepared.width}×${prepared.height}`,
+        recommended: !!tier.recommended,
+        lowest: !!tier.lowest,
+        width: prepared.width,
+        height: prepared.height,
+        processingPath: profile.path,
+        profileId: profile.id,
+        modeName: profile.modeName,
+        flatlayPriority: layoutSpec.priority,
+      });
+    }
+  }
+  built.sort(
+    (a, b) =>
+      estimateMeeshoInr(a) - estimateMeeshoInr(b) ||
+      (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99) ||
+      a.fileSizeBytes - b.fileSizeBytes
+  );
+  const exact703 = built.filter((b) => b.width === 703 && b.height === 1024);
+  const pool =
+    exact703.length > 0
+      ? exact703
+      : built.filter((b) => Math.max(b.width, b.height) <= 1024);
+  return pool.slice(0, 56);
 }
 
 function profileStudio() {
@@ -420,10 +633,11 @@ function profileSupplierDenMatch() {
   return {
     id: "supplierden_match",
     studio: false,
+    supplierDenAll: true,
     tiers: TIERS_SUPPLIERDEN_50,
     path: "supplierden_match_50",
     modeName: "SupplierDen Match ₹50",
-    framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+    framedMaxSide: 1024,
     frameStyleOverride: {
       borderColor: SUPPLIERDEN_MATCH_PURPLE,
       stickerTemplate: "supplierden_match",
@@ -882,17 +1096,20 @@ async function generateAutoVariants(imageBuffer, categoryName, frameStyleInput) 
 
 export async function generateAllVariants(imageBuffer, categoryName, frameStyleInput) {
   const rotated = await sharp(imageBuffer).rotate().toBuffer();
-  const profile = resolveProcessingProfile(rotated, categoryName);
-  const built = profile.auto
-    ? await generateAutoVariants(imageBuffer, categoryName, frameStyleInput)
-    : await (async () => {
+  const built = isSupplierDenTagName(categoryName)
+    ? await generateSupplierDenVariants(imageBuffer, frameStyleInput)
+    : (await (async () => {
+        const profile = resolveProcessingProfile(rotated, categoryName);
+        if (profile.auto) {
+          return generateAutoVariants(imageBuffer, categoryName, frameStyleInput);
+        }
         const prepared = await prepareInput(imageBuffer, profile, frameStyleInput);
         const items = [];
         for (const tier of profile.tiers) {
           items.push(await buildVariant(prepared, tier));
         }
         return items;
-      })();
+      })());
 
   const minEstimate = Math.min(...built.map((b) => estimateMeeshoInr(b)));
 
