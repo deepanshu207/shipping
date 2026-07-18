@@ -3899,6 +3899,83 @@
     return last.size <= maxBytes ? last : last;
   }
 
+  function resizeCanvasToExact(canvas, width, height) {
+    if (canvas.width === width && canvas.height === height) return canvas;
+    const c = document.createElement("canvas");
+    c.width = width;
+    c.height = height;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(canvas, 0, 0, width, height);
+    return c;
+  }
+
+  function lockReframeCanvasDimensions(canvas, meta) {
+    const w = meta?.tier?.anchorWidth;
+    const h = meta?.tier?.anchorHeight;
+    if (!w || !h || (canvas.width === w && canvas.height === h)) return canvas;
+    const locked = resizeCanvasToExact(canvas, w, h);
+    releaseCanvas(canvas);
+    return locked;
+  }
+
+  function isReframeBaselineFrameStyle(frameStyle, meta) {
+    const baseline = meta?.baselineFrameStyle;
+    if (!baseline) return false;
+    const style = parseFrameStyle(frameStyle);
+    if (style.stickerLayout) return false;
+    return (
+      normalizeBorderColor(style.borderColor) === normalizeBorderColor(baseline.borderColor) &&
+      normalizeStickerTemplate(style.stickerTemplate) === normalizeStickerTemplate(baseline.stickerTemplate)
+    );
+  }
+
+  function buildVariantFromAnchorBlob(meta) {
+    const blob = meta.anchorBlob;
+    const tier = meta.tier || {};
+    return {
+      blob,
+      bytes: blob.size,
+      label: "custom · original file",
+      recommended: false,
+      lowest: false,
+      processingPath: meta.processingPath,
+      profileId: meta.profileId,
+      modeName: "custom framed",
+      width: tier.anchorWidth || 0,
+      height: tier.anchorHeight || 0,
+    };
+  }
+
+  async function hydrateReframeAnchorBlob(meta, imageUrl) {
+    if (!meta || meta.anchorBlob || !imageUrl) return meta;
+    try {
+      const res = await fetch(imageUrl);
+      const blob = await res.blob();
+      meta.anchorBlob = blob;
+      const tier = meta.tier || (meta.tier = {});
+      if (!tier.anchorBytes) {
+        tier.anchorBytes = blob.size;
+        tier.preserveBytes = blob.size;
+      }
+      if (tier.anchorInr == null) {
+        tier.anchorInr = estimateMeeshoInr({
+          bytes: blob.size,
+          width: tier.anchorWidth || 0,
+          height: tier.anchorHeight || 0,
+          processingPath: meta.processingPath,
+          profileId: meta.profileId,
+        });
+      }
+    } catch {
+      /* keep going without anchor blob */
+    }
+    return meta;
+  }
+
   function cloneFrameStyleRecord(style) {
     if (!style) return null;
     const out = {
@@ -3911,14 +3988,23 @@
     return out;
   }
 
-  function finalizeReframeMetaAnchors(meta, variantStub) {
+  function finalizeReframeMetaAnchors(meta, variantStub, anchorBlob) {
     if (!meta) return null;
     const tier = meta.tier || {};
-    if (tier.anchorBytes) return meta;
-    const anchorBytes = variantStub.bytes;
-    const anchorInr = estimateMeeshoInr(variantStub);
+    if (tier.anchorBytes && meta.anchorBlob) return meta;
+    const anchorBytes = tier.anchorBytes ?? variantStub.bytes;
+    const anchorInr =
+      tier.anchorInr ??
+      estimateMeeshoInr({
+        bytes: anchorBytes,
+        width: variantStub.width,
+        height: variantStub.height,
+        processingPath: variantStub.processingPath,
+        profileId: variantStub.profileId,
+      });
     return {
       ...meta,
+      anchorBlob: meta.anchorBlob || anchorBlob || null,
       baselineFrameStyle:
         meta.baselineFrameStyle ||
         cloneFrameStyleRecord(
@@ -3930,6 +4016,8 @@
         ...tier,
         anchorBytes,
         anchorInr,
+        anchorWidth: tier.anchorWidth ?? variantStub.width,
+        anchorHeight: tier.anchorHeight ?? variantStub.height,
         preserveBytes: anchorBytes,
         preserveKb: tier.preserveKb ?? tier.slabKb ?? tier.targetKb ?? kb(anchorBytes),
       },
@@ -3998,7 +4086,7 @@
       profileId: profile.id,
     };
     const reframeMeta = options.reframeMeta
-      ? finalizeReframeMetaAnchors(options.reframeMeta, variantStub)
+      ? finalizeReframeMetaAnchors(options.reframeMeta, variantStub, blob)
       : null;
     return {
       blob,
@@ -4101,20 +4189,32 @@
     const preserveKb = meta.tier?.preserveKb ?? meta.tier?.targetKb ?? meta.tier?.slabKb ?? 51;
     const anchorBytes = meta.tier?.anchorBytes ?? meta.tier?.preserveBytes ?? null;
     const preserveBytes = anchorBytes ?? Math.round(preserveKb * 1024);
-    const capBytes = anchorBytes ? Math.max(1024, anchorBytes - 128) : preserveBytes;
+    const capBytes = anchorBytes ? Math.max(1024, anchorBytes) : preserveBytes;
     const framedMode = displayMode === "framed" || displayMode === "frame_only";
+
+    let style = parseFrameStyle(frameStyle);
+    if (displayMode === "frame_only") {
+      style = mergeFrameStyle(style, { stickerTemplate: "none" });
+      style.stickerLayout = null;
+    }
+
+    if (framedMode && meta.anchorBlob && isReframeBaselineFrameStyle(style, meta)) {
+      return buildVariantFromAnchorBlob(meta);
+    }
 
     if (isSupplierDenProfileId(meta.profileId) && meta.studioLayout) {
       const spec = findApparelLayoutSpec(meta.studioLayout, meta.profileId);
       if (spec?.type === "exact_framed") {
-        let style = parseFrameStyle(frameStyle);
         if (displayMode === "frame_only") {
           style = mergeFrameStyle(style, { stickerTemplate: "none" });
         }
-        const canvas =
+        let canvas =
           displayMode === "studio"
             ? prepareSupplierDenExactStudioCanvas(sourceImg, spec)
             : await buildReframeFramedCanvas(sourceImg, meta, style);
+        if (displayMode !== "studio") {
+          canvas = lockReframeCanvasDimensions(canvas, meta);
+        }
         const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
         const profile = {
           id: meta.profileId,
@@ -4130,14 +4230,9 @@
       }
     }
 
-    let style = parseFrameStyle(frameStyle);
-    if (displayMode === "frame_only") {
-      style = mergeFrameStyle(style, { stickerTemplate: "none" });
-      style.stickerLayout = null;
-    }
-
     if (framedMode) {
-      const canvas = await buildReframeFramedCanvas(sourceImg, meta, style);
+      let canvas = await buildReframeFramedCanvas(sourceImg, meta, style);
+      canvas = lockReframeCanvasDimensions(canvas, meta);
       const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
       const profile = {
         id: meta.profileId,
@@ -4739,6 +4834,8 @@
     blobToDataUrl,
     estimateMeeshoInr,
     estimateReframeShippingInr,
+    hydrateReframeAnchorBlob,
+    isReframeBaselineFrameStyle,
     kb,
     loadMozjpeg,
   };

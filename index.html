@@ -749,7 +749,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=105"></script>
+  <script src="/own-api.js?v=106"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -950,13 +950,17 @@
         reframeTemplateDesc.textContent = t ? t.name + " — " + t.desc + "." : "";
       }
 
-      function ensureReframeAnchorMeta(result) {
+      async function ensureReframeAnchorMeta(result) {
         if (!result || !result.reframeMeta) return;
         var tier = result.reframeMeta.tier || (result.reframeMeta.tier = {});
         if (!tier.anchorBytes && result.fileSizeBytes) {
           tier.anchorBytes = result.fileSizeBytes;
           tier.preserveBytes = result.fileSizeBytes;
           tier.anchorInr = result.estimatedShippingInr;
+        }
+        if (!tier.anchorWidth && result.width) {
+          tier.anchorWidth = result.width;
+          tier.anchorHeight = result.height;
         }
         if (!tier.preserveKb) {
           tier.preserveKb = tier.slabKb || tier.targetKb || result.fileSizeKb;
@@ -967,6 +971,9 @@
             stickerTemplate: result.reframeMeta.frameStyle.stickerTemplate,
             stickerLayout: null,
           };
+        }
+        if (MR && MR.hydrateReframeAnchorBlob) {
+          await MR.hydrateReframeAnchorBlob(result.reframeMeta, result.imageUrl);
         }
       }
 
@@ -1235,7 +1242,7 @@
           await MR.loadMozjpeg();
           var r = lastResults[reframeIndex];
           if (!r || !r.reframeMeta) return;
-          ensureReframeAnchorMeta(r);
+          await ensureReframeAnchorMeta(r);
           syncStickerCustomizedState();
           var sourceImg = await loadImageFromDataUrl(lastUploadDataUrl);
           var frame = getReframeSettingsFromUi();
@@ -1303,7 +1310,7 @@
         if (!MR || !lastUploadDataUrl) return;
         var r = lastResults[index];
         if (!r || !r.reframeMeta) return;
-        ensureReframeAnchorMeta(r);
+        ensureReframeAnchorMeta(r).then(function () {
         var meta = r.reframeMeta;
         reframeIndex = index;
         reframePreviewImg.src = r.imageUrl;
@@ -1333,6 +1340,7 @@
         reframeBackdrop.classList.remove("hidden");
         reframeBackdrop.setAttribute("aria-hidden", "false");
         scheduleReframePreview();
+        });
       }
 
       async function applyReframeEdit() {
@@ -1343,7 +1351,7 @@
         reframeApply.textContent = "Applying…";
         try {
           await MR.loadMozjpeg();
-          ensureReframeAnchorMeta(r);
+          await ensureReframeAnchorMeta(r);
           syncStickerCustomizedState();
           var sourceImg = await loadImageFromDataUrl(lastUploadDataUrl);
           var frame = getReframeSettingsFromUi();
@@ -1369,6 +1377,7 @@
             var preserveKb = tier.preserveKb || tier.targetKb || tier.slabKb || fileSizeKb;
             var anchorBytes = tier.anchorBytes || r.fileSizeBytes || null;
             var anchorInr = tier.anchorInr || r.estimatedShippingInr || null;
+            var anchorBlob = r.reframeMeta.anchorBlob || null;
             r.reframeMeta.frameStyle = {
               borderColor: frame.borderColor,
               stickerTemplate:
@@ -1387,6 +1396,8 @@
                 preserveBytes: anchorBytes,
                 anchorBytes: anchorBytes,
                 anchorInr: anchorInr,
+                anchorWidth: tier.anchorWidth || r.width,
+                anchorHeight: tier.anchorHeight || r.height,
               };
             } else {
               r.reframeMeta.kind = "framed_slab";
@@ -1397,7 +1408,12 @@
                 preserveBytes: anchorBytes,
                 anchorBytes: anchorBytes,
                 anchorInr: anchorInr,
+                anchorWidth: tier.anchorWidth || r.width,
+                anchorHeight: tier.anchorHeight || r.height,
               };
+            }
+            if (anchorBlob) {
+              r.reframeMeta.anchorBlob = anchorBlob;
             }
           }
           var card = resultsGrid.querySelector('[data-result-index="' + reframeIndex + '"]');

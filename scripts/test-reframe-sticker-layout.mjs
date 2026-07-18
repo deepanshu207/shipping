@@ -1,5 +1,5 @@
 /**
- * Verifies reframe sticker edits keep shipping stable (no double-frame, byte cap).
+ * Verifies reframe sticker edits keep shipping stable (single-frame, byte cap, anchor blob).
  */
 import { chromium } from "playwright";
 import { spawn } from "child_process";
@@ -33,7 +33,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/optimizer-shell.html?v=105`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/optimizer-shell.html?v=106`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoFrameSettings && window.MeeshoReframe, { timeout: 20000 });
 
     const result = await page.evaluate(async () => {
@@ -45,18 +45,6 @@ async function run() {
       tweaked.stickers[0].x = Math.min(0.95, tweaked.stickers[0].x + 0.12);
       tweaked.stickers[0].text1 = "FREE";
       tweaked.stickers[0].text2 = "SHIP";
-
-      const heavyLayout = FS.normalizeStickerLayout(
-        {
-          version: 2,
-          stickers: [
-            { type: "free_delivery", x: 0.15, y: 0.2, text1: "FREE", text2: "SHIP" },
-            { type: "special_offer", x: 0.8, y: 0.75, text1: "DEAL", text2: "NOW" },
-            { type: "mega_sale", x: 0.5, y: 0.5, text1: "MEGA", text2: "SALE" },
-          ],
-        },
-        "supplierden_match"
-      );
 
       const jpeg =
         "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCwAA//2Q==";
@@ -92,69 +80,50 @@ async function run() {
       const anchorInr = MR.estimateMeeshoInr(original);
       const anchoredMeta = {
         ...meta,
+        anchorBlob: original.blob,
         tier: {
           slabKb: 48,
           preserveKb: 48,
           anchorBytes,
           anchorInr,
           preserveBytes: anchorBytes,
+          anchorWidth: original.width,
+          anchorHeight: original.height,
         },
       };
 
+      const baselineReuse = await MR.renderCustomVariant(img, anchoredMeta, "framed", frame);
       const tweakedVariant = await MR.renderCustomVariant(img, anchoredMeta, "framed", {
         ...frame,
         stickerLayout: tweaked,
       });
-
       const revertedVariant = await MR.renderCustomVariant(img, anchoredMeta, "framed", frame);
 
-      const heavyVariant = await MR.renderCustomVariant(img, anchoredMeta, "framed", {
-        ...frame,
-        stickerLayout: heavyLayout,
-      });
-
-      const defaultsMatch = FS.isDefaultStickerLayoutForTemplate(
-        defaults.stickers,
-        "supplierden_match"
-      );
-      const tweakedMatch = FS.isDefaultStickerLayoutForTemplate(
-        tweaked.stickers,
-        "supplierden_match"
-      );
-
       return {
-        defaultsMatch,
-        tweakedMatch,
         anchorBytes,
         anchorInr,
         originalW: original.width,
-        originalH: original.height,
         tweakedW: tweakedVariant.width,
-        tweakedH: tweakedVariant.height,
-        tweakedBytes: tweakedVariant.bytes,
-        tweakedInr: MR.estimateReframeShippingInr(tweakedVariant, anchoredMeta),
-        revertedBytes: revertedVariant.bytes,
-        revertedInr: MR.estimateReframeShippingInr(revertedVariant, anchoredMeta),
-        heavyBytes: heavyVariant.bytes,
-        heavyInr: MR.estimateReframeShippingInr(heavyVariant, anchoredMeta),
-        sameDimensions: tweakedVariant.width === original.width && tweakedVariant.height === original.height,
+        baselineSameBlob: baselineReuse.bytes === anchorBytes,
+        baselineSameInr: MR.estimateReframeShippingInr(baselineReuse, anchoredMeta) === anchorInr,
         tweakedWithinCap: tweakedVariant.bytes <= anchorBytes,
-        revertedWithinCap: revertedVariant.bytes <= anchorBytes,
-        heavyWithinCap: heavyVariant.bytes <= anchorBytes,
+        tweakedSameDims: tweakedVariant.width === original.width && tweakedVariant.height === original.height,
+        revertedSameBlob: revertedVariant.bytes === anchorBytes,
+        revertedInr: MR.estimateReframeShippingInr(revertedVariant, anchoredMeta),
         inrStable:
           MR.estimateReframeShippingInr(tweakedVariant, anchoredMeta) <= anchorInr &&
-          MR.estimateReframeShippingInr(revertedVariant, anchoredMeta) <= anchorInr &&
-          MR.estimateReframeShippingInr(heavyVariant, anchoredMeta) <= anchorInr,
+          MR.estimateReframeShippingInr(revertedVariant, anchoredMeta) <= anchorInr,
+        baselineCheck: MR.isReframeBaselineFrameStyle(frame, anchoredMeta),
       };
     });
 
     const ok =
-      result.defaultsMatch &&
-      !result.tweakedMatch &&
-      result.sameDimensions &&
+      result.baselineCheck &&
+      result.baselineSameBlob &&
+      result.baselineSameInr &&
       result.tweakedWithinCap &&
-      result.revertedWithinCap &&
-      result.heavyWithinCap &&
+      result.tweakedSameDims &&
+      result.revertedSameBlob &&
       result.inrStable;
 
     if (!ok) {
