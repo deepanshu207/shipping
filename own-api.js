@@ -1705,7 +1705,7 @@
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(border, border, photoW, photoH);
     drawSupplierDenSubject(ctx, trimmed, spec, border, border, photoW, photoH);
-    drawFramedOverlays(ctx, border, photoW, photoH, style.stickerTemplate);
+    drawFramedOverlays(ctx, border, photoW, photoH, style);
     return c;
   }
 
@@ -2871,7 +2871,9 @@
     ctx.fillText(text, x, y);
   }
 
-  function renderSpecialOfferBadge(scale) {
+  function renderSpecialOfferBadge(scale, texts = {}) {
+    const line1 = String(texts.line1 || "SPECIAL").slice(0, 14);
+    const line2 = String(texts.line2 || "OFFER").slice(0, 14);
     const w = 92 * scale;
     const h = 54 * scale;
     const pad = 8 * scale;
@@ -2899,14 +2901,17 @@
     ctx.lineWidth = 0.55 * scale;
     ctx.strokeStyle = "#B71C1C";
     ctx.fillStyle = "#FFD600";
-    ctx.strokeText("SPECIAL", w / 2, h * 0.34);
-    ctx.fillText("SPECIAL", w / 2, h * 0.34);
-    ctx.strokeText("OFFER", w / 2, h * 0.72);
-    ctx.fillText("OFFER", w / 2, h * 0.72);
+    ctx.strokeText(line1, w / 2, h * 0.34);
+    ctx.fillText(line1, w / 2, h * 0.34);
+    ctx.strokeText(line2, w / 2, h * 0.72);
+    ctx.fillText(line2, w / 2, h * 0.72);
     return { canvas: c, width: bw, height: bh };
   }
 
-  function renderHotSaleBurst(scale) {
+  function renderHotSaleBurst(scale, texts = {}) {
+    const line1 = String(texts.line1 || "HOT").slice(0, 10);
+    const line2 = String(texts.line2 || "SALE").slice(0, 10);
+    const line3 = String(texts.line3 || texts.line2 || "BIG SALE").slice(0, 12);
     const spikes = 14;
     const outer = 78 * scale;
     const inner = 34 * scale;
@@ -2939,13 +2944,15 @@
     ctx.strokeStyle = "#B71C1C";
     ctx.lineWidth = 2.4 * scale;
     ctx.stroke();
-    drawStickerText(ctx, "HOT", 0, -14 * scale, 15, scale, { strokeWidth: 1.5 });
-    drawStickerText(ctx, "SALE", 0, 4 * scale, 13, scale, { strokeWidth: 1.45 });
-    drawStickerText(ctx, "BIG SALE", 0, 22 * scale, 12, scale, { strokeWidth: 1.6 });
+    drawStickerText(ctx, line1, 0, -14 * scale, 15, scale, { strokeWidth: 1.5 });
+    drawStickerText(ctx, line2, 0, 4 * scale, 13, scale, { strokeWidth: 1.45 });
+    drawStickerText(ctx, line3, 0, 22 * scale, 12, scale, { strokeWidth: 1.6 });
     return { canvas: c, width: size, height: size };
   }
 
-  function renderLimitedTimeBadge(scale) {
+  function renderLimitedTimeBadge(scale, texts = {}) {
+    const line1 = String(texts.line1 || "LIMITED").slice(0, 12);
+    const line2 = String(texts.line2 || "TIME").slice(0, 12);
     const w = 108 * scale;
     const h = 48 * scale;
     const pad = 8 * scale;
@@ -2965,12 +2972,13 @@
     ctx.strokeStyle = "#FFD600";
     ctx.lineWidth = 2.5 * scale;
     ctx.stroke();
-    drawStickerText(ctx, "LIMITED", w / 2, h * 0.36, 11, scale, { fill: "#FFD600", stroke: "#311B92" });
-    drawStickerText(ctx, "TIME", w / 2, h * 0.72, 11, scale, { fill: "#FFFFFF", stroke: "#311B92" });
+    drawStickerText(ctx, line1, w / 2, h * 0.36, 11, scale, { fill: "#FFD600", stroke: "#311B92" });
+    drawStickerText(ctx, line2, w / 2, h * 0.72, 11, scale, { fill: "#FFFFFF", stroke: "#311B92" });
     return { canvas: c, width: bw, height: bh };
   }
 
-  function renderBestPriceRibbon(scale) {
+  function renderBestPriceRibbon(scale, texts = {}) {
+    const line1 = String(texts.line1 || "BEST PRICE").slice(0, 16);
     const size = 130 * scale;
     const ss = OVERLAY_SUPERSAMPLE;
     const c = document.createElement("canvas");
@@ -2985,11 +2993,13 @@
     ctx.strokeStyle = "#FFD600";
     ctx.lineWidth = 2 * scale;
     ctx.strokeRect(0, 0, size * 0.95, 34 * scale);
-    drawStickerText(ctx, "BEST PRICE", size * 0.47, 17 * scale, 13, scale, { fill: "#FFD600", stroke: "#7F0000", strokeWidth: 1.2 });
+    drawStickerText(ctx, line1, size * 0.47, 17 * scale, 13, scale, { fill: "#FFD600", stroke: "#7F0000", strokeWidth: 1.2 });
     return { canvas: c, width: size, height: size };
   }
 
-  function renderMegaSaleBadge(scale) {
+  function renderMegaSaleBadge(scale, texts = {}) {
+    const line1 = String(texts.line1 || "MEGA").slice(0, 10);
+    const line2 = String(texts.line2 || "SALE").slice(0, 10);
     const w = 118 * scale;
     const h = 58 * scale;
     const pad = 8 * scale;
@@ -3012,12 +3022,14 @@
     ctx.strokeStyle = "#FFEB3B";
     ctx.lineWidth = 3 * scale;
     ctx.stroke();
-    drawStickerText(ctx, "MEGA", w / 2, h * 0.35, 14, scale, { fill: "#FFEB3B", stroke: "#B71C1C" });
-    drawStickerText(ctx, "SALE", w / 2, h * 0.72, 14, scale, { fill: "#FFFFFF", stroke: "#B71C1C" });
+    drawStickerText(ctx, line1, w / 2, h * 0.35, 14, scale, { fill: "#FFEB3B", stroke: "#B71C1C" });
+    drawStickerText(ctx, line2, w / 2, h * 0.72, 14, scale, { fill: "#FFFFFF", stroke: "#B71C1C" });
     return { canvas: c, width: bw, height: bh };
   }
 
-  function renderFlashDealBurst(scale) {
+  function renderFlashDealBurst(scale, texts = {}) {
+    const line1 = String(texts.line1 || "FLASH").slice(0, 10);
+    const line2 = String(texts.line2 || "DEAL").slice(0, 10);
     const spikes = 12;
     const outer = 72 * scale;
     const inner = 30 * scale;
@@ -3050,12 +3062,14 @@
     ctx.strokeStyle = "#BF360C";
     ctx.lineWidth = 2.2 * scale;
     ctx.stroke();
-    drawStickerText(ctx, "FLASH", 0, -10 * scale, 12, scale, { strokeWidth: 1.4 });
-    drawStickerText(ctx, "DEAL", 0, 8 * scale, 12, scale, { strokeWidth: 1.4 });
+    drawStickerText(ctx, line1, 0, -10 * scale, 12, scale, { strokeWidth: 1.4 });
+    drawStickerText(ctx, line2, 0, 8 * scale, 12, scale, { strokeWidth: 1.4 });
     return { canvas: c, width: size, height: size };
   }
 
-  function renderSuperOfferBadge(scale) {
+  function renderSuperOfferBadge(scale, texts = {}) {
+    const line1 = String(texts.line1 || "SUPER").slice(0, 10);
+    const line2 = String(texts.line2 || "OFFER").slice(0, 10);
     const w = 96 * scale;
     const h = 50 * scale;
     const pad = 8 * scale;
@@ -3072,12 +3086,14 @@
     ctx.strokeStyle = "#FFD600";
     ctx.lineWidth = 2.5 * scale;
     ctx.stroke();
-    drawStickerText(ctx, "SUPER", w / 2, h * 0.34, 12, scale, { fill: "#FFD600", stroke: "#004D40" });
-    drawStickerText(ctx, "OFFER", w / 2, h * 0.72, 12, scale, { fill: "#FFFFFF", stroke: "#004D40" });
+    drawStickerText(ctx, line1, w / 2, h * 0.34, 12, scale, { fill: "#FFD600", stroke: "#004D40" });
+    drawStickerText(ctx, line2, w / 2, h * 0.72, 12, scale, { fill: "#FFFFFF", stroke: "#004D40" });
     return { canvas: c, width: w + pad * 2, height: h + pad * 2 };
   }
 
-  function renderFlatOffBadge(scale) {
+  function renderFlatOffBadge(scale, texts = {}) {
+    const line1 = String(texts.line1 || "50%").slice(0, 8);
+    const line2 = String(texts.line2 || "OFF").slice(0, 8);
     const d = 72 * scale;
     const ss = OVERLAY_SUPERSAMPLE;
     const c = document.createElement("canvas");
@@ -3092,12 +3108,14 @@
     ctx.strokeStyle = "#FFFFFF";
     ctx.lineWidth = 2.5 * scale;
     ctx.stroke();
-    drawStickerText(ctx, "50%", d / 2, d / 2 - 6 * scale, 16, scale, { fill: "#FFFFFF", stroke: "#E65100", strokeWidth: 1.5 });
-    drawStickerText(ctx, "OFF", d / 2, d / 2 + 12 * scale, 11, scale, { fill: "#FFEB3B", stroke: "#E65100", strokeWidth: 1.2 });
+    drawStickerText(ctx, line1, d / 2, d / 2 - 6 * scale, 16, scale, { fill: "#FFFFFF", stroke: "#E65100", strokeWidth: 1.5 });
+    drawStickerText(ctx, line2, d / 2, d / 2 + 12 * scale, 11, scale, { fill: "#FFEB3B", stroke: "#E65100", strokeWidth: 1.2 });
     return { canvas: c, width: d, height: d };
   }
 
-  function renderFreeDeliverySticker(scale) {
+  function renderFreeDeliverySticker(scale, texts = {}) {
+    const line1 = String(texts.line1 || "FREE").slice(0, 12);
+    const line2 = String(texts.line2 || "DELIVERY").slice(0, 12);
     const truckW = 54 * scale;
     const truckH = 34 * scale;
     const textW = 92 * scale;
@@ -3138,14 +3156,16 @@
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "#111827";
-    ctx.fillText("FREE", boxX + textW / 2, boxY + textH * 0.38);
+    ctx.fillText(line1, boxX + textW / 2, boxY + textH * 0.38);
     ctx.font = `800 ${11 * scale}px Arial,Helvetica,sans-serif`;
-    ctx.fillText("DELIVERY", boxX + textW / 2, boxY + textH * 0.72);
+    ctx.fillText(line2, boxX + textW / 2, boxY + textH * 0.72);
 
     return { canvas: c, width: bw, height: bh };
   }
 
-  function renderBestChoiceOfferBadge(scale) {
+  function renderBestChoiceOfferBadge(scale, texts = {}) {
+    const line1 = String(texts.line1 || "BEST CHOICE").slice(0, 14);
+    const line2 = String(texts.line2 || "OFFER").slice(0, 12);
     const d = 96 * scale;
     const pad = 10 * scale;
     const size = d + pad * 2;
@@ -3178,10 +3198,10 @@
     ctx.strokeStyle = "#A5D6A7";
     ctx.lineWidth = 1.5 * scale;
     ctx.stroke();
-    drawStickerText(ctx, "BEST CHOICE", 0, 0, 9.5, scale, { fill: "#FFFFFF", stroke: "#1B5E20", strokeWidth: 1.1 });
+    drawStickerText(ctx, line1, 0, 0, 9.5, scale, { fill: "#FFFFFF", stroke: "#1B5E20", strokeWidth: 1.1 });
     ctx.restore();
 
-    drawStickerText(ctx, "OFFER", center, center + d * 0.16, 12, scale, { fill: "#FFD600", stroke: "#4A148C", strokeWidth: 1.3 });
+    drawStickerText(ctx, line2, center, center + d * 0.16, 12, scale, { fill: "#FFD600", stroke: "#4A148C", strokeWidth: 1.3 });
     return { canvas: c, width: size, height: size };
   }
 
@@ -3223,9 +3243,17 @@
     );
   }
 
-  function drawFramedOverlays(ctx, border, photoW, photoH, templateId) {
-    const template = normalizeStickerTemplate(templateId);
+  function drawFramedOverlays(ctx, border, photoW, photoH, frameStyleOrTemplate) {
+    const frameStyle =
+      typeof frameStyleOrTemplate === "string"
+        ? { stickerTemplate: frameStyleOrTemplate }
+        : { ...defaultFrameStyle(), ...(frameStyleOrTemplate || {}) };
+    const template = normalizeStickerTemplate(frameStyle.stickerTemplate);
     if (template === "none") return;
+    if (frameStyle.stickerLayout) {
+      drawFramedOverlaysWithLayout(ctx, border, photoW, photoH, template, frameStyle.stickerLayout);
+      return;
+    }
 
     const scale = Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
     ctx.imageSmoothingEnabled = true;
@@ -3304,6 +3332,202 @@
     }
 
     drawClassicPromoOverlays(ctx, border, photoW, photoH);
+  }
+
+  const STICKER_SLOT_DEFS = {
+    classic_promo: {
+      dual: true,
+      primary: { type: "special_offer", x: 0.71, y: 0.09, label: "Special offer badge" },
+      secondary: { type: "hot_sale", x: 0.16, y: 0.72, label: "Hot sale burst" },
+    },
+    supplierden_match: {
+      dual: true,
+      primary: { type: "free_delivery", x: 0.12, y: 0.42, label: "Free delivery" },
+      secondary: { type: "best_choice", x: 0.5, y: 0.38, label: "Best choice offer" },
+    },
+    limited_time: {
+      dual: true,
+      primary: { type: "limited_time", x: 0.64, y: 0.09, label: "Limited time badge" },
+      secondary: { type: "flash_deal", x: 0.12, y: 0.7, label: "Flash deal burst" },
+    },
+    best_price: {
+      dual: true,
+      primary: { type: "best_price", x: 0.08, y: 0.05, label: "Best price ribbon" },
+      secondary: { type: "hot_sale", x: 0.78, y: 0.68, label: "Hot sale burst" },
+    },
+    flash_deal: {
+      dual: true,
+      primary: { type: "flash_deal", x: 0.14, y: 0.68, label: "Flash deal burst" },
+      secondary: { type: "special_offer", x: 0.71, y: 0.09, label: "Special offer badge" },
+    },
+    super_offer: {
+      dual: true,
+      primary: { type: "super_offer", x: 0.71, y: 0.09, label: "Super offer badge" },
+      secondary: { type: "flat_off", x: 0.1, y: 0.72, label: "50% off badge" },
+    },
+    mega_sale: {
+      dual: false,
+      primary: { type: "mega_sale", x: 0.68, y: 0.08, label: "Mega sale badge" },
+      secondary: null,
+    },
+  };
+
+  function defaultStickerSlot(slotDef) {
+    return {
+      x: slotDef.x,
+      y: slotDef.y,
+      text1: "",
+      text2: "",
+      imageUrl: "",
+      scale: 1,
+    };
+  }
+
+  function defaultStickerLayoutForTemplate(templateId) {
+    const template = normalizeStickerTemplate(templateId);
+    const defs = STICKER_SLOT_DEFS[template] || STICKER_SLOT_DEFS.classic_promo;
+    return {
+      visibility: "both",
+      primary: defaultStickerSlot(defs.primary),
+      secondary: defs.secondary ? defaultStickerSlot(defs.secondary) : null,
+    };
+  }
+
+  function normalizeStickerLayout(input, templateId) {
+    const defaults = defaultStickerLayoutForTemplate(templateId);
+    const src = input || {};
+    const visibility = ["both", "primary", "secondary"].includes(src.visibility)
+      ? src.visibility
+      : defaults.visibility;
+    function normSlot(slot, fallback) {
+      if (!fallback) return null;
+      const s = slot || {};
+      return {
+        x: clamp01(typeof s.x === "number" ? s.x : fallback.x),
+        y: clamp01(typeof s.y === "number" ? s.y : fallback.y),
+        text1: String(s.text1 || "").slice(0, 16),
+        text2: String(s.text2 || "").slice(0, 16),
+        imageUrl: String(s.imageUrl || ""),
+        scale: Math.min(1.6, Math.max(0.45, Number(s.scale) || 1)),
+        _image: s._image || null,
+      };
+    }
+    return {
+      visibility,
+      primary: normSlot(src.primary, defaults.primary),
+      secondary: normSlot(src.secondary, defaults.secondary),
+    };
+  }
+
+  function clamp01(n) {
+    return Math.min(1, Math.max(0, n));
+  }
+
+  function templateHasDualStickers(templateId) {
+    const template = normalizeStickerTemplate(templateId);
+    const defs = STICKER_SLOT_DEFS[template];
+    return !!(defs && defs.dual && defs.secondary);
+  }
+
+  function getTemplateStickerSlotInfo(templateId) {
+    const template = normalizeStickerTemplate(templateId);
+    const defs = STICKER_SLOT_DEFS[template] || STICKER_SLOT_DEFS.classic_promo;
+    return {
+      dual: !!(defs.dual && defs.secondary),
+      primary: defs.primary,
+      secondary: defs.secondary,
+    };
+  }
+
+  function renderStickerAsset(type, scale, texts = {}) {
+    switch (type) {
+      case "special_offer":
+        return renderSpecialOfferBadge(scale, texts);
+      case "hot_sale":
+        return renderHotSaleBurst(scale, texts);
+      case "free_delivery":
+        return renderFreeDeliverySticker(scale, texts);
+      case "best_choice":
+        return renderBestChoiceOfferBadge(scale, texts);
+      case "limited_time":
+        return renderLimitedTimeBadge(scale, texts);
+      case "best_price":
+        return renderBestPriceRibbon(scale, texts);
+      case "flash_deal":
+        return renderFlashDealBurst(scale, texts);
+      case "super_offer":
+        return renderSuperOfferBadge(scale, texts);
+      case "flat_off":
+        return renderFlatOffBadge(scale, texts);
+      case "mega_sale":
+        return renderMegaSaleBadge(scale, texts);
+      default:
+        return renderSpecialOfferBadge(scale, texts);
+    }
+  }
+
+  function drawStickerSlotOnPhoto(ctx, border, photoW, photoH, assetType, slotLayout, scale) {
+    if (!slotLayout) return;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    const slotScale = slotLayout.scale || 1;
+    if (slotLayout._image) {
+      const maxW = photoW * 0.24 * slotScale;
+      const ratio = slotLayout._image.height / Math.max(1, slotLayout._image.width);
+      const drawW = maxW;
+      const drawH = maxW * ratio;
+      const x = border + photoW * slotLayout.x - drawW / 2;
+      const y = border + photoH * slotLayout.y - drawH / 2;
+      ctx.drawImage(slotLayout._image, x, y, drawW, drawH);
+      return;
+    }
+    const texts = {};
+    if (slotLayout.text1) texts.line1 = slotLayout.text1;
+    if (slotLayout.text2) texts.line2 = slotLayout.text2;
+    const rendered = renderStickerAsset(assetType, scale * slotScale, texts);
+    const x = border + photoW * slotLayout.x - rendered.width / 2;
+    const y = border + photoH * slotLayout.y - rendered.height / 2;
+    ctx.drawImage(rendered.canvas, x, y, rendered.width, rendered.height);
+  }
+
+  function drawFramedOverlaysWithLayout(ctx, border, photoW, photoH, templateId, stickerLayout) {
+    const template = normalizeStickerTemplate(templateId);
+    if (template === "none") return;
+    const layout = normalizeStickerLayout(stickerLayout, template);
+    const defs = STICKER_SLOT_DEFS[template] || STICKER_SLOT_DEFS.classic_promo;
+    const scale = Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
+    const showPrimary = layout.visibility === "both" || layout.visibility === "primary";
+    const showSecondary = layout.visibility === "both" || layout.visibility === "secondary";
+    if (showPrimary && defs.primary) {
+      drawStickerSlotOnPhoto(ctx, border, photoW, photoH, defs.primary.type, layout.primary, scale);
+    }
+    if (showSecondary && defs.secondary && layout.secondary) {
+      drawStickerSlotOnPhoto(ctx, border, photoW, photoH, defs.secondary.type, layout.secondary, scale);
+    }
+  }
+
+  function loadStickerImageElement(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+  }
+
+  async function hydrateStickerLayoutImages(stickerLayout, templateId) {
+    const layout = normalizeStickerLayout(stickerLayout, templateId);
+    for (const key of ["primary", "secondary"]) {
+      const slot = layout[key];
+      if (slot && slot.imageUrl && !slot._image) {
+        try {
+          slot._image = await loadStickerImageElement(slot.imageUrl);
+        } catch {
+          slot.imageUrl = "";
+        }
+      }
+    }
+    return layout;
   }
 
   /** 1:1 square white studio — Meesho charges less than wide front+back collages. */
@@ -3386,8 +3610,24 @@
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(img, 0, 0, img.width, img.height, border, border, w, h);
-    drawFramedOverlays(ctx, border, w, h, style.stickerTemplate);
+    drawFramedOverlays(ctx, border, w, h, style);
     return c;
+  }
+
+  async function prepareFramedCanvasForReframe(img, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, frameStyle) {
+    const style = { ...defaultFrameStyle(), ...(frameStyle || {}) };
+    if (style.stickerLayout) {
+      style.stickerLayout = await hydrateStickerLayoutImages(style.stickerLayout, style.stickerTemplate);
+    }
+    return prepareFramedCanvas(img, framedMaxSide, style);
+  }
+
+  async function prepareSupplierDenExactFramedCanvasForReframe(img, spec, frameStyle) {
+    const style = { ...defaultFrameStyle(), ...(frameStyle || {}) };
+    if (style.stickerLayout) {
+      style.stickerLayout = await hydrateStickerLayoutImages(style.stickerLayout, style.stickerTemplate);
+    }
+    return prepareSupplierDenExactFramedCanvas(img, spec, style);
   }
 
   /** Exact upload dimensions — never upscale; cap max side at 2000 only. */
@@ -3528,6 +3768,7 @@
         ? {
             borderColor: style.borderColor,
             stickerTemplate: style.stickerTemplate,
+            stickerLayout: style.stickerLayout || null,
           }
         : null,
     };
@@ -3586,7 +3827,9 @@
         const canvas =
           displayMode === "studio"
             ? prepareSupplierDenExactStudioCanvas(sourceImg, spec)
-            : prepareSupplierDenExactFramedCanvas(sourceImg, spec, style);
+            : style.stickerLayout
+              ? await prepareSupplierDenExactFramedCanvasForReframe(sourceImg, spec, style)
+              : prepareSupplierDenExactFramedCanvas(sourceImg, spec, style);
         const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
         const profile = {
           id: meta.profileId,
@@ -3612,7 +3855,9 @@
     }
 
     if (framedMode) {
-      canvas = prepareFramedCanvas(canvas, meta.framedMaxSide ?? MEESHO_FRAMED_MAX_SIDE, style);
+      canvas = style.stickerLayout
+        ? await prepareFramedCanvasForReframe(canvas, meta.framedMaxSide ?? MEESHO_FRAMED_MAX_SIDE, style)
+        : prepareFramedCanvas(canvas, meta.framedMaxSide ?? MEESHO_FRAMED_MAX_SIDE, style);
       whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
       const profile = {
         id: meta.profileId,
@@ -4216,6 +4461,10 @@
     BORDER_PRESETS,
     STICKER_TEMPLATES: STICKER_TEMPLATE_META,
     defaultFrameStyle,
+    defaultStickerLayoutForTemplate,
+    normalizeStickerLayout,
+    templateHasDualStickers,
+    getTemplateStickerSlotInfo,
     normalizeBorderColor,
     normalizeStickerTemplate,
     normalizeBorderPreset,
