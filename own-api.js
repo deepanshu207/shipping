@@ -84,7 +84,7 @@
       bottomMarginRatio: 0.05,
       sideMarginRatio: 0.1,
       priority: 0,
-      panelTag: "exact 703×1024 · SupplierDen match",
+      panelTag: "703×1024 · ₹50 match",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
@@ -97,7 +97,7 @@
       bottomMarginRatio: 0.04,
       sideMarginRatio: 0.08,
       priority: 1,
-      panelTag: "exact 703×1024 · tight fill",
+      panelTag: "703×1024 · tight fill",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
@@ -110,7 +110,7 @@
       bottomMarginRatio: 0.06,
       sideMarginRatio: 0.12,
       priority: 2,
-      panelTag: "exact 703×1024 · loose fill",
+      panelTag: "703×1024 · loose fill",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
@@ -123,7 +123,7 @@
       bottomMarginRatio: 0.05,
       sideMarginRatio: 0.1,
       priority: 3,
-      panelTag: "exact 703×1024 · border 12",
+      panelTag: "703×1024 · border 12",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
@@ -136,7 +136,7 @@
       bottomMarginRatio: 0.05,
       sideMarginRatio: 0.1,
       priority: 5,
-      panelTag: "exact 680×990",
+      panelTag: "680×990",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
@@ -149,7 +149,7 @@
       bottomMarginRatio: 0.05,
       sideMarginRatio: 0.1,
       priority: 7,
-      panelTag: "exact 640×960",
+      panelTag: "640×960",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
@@ -162,7 +162,7 @@
       bottomMarginRatio: 0.05,
       sideMarginRatio: 0.1,
       priority: 9,
-      panelTag: "exact 600×880",
+      panelTag: "600×880",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
   ];
@@ -647,8 +647,8 @@
     { id: "classic_promo", name: "Classic Promo", desc: "SPECIAL OFFER + HOT SALE" },
     {
       id: "supplierden_match",
-      name: "SupplierDen Match",
-      desc: "FREE DELIVERY truck + BEST CHOICE OFFER badge",
+      name: "Tall dress promo",
+      desc: "FREE DELIVERY + BEST CHOICE OFFER",
     },
     { id: "none", name: "Frame only", desc: "No promotion stickers" },
     { id: "mega_sale", name: "Mega Sale", desc: "Large MEGA SALE badge" },
@@ -1061,7 +1061,7 @@
       supplierDenAll: true,
       tiers: TIERS_SUPPLIERDEN_50,
       path: "supplierden_match_50",
-      modeName: "SupplierDen Match ₹50",
+      modeName: "Tall Dress ₹50",
       framedMaxSide: 1024,
       frameStyleOverride: {
         borderColor: SUPPLIERDEN_MATCH_PURPLE,
@@ -1082,7 +1082,7 @@
     return {
       ...base,
       id: `supplierden_${layoutSpec.layout}`,
-      modeName: `SupplierDen · ${layoutSpec.panelTag || layoutSpec.layout}`,
+      modeName: `Tall · ${layoutSpec.panelTag || layoutSpec.layout}`,
       studio: false,
       supplierDenAll: false,
       path: "supplierden_match_50",
@@ -1113,7 +1113,7 @@
         if (onProgress) {
           onProgress(
             10 + (done / totalSteps) * 85,
-            `SupplierDen · ${profile.modeName} · ${tier.label}`
+            `Tall dress · ${profile.modeName} · ${tier.label}`
           );
         }
         allVariants.push(
@@ -1651,24 +1651,53 @@
     return { dx, dy, dw, dh };
   }
 
-  /**
-   * SupplierDen exact output — fixed outer canvas (e.g. 703×1024 total), thin purple border, centered subject.
-   * Matches SupplierDen reference: white studio → portrait frame → stickers, not native-tall + scale-down.
-   */
-  function prepareSupplierDenExactFramedCanvas(img, spec, frameStyle) {
+  function isSupplierDenProfileId(profileId) {
+    return String(profileId || "").startsWith("supplierden_");
+  }
+
+  function supplierDenExactDims(spec) {
     const outerW = spec.outerW ?? SUPPLIERDEN_EXACT_OUTER_W;
     const outerH = spec.outerH ?? SUPPLIERDEN_EXACT_OUTER_H;
     const border = spec.borderPx ?? SUPPLIERDEN_EXACT_BORDER_PX;
-    const style = { ...defaultFrameStyle(), ...(frameStyle || {}) };
-    const photoW = outerW - border * 2;
-    const photoH = outerH - border * 2;
-    const trimmed = prepareSupplierDenSubjectCanvas(img);
-    const margins = {
+    return { outerW, outerH, border, photoW: outerW - border * 2, photoH: outerH - border * 2 };
+  }
+
+  function supplierDenMargins(spec) {
+    return {
       top: spec.topMarginRatio ?? 0.15,
       bottom: spec.bottomMarginRatio ?? 0.05,
       side: spec.sideMarginRatio ?? 0.1,
     };
-    const { dx, dy, dw, dh } = fitSubjectWithMargins(trimmed, photoW, photoH, margins);
+  }
+
+  function drawSupplierDenSubject(ctx, trimmed, spec, offsetX, offsetY, areaW, areaH) {
+    const { dx, dy, dw, dh } = fitSubjectWithMargins(trimmed, areaW, areaH, supplierDenMargins(spec));
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(trimmed, 0, 0, trimmed.width, trimmed.height, offsetX + dx, offsetY + dy, dw, dh);
+  }
+
+  /** Tall dress ₹50 — full outer white canvas, no border (reframe: no frame). */
+  function prepareSupplierDenExactStudioCanvas(img, spec) {
+    const { outerW, outerH } = supplierDenExactDims(spec);
+    const trimmed = prepareSupplierDenSubjectCanvas(img);
+    const c = document.createElement("canvas");
+    c.width = outerW;
+    c.height = outerH;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, outerW, outerH);
+    drawSupplierDenSubject(ctx, trimmed, spec, 0, 0, outerW, outerH);
+    return c;
+  }
+
+  /**
+   * Tall dress ₹50 — fixed outer canvas (703×1024), thin border, centered subject + stickers.
+   */
+  function prepareSupplierDenExactFramedCanvas(img, spec, frameStyle) {
+    const { outerW, outerH, border, photoW, photoH } = supplierDenExactDims(spec);
+    const style = { ...defaultFrameStyle(), ...(frameStyle || {}) };
+    const trimmed = prepareSupplierDenSubjectCanvas(img);
     const c = document.createElement("canvas");
     c.width = outerW;
     c.height = outerH;
@@ -1677,9 +1706,7 @@
     ctx.fillRect(0, 0, outerW, outerH);
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(border, border, photoW, photoH);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(trimmed, 0, 0, trimmed.width, trimmed.height, border + dx, border + dy, dw, dh);
+    drawSupplierDenSubject(ctx, trimmed, spec, border, border, photoW, photoH);
     drawFramedOverlays(ctx, border, photoW, photoH, style.stickerTemplate);
     return c;
   }
@@ -2221,7 +2248,8 @@
       tag.includes("supplierden match") ||
       tag.includes("supplierden ₹50") ||
       tag.includes("supplierden 50") ||
-      tag.includes("supplierden lowest")
+      tag.includes("supplierden lowest") ||
+      (tag.includes("tall dress") && tag.includes("₹50"))
     );
   }
 
@@ -3533,12 +3561,38 @@
   /** Re-render one result — keeps original KB slab/target so ₹ does not jump on border/sticker edits. */
   async function renderCustomVariant(sourceImg, meta, displayMode, frameStyle) {
     await loadMozjpeg();
+    const preserveKb = meta.tier?.preserveKb ?? meta.tier?.targetKb ?? meta.tier?.slabKb ?? 51;
+    const framedMode = displayMode === "framed" || displayMode === "frame_only";
+
+    if (isSupplierDenProfileId(meta.profileId) && meta.studioLayout) {
+      const spec = findApparelLayoutSpec(meta.studioLayout, meta.profileId);
+      if (spec?.type === "exact_framed") {
+        let style = parseFrameStyle(frameStyle);
+        if (displayMode === "frame_only") {
+          style = mergeFrameStyle(style, { stickerTemplate: "none" });
+        }
+        const canvas =
+          displayMode === "studio"
+            ? prepareSupplierDenExactStudioCanvas(sourceImg, spec)
+            : prepareSupplierDenExactFramedCanvas(sourceImg, spec, style);
+        const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
+        const profile = {
+          id: meta.profileId,
+          path: meta.processingPath,
+          studio: displayMode === "studio",
+          modeName: "custom tall dress",
+        };
+        const tier =
+          displayMode === "studio"
+            ? { targetKb: preserveKb, label: "custom" }
+            : { slabKb: preserveKb, label: "custom" };
+        return buildVariantForTier(canvas, whiteRatio, profile, tier);
+      }
+    }
+
     let canvas = resolveReframeBaseCanvas(sourceImg, meta);
     let whiteRatio =
       meta.whiteRatio ?? Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
-
-    const preserveKb = meta.tier?.preserveKb ?? meta.tier?.targetKb ?? meta.tier?.slabKb ?? 51;
-    const framedMode = displayMode === "framed" || displayMode === "frame_only";
 
     let style = parseFrameStyle(frameStyle);
     if (displayMode === "frame_only") {

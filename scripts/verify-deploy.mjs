@@ -44,10 +44,10 @@ async function run() {
 
   try {
     const { res, text } = await get("/");
-    if (res.ok && text.includes("SupplierDen Match")) {
-      checks.push(["GET / SupplierDen mode", true, "SupplierDen Match ₹50 in UI"]);
+    if (res.ok && text.includes("Tall Dress")) {
+      checks.push(["GET / Tall Dress mode", true, "Tall Dress ₹50 in UI"]);
     } else {
-      checks.push(["GET / SupplierDen mode", false, "missing SupplierDen mode"]);
+      checks.push(["GET / Tall Dress mode", false, "missing Tall Dress mode"]);
     }
   } catch (e) {
     checks.push(["GET / embedded UI", false, e.message]);
