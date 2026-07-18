@@ -340,6 +340,15 @@
     .reframe-slot-title { margin: 0 0 0.45rem; font-size: 0.78rem; font-weight: 800; }
     .reframe-range-meta { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--muted); margin-top: 0.15rem; }
     .reframe-slot-preview { margin-top: 0.35rem; font-size: 0.7rem; color: var(--muted); }
+    .reframe-slot-actions { display: flex; gap: 0.45rem; margin-top: 0.45rem; }
+    .reframe-slot-remove, .reframe-add-sticker {
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      font: inherit; font-size: 0.78rem; font-weight: 800; padding: 0.45rem 0.7rem;
+      border-radius: 0.55rem; cursor: pointer;
+    }
+    .reframe-slot-remove { color: #b91c1c; border-color: #fecaca; }
+    .reframe-add-sticker { width: 100%; margin-top: 0.55rem; color: var(--emerald-dark); border-color: #a7f3d0; }
+    .reframe-preview-status { font-size: 0.72rem; color: var(--muted); min-height: 1rem; margin: 0.35rem 0 0; text-align: center; }
     .framed-settings { margin-top: 1.15rem; display: flex; flex-direction: column; gap: 0.65rem; }
     .framed-settings--inactive .accordion { opacity: 0.72; }
     .framed-note { font-size: 0.75rem; color: var(--muted); margin: 0 0 0.25rem; line-height: 1.4; }
@@ -689,8 +698,9 @@
           <h3 id="reframe-title">Customize frame</h3>
           <button type="button" class="reframe-close" id="reframe-close" aria-label="Close">×</button>
         </div>
-        <p class="reframe-note" id="reframe-note">Border/sticker changes keep the same file-size target (~₹ band). After generation, use <b>Sticker layout</b> to show one sticker, move stickers, change text, or upload a custom sticker image.</p>
+        <p class="reframe-note" id="reframe-note">Preview updates as you edit. Sticker changes keep the same KB target (~₹ band). Default is 2 stickers — use + / − to add or remove.</p>
         <div class="reframe-preview"><img id="reframe-preview-img" alt="Preview" /></div>
+        <p class="reframe-preview-status" id="reframe-preview-status"></p>
         <div class="reframe-mode-row">
           <button type="button" class="reframe-mode-btn selected" data-mode="framed" id="reframe-mode-framed">Border + sticker</button>
           <button type="button" class="reframe-mode-btn" data-mode="frame_only" id="reframe-mode-frame-only">Border only</button>
@@ -722,69 +732,11 @@
             </div>
           </details>
           <details class="accordion reframe-sticker-layout" id="reframe-sticker-layout" open style="margin-top:0.5rem">
-            <summary>Sticker layout (tap result only)</summary>
+            <summary>Stickers — add, remove, move, text, image</summary>
             <div class="accordion-body">
-              <p class="reframe-note">Adjust after generation only. Keeps the same KB target so shipping ₹ stays unchanged.</p>
-              <div class="field">
-                <label for="reframe-sticker-visibility">Show stickers</label>
-                <select id="reframe-sticker-visibility">
-                  <option value="both">Both stickers</option>
-                  <option value="primary">Sticker 1 only</option>
-                  <option value="secondary">Sticker 2 only</option>
-                </select>
-              </div>
-              <div class="reframe-slot-card" id="reframe-slot-primary-wrap">
-                <p class="reframe-slot-title" id="reframe-slot-primary-title">Sticker 1</p>
-                <div class="field">
-                  <label for="reframe-s1-x">Horizontal position</label>
-                  <input type="range" id="reframe-s1-x" min="0" max="100" value="12" />
-                  <div class="reframe-range-meta"><span>Left</span><span id="reframe-s1-x-val">12%</span><span>Right</span></div>
-                </div>
-                <div class="field">
-                  <label for="reframe-s1-y">Vertical position</label>
-                  <input type="range" id="reframe-s1-y" min="0" max="100" value="42" />
-                  <div class="reframe-range-meta"><span>Top</span><span id="reframe-s1-y-val">42%</span><span>Bottom</span></div>
-                </div>
-                <div class="field">
-                  <label for="reframe-s1-text1">Text line 1 (optional)</label>
-                  <input type="text" id="reframe-s1-text1" maxlength="16" placeholder="Default from template" />
-                </div>
-                <div class="field">
-                  <label for="reframe-s1-text2">Text line 2 (optional)</label>
-                  <input type="text" id="reframe-s1-text2" maxlength="16" placeholder="Default from template" />
-                </div>
-                <div class="field">
-                  <label for="reframe-s1-image">Custom sticker image (optional)</label>
-                  <input type="file" id="reframe-s1-image" accept="image/png,image/jpeg,image/webp" />
-                </div>
-                <p class="reframe-slot-preview" id="reframe-s1-image-name">No custom image</p>
-              </div>
-              <div class="reframe-slot-card" id="reframe-slot-secondary-wrap">
-                <p class="reframe-slot-title" id="reframe-slot-secondary-title">Sticker 2</p>
-                <div class="field">
-                  <label for="reframe-s2-x">Horizontal position</label>
-                  <input type="range" id="reframe-s2-x" min="0" max="100" value="50" />
-                  <div class="reframe-range-meta"><span>Left</span><span id="reframe-s2-x-val">50%</span><span>Right</span></div>
-                </div>
-                <div class="field">
-                  <label for="reframe-s2-y">Vertical position</label>
-                  <input type="range" id="reframe-s2-y" min="0" max="100" value="38" />
-                  <div class="reframe-range-meta"><span>Top</span><span id="reframe-s2-y-val">38%</span><span>Bottom</span></div>
-                </div>
-                <div class="field">
-                  <label for="reframe-s2-text1">Text line 1 (optional)</label>
-                  <input type="text" id="reframe-s2-text1" maxlength="16" placeholder="Default from template" />
-                </div>
-                <div class="field">
-                  <label for="reframe-s2-text2">Text line 2 (optional)</label>
-                  <input type="text" id="reframe-s2-text2" maxlength="16" placeholder="Default from template" />
-                </div>
-                <div class="field">
-                  <label for="reframe-s2-image">Custom sticker image (optional)</label>
-                  <input type="file" id="reframe-s2-image" accept="image/png,image/jpeg,image/webp" />
-                </div>
-                <p class="reframe-slot-preview" id="reframe-s2-image-name">No custom image</p>
-              </div>
+              <p class="reframe-note">Default: 2 stickers. Tap <b>−</b> to remove one, <b>+ Add sticker</b> for more (up to 5). Preview above updates live.</p>
+              <div id="reframe-sticker-slots"></div>
+              <button type="button" class="reframe-add-sticker" id="reframe-add-sticker">+ Add sticker</button>
             </div>
           </details>
         </div>
@@ -795,7 +747,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=102"></script>
+  <script src="/own-api.js?v=103"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -860,30 +812,13 @@
       var reframeModeFramed = document.getElementById("reframe-mode-framed");
       var reframeModeFrameOnly = document.getElementById("reframe-mode-frame-only");
       var reframeModeStudio = document.getElementById("reframe-mode-studio");
-      var reframeStickerVisibility = document.getElementById("reframe-sticker-visibility");
       var reframeStickerLayoutPanel = document.getElementById("reframe-sticker-layout");
-      var reframeSlotPrimaryWrap = document.getElementById("reframe-slot-primary-wrap");
-      var reframeSlotSecondaryWrap = document.getElementById("reframe-slot-secondary-wrap");
-      var reframeSlotPrimaryTitle = document.getElementById("reframe-slot-primary-title");
-      var reframeSlotSecondaryTitle = document.getElementById("reframe-slot-secondary-title");
-      var reframeS1X = document.getElementById("reframe-s1-x");
-      var reframeS1Y = document.getElementById("reframe-s1-y");
-      var reframeS1XVal = document.getElementById("reframe-s1-x-val");
-      var reframeS1YVal = document.getElementById("reframe-s1-y-val");
-      var reframeS1Text1 = document.getElementById("reframe-s1-text1");
-      var reframeS1Text2 = document.getElementById("reframe-s1-text2");
-      var reframeS1Image = document.getElementById("reframe-s1-image");
-      var reframeS1ImageName = document.getElementById("reframe-s1-image-name");
-      var reframeS2X = document.getElementById("reframe-s2-x");
-      var reframeS2Y = document.getElementById("reframe-s2-y");
-      var reframeS2XVal = document.getElementById("reframe-s2-x-val");
-      var reframeS2YVal = document.getElementById("reframe-s2-y-val");
-      var reframeS2Text1 = document.getElementById("reframe-s2-text1");
-      var reframeS2Text2 = document.getElementById("reframe-s2-text2");
-      var reframeS2Image = document.getElementById("reframe-s2-image");
-      var reframeS2ImageName = document.getElementById("reframe-s2-image-name");
-      var reframeStickerImageUrls = { primary: "", secondary: "" };
-      var reframeStickerLayoutDirty = false;
+      var reframeStickerSlotsEl = document.getElementById("reframe-sticker-slots");
+      var reframeAddStickerBtn = document.getElementById("reframe-add-sticker");
+      var reframePreviewStatus = document.getElementById("reframe-preview-status");
+      var reframeStickerSlots = [];
+      var reframePreviewTimer = null;
+      var reframePreviewToken = 0;
       var MR = window.MeeshoReframe;
       var RECOMMENDED_BORDER = "purple";
       var RECOMMENDED_STICKER = "limited_time";
@@ -1017,14 +952,10 @@
           borderColor: FS.normalizeBorderColor(reframeBorderHex.value),
           stickerTemplate: FS.normalizeStickerTemplate(reframeStickerTemplate.value),
         };
-        if (reframeDisplayMode === "framed" && reframeStickerLayoutDirty) {
+        if (reframeDisplayMode === "framed") {
           settings.stickerLayout = getStickerLayoutFromUi();
         }
         return settings;
-      }
-
-      function markStickerLayoutDirty() {
-        reframeStickerLayoutDirty = true;
       }
 
       function pctFromNorm(n) {
@@ -1035,96 +966,207 @@
         return Math.max(0, Math.min(1, (Number(p) || 0) / 100));
       }
 
-      function updateRangeLabel(input, labelEl) {
-        if (labelEl) labelEl.textContent = input.value + "%";
-      }
-
-      function readStickerImageFile(file, slotKey) {
-        if (!file || !file.type.startsWith("image/")) return;
-        var reader = new FileReader();
-        reader.onload = function () {
-          reframeStickerImageUrls[slotKey] = reader.result;
-          if (slotKey === "primary") reframeS1ImageName.textContent = file.name;
-          else reframeS2ImageName.textContent = file.name;
-        };
-        reader.readAsDataURL(file);
+      function stickerTypeLabel(typeId) {
+        if (!FS) return typeId;
+        var found = FS.STICKER_ASSET_TYPES.find(function (t) { return t.id === typeId; });
+        return found ? found.name : typeId;
       }
 
       function getStickerLayoutFromUi() {
         if (!FS) return null;
         var template = FS.normalizeStickerTemplate(reframeStickerTemplate.value);
-        var layout = FS.defaultStickerLayoutForTemplate(template);
-        layout.visibility = reframeStickerVisibility.value || "both";
-        layout.primary.x = normFromPct(reframeS1X.value);
-        layout.primary.y = normFromPct(reframeS1Y.value);
-        layout.primary.text1 = reframeS1Text1.value.trim();
-        layout.primary.text2 = reframeS1Text2.value.trim();
-        layout.primary.imageUrl = reframeStickerImageUrls.primary || "";
-        if (layout.secondary) {
-          layout.secondary.x = normFromPct(reframeS2X.value);
-          layout.secondary.y = normFromPct(reframeS2Y.value);
-          layout.secondary.text1 = reframeS2Text1.value.trim();
-          layout.secondary.text2 = reframeS2Text2.value.trim();
-          layout.secondary.imageUrl = reframeStickerImageUrls.secondary || "";
-        }
-        return FS.normalizeStickerLayout(layout, template);
+        return FS.normalizeStickerLayout({ version: 2, stickers: reframeStickerSlots.slice() }, template);
       }
 
       function setStickerLayoutToUi(layout, template) {
         if (!FS) return;
         var normalized = FS.normalizeStickerLayout(layout, template);
-        reframeStickerVisibility.value = normalized.visibility || "both";
-        if (normalized.primary) {
-          reframeS1X.value = String(pctFromNorm(normalized.primary.x));
-          reframeS1Y.value = String(pctFromNorm(normalized.primary.y));
-          reframeS1Text1.value = normalized.primary.text1 || "";
-          reframeS1Text2.value = normalized.primary.text2 || "";
-          reframeStickerImageUrls.primary = normalized.primary.imageUrl || "";
-          reframeS1ImageName.textContent = normalized.primary.imageUrl ? "Custom image attached" : "No custom image";
-          updateRangeLabel(reframeS1X, reframeS1XVal);
-          updateRangeLabel(reframeS1Y, reframeS1YVal);
+        reframeStickerSlots = FS.cloneStickerLayout(normalized, template).stickers;
+        renderStickerSlotCards();
+        syncReframeStickerLayoutLabels();
+      }
+
+      function renderStickerSlotCards() {
+        if (!reframeStickerSlotsEl || !FS) return;
+        reframeStickerSlotsEl.innerHTML = "";
+        reframeStickerSlots.forEach(function (slot, index) {
+          var card = document.createElement("div");
+          card.className = "reframe-slot-card";
+          card.dataset.slotId = slot.id;
+
+          var title = document.createElement("p");
+          title.className = "reframe-slot-title";
+          title.textContent = "Sticker " + (index + 1) + " · " + stickerTypeLabel(slot.type);
+          card.appendChild(title);
+
+          var typeField = document.createElement("div");
+          typeField.className = "field";
+          typeField.innerHTML = '<label>Sticker style</label>';
+          var typeSelect = document.createElement("select");
+          FS.STICKER_ASSET_TYPES.forEach(function (t) {
+            var opt = document.createElement("option");
+            opt.value = t.id;
+            opt.textContent = t.name;
+            if (t.id === slot.type) opt.selected = true;
+            typeSelect.appendChild(opt);
+          });
+          typeSelect.addEventListener("change", function () {
+            slot.type = typeSelect.value;
+            title.textContent = "Sticker " + (index + 1) + " · " + stickerTypeLabel(slot.type);
+            scheduleReframePreview();
+          });
+          typeField.appendChild(typeSelect);
+          card.appendChild(typeField);
+
+          function addRange(labelText, key) {
+            var field = document.createElement("div");
+            field.className = "field";
+            var label = document.createElement("label");
+            label.textContent = labelText;
+            field.appendChild(label);
+            var input = document.createElement("input");
+            input.type = "range";
+            input.min = "0";
+            input.max = "100";
+            input.value = String(pctFromNorm(slot[key]));
+            var meta = document.createElement("div");
+            meta.className = "reframe-range-meta";
+            var left = document.createElement("span");
+            left.textContent = key === "x" ? "Left" : "Top";
+            var valSpan = document.createElement("span");
+            valSpan.textContent = input.value + "%";
+            var right = document.createElement("span");
+            right.textContent = key === "x" ? "Right" : "Bottom";
+            meta.appendChild(left);
+            meta.appendChild(valSpan);
+            meta.appendChild(right);
+            input.addEventListener("input", function () {
+              slot[key] = normFromPct(input.value);
+              valSpan.textContent = input.value + "%";
+              scheduleReframePreview();
+            });
+            field.appendChild(input);
+            field.appendChild(meta);
+            card.appendChild(field);
+          }
+
+          addRange("Horizontal position", "x");
+          addRange("Vertical position", "y");
+
+          ["text1", "text2"].forEach(function (key, lineIdx) {
+            var field = document.createElement("div");
+            field.className = "field";
+            var label = document.createElement("label");
+            label.textContent = "Text line " + (lineIdx + 1) + " (optional)";
+            field.appendChild(label);
+            var input = document.createElement("input");
+            input.type = "text";
+            input.maxLength = 16;
+            input.placeholder = "Default from sticker style";
+            input.value = slot[key] || "";
+            input.addEventListener("input", function () {
+              slot[key] = input.value.trim();
+              scheduleReframePreview();
+            });
+            field.appendChild(input);
+            card.appendChild(field);
+          });
+
+          var imageField = document.createElement("div");
+          imageField.className = "field";
+          imageField.innerHTML = "<label>Custom image (optional)</label>";
+          var imageInput = document.createElement("input");
+          imageInput.type = "file";
+          imageInput.accept = "image/png,image/jpeg,image/webp";
+          imageInput.addEventListener("change", function () {
+            if (!imageInput.files[0]) return;
+            var reader = new FileReader();
+            reader.onload = function () {
+              slot.imageUrl = reader.result;
+              imageNote.textContent = imageInput.files[0].name;
+              scheduleReframePreview();
+            };
+            reader.readAsDataURL(imageInput.files[0]);
+          });
+          imageField.appendChild(imageInput);
+          var imageNote = document.createElement("p");
+          imageNote.className = "reframe-slot-preview";
+          imageNote.textContent = slot.imageUrl ? "Custom image attached" : "No custom image";
+          imageField.appendChild(imageNote);
+          card.appendChild(imageField);
+
+          var actions = document.createElement("div");
+          actions.className = "reframe-slot-actions";
+          var removeBtn = document.createElement("button");
+          removeBtn.type = "button";
+          removeBtn.className = "reframe-slot-remove";
+          removeBtn.textContent = "− Remove sticker";
+          removeBtn.addEventListener("click", function () {
+            removeReframeSticker(slot.id);
+          });
+          actions.appendChild(removeBtn);
+          card.appendChild(actions);
+
+          reframeStickerSlotsEl.appendChild(card);
+        });
+        if (reframeAddStickerBtn) {
+          reframeAddStickerBtn.disabled = reframeStickerSlots.length >= FS.REFRAME_MAX_STICKERS;
         }
-        if (normalized.secondary) {
-          reframeS2X.value = String(pctFromNorm(normalized.secondary.x));
-          reframeS2Y.value = String(pctFromNorm(normalized.secondary.y));
-          reframeS2Text1.value = normalized.secondary.text1 || "";
-          reframeS2Text2.value = normalized.secondary.text2 || "";
-          reframeStickerImageUrls.secondary = normalized.secondary.imageUrl || "";
-          reframeS2ImageName.textContent = normalized.secondary.imageUrl ? "Custom image attached" : "No custom image";
-          updateRangeLabel(reframeS2X, reframeS2XVal);
-          updateRangeLabel(reframeS2Y, reframeS2YVal);
-        }
+      }
+
+      function addReframeSticker() {
+        if (!FS || reframeStickerSlots.length >= FS.REFRAME_MAX_STICKERS) return;
+        var template = FS.normalizeStickerTemplate(reframeStickerTemplate.value);
+        var defaults = FS.defaultStickerLayoutForTemplate(template);
+        var seed = defaults.stickers[reframeStickerSlots.length] || defaults.stickers[0];
+        reframeStickerSlots.push(FS.newStickerSlot(seed.type, { x: seed.x, y: seed.y }));
+        renderStickerSlotCards();
+        scheduleReframePreview();
+      }
+
+      function removeReframeSticker(slotId) {
+        reframeStickerSlots = reframeStickerSlots.filter(function (s) { return s.id !== slotId; });
+        renderStickerSlotCards();
+        scheduleReframePreview();
       }
 
       function syncReframeStickerLayoutLabels() {
         if (!FS) return;
-        var template = FS.normalizeStickerTemplate(reframeStickerTemplate.value);
-        var info = FS.getTemplateStickerSlotInfo(template);
-        var dual = info.dual;
-        reframeSlotPrimaryTitle.textContent = info.primary ? "Sticker 1 · " + info.primary.label : "Sticker 1";
-        reframeSlotSecondaryWrap.classList.toggle("hidden", !dual);
-        if (info.secondary) {
-          reframeSlotSecondaryTitle.textContent = "Sticker 2 · " + info.secondary.label;
-        }
-        reframeStickerVisibility.disabled = !dual;
-        if (!dual) reframeStickerVisibility.value = "primary";
-        var visibilityRow = reframeStickerVisibility.closest(".field");
-        if (visibilityRow) visibilityRow.classList.toggle("hidden", !dual);
         if (reframeStickerLayoutPanel) {
           reframeStickerLayoutPanel.classList.toggle("hidden", reframeDisplayMode !== "framed");
         }
       }
 
-      function resetReframeStickerImages() {
-        reframeStickerImageUrls.primary = "";
-        reframeStickerImageUrls.secondary = "";
-        if (reframeS1Image) reframeS1Image.value = "";
-        if (reframeS2Image) reframeS2Image.value = "";
+      function scheduleReframePreview() {
+        if (reframeIndex < 0 || reframeDisplayMode !== "framed") return;
+        if (reframePreviewTimer) clearTimeout(reframePreviewTimer);
+        reframePreviewTimer = setTimeout(updateReframePreview, 320);
       }
 
-      function bindStickerLayoutDirty(el, eventName) {
-        if (!el) return;
-        el.addEventListener(eventName || "input", markStickerLayoutDirty);
+      async function updateReframePreview() {
+        if (!MR || reframeIndex < 0 || !lastUploadDataUrl || reframeDisplayMode !== "framed") return;
+        var token = ++reframePreviewToken;
+        if (reframePreviewStatus) reframePreviewStatus.textContent = "Updating preview…";
+        try {
+          await MR.loadMozjpeg();
+          var r = lastResults[reframeIndex];
+          if (!r || !r.reframeMeta) return;
+          var sourceImg = await loadImageFromDataUrl(lastUploadDataUrl);
+          var frame = getReframeSettingsFromUi();
+          var variant = await MR.renderCustomVariant(sourceImg, r.reframeMeta, reframeDisplayMode, frame);
+          if (token !== reframePreviewToken) return;
+          var imageUrl = await MR.blobToDataUrl(variant.blob);
+          if (token !== reframePreviewToken) return;
+          reframePreviewImg.src = imageUrl;
+          if (reframePreviewStatus) {
+            reframePreviewStatus.textContent =
+              "Preview · ~₹" + MR.estimateMeeshoInr(variant) + " · " + MR.kb(variant.bytes) + " KB";
+          }
+        } catch (err) {
+          if (token === reframePreviewToken && reframePreviewStatus) {
+            reframePreviewStatus.textContent = "Preview failed — try Apply";
+          }
+        }
       }
 
       function syncReframeModeUi() {
@@ -1163,7 +1205,6 @@
         if (!r || !r.reframeMeta) return;
         var meta = r.reframeMeta;
         reframeIndex = index;
-        reframeStickerLayoutDirty = !!(meta.frameStyle && meta.frameStyle.stickerLayout);
         reframePreviewImg.src = r.imageUrl;
         var isStudioKind = meta.kind === "collage_studio" || meta.kind === "studio";
         var stickerNone = meta.frameStyle && meta.frameStyle.stickerTemplate === "none";
@@ -1176,8 +1217,6 @@
           syncReframeBorderUi(defaults.borderColor);
           reframeStickerTemplate.value = defaults.stickerTemplate;
         }
-        if (reframeS1Image) reframeS1Image.value = "";
-        if (reframeS2Image) reframeS2Image.value = "";
         setStickerLayoutToUi(
           (meta.frameStyle && meta.frameStyle.stickerLayout) ||
             FS.defaultStickerLayoutForTemplate(reframeStickerTemplate.value),
@@ -1188,6 +1227,7 @@
         syncReframeModeUi();
         reframeBackdrop.classList.remove("hidden");
         reframeBackdrop.setAttribute("aria-hidden", "false");
+        scheduleReframePreview();
       }
 
       async function applyReframeEdit() {
@@ -1225,11 +1265,8 @@
               stickerTemplate:
                 reframeDisplayMode === "frame_only" ? "none" : frame.stickerTemplate,
               stickerLayout:
-                reframeDisplayMode === "framed" && reframeStickerLayoutDirty
-                  ? frame.stickerLayout || null
-                  : null,
+                reframeDisplayMode === "framed" ? frame.stickerLayout || null : null,
             };
-            reframeStickerLayoutDirty = reframeDisplayMode === "framed" && !!r.reframeMeta.frameStyle.stickerLayout;
             if (reframeDisplayMode === "studio") {
               r.reframeMeta.kind = "collage_studio";
               r.reframeMeta.studioBase = true;
@@ -1289,6 +1326,7 @@
         btn.dataset.color = p.color;
         btn.addEventListener("click", function () {
           syncReframeBorderUi(p.color);
+          scheduleReframePreview();
         });
         reframeBorderSwatches.appendChild(btn);
       });
@@ -1912,10 +1950,12 @@
       reframeModeFramed.addEventListener("click", function () {
         reframeDisplayMode = "framed";
         syncReframeModeUi();
+        scheduleReframePreview();
       });
       reframeModeFrameOnly.addEventListener("click", function () {
         reframeDisplayMode = "frame_only";
         syncReframeModeUi();
+        scheduleReframePreview();
       });
       reframeModeStudio.addEventListener("click", function () {
         reframeDisplayMode = "studio";
@@ -1923,47 +1963,19 @@
       });
       reframeBorderColor.addEventListener("input", function () {
         syncReframeBorderUi(reframeBorderColor.value);
+        scheduleReframePreview();
       });
       reframeBorderHex.addEventListener("change", function () {
         syncReframeBorderUi(reframeBorderHex.value);
+        scheduleReframePreview();
       });
       reframeStickerTemplate.addEventListener("change", function () {
         updateReframeTemplateDesc();
         setStickerLayoutToUi(FS.defaultStickerLayoutForTemplate(reframeStickerTemplate.value), reframeStickerTemplate.value);
-        resetReframeStickerImages();
-        syncReframeStickerLayoutLabels();
-        markStickerLayoutDirty();
+        scheduleReframePreview();
       });
-      bindStickerLayoutDirty(reframeStickerVisibility, "change");
-      bindStickerLayoutDirty(reframeS1Text1, "input");
-      bindStickerLayoutDirty(reframeS1Text2, "input");
-      bindStickerLayoutDirty(reframeS2Text1, "input");
-      bindStickerLayoutDirty(reframeS2Text2, "input");
-      [reframeS1X, reframeS1Y, reframeS2X, reframeS2Y].forEach(function (input) {
-        if (!input) return;
-        input.addEventListener("input", function () {
-          markStickerLayoutDirty();
-          if (input === reframeS1X) updateRangeLabel(reframeS1X, reframeS1XVal);
-          if (input === reframeS1Y) updateRangeLabel(reframeS1Y, reframeS1YVal);
-          if (input === reframeS2X) updateRangeLabel(reframeS2X, reframeS2XVal);
-          if (input === reframeS2Y) updateRangeLabel(reframeS2Y, reframeS2YVal);
-        });
-      });
-      if (reframeS1Image) {
-        reframeS1Image.addEventListener("change", function () {
-          if (reframeS1Image.files[0]) {
-            markStickerLayoutDirty();
-            readStickerImageFile(reframeS1Image.files[0], "primary");
-          }
-        });
-      }
-      if (reframeS2Image) {
-        reframeS2Image.addEventListener("change", function () {
-          if (reframeS2Image.files[0]) {
-            markStickerLayoutDirty();
-            readStickerImageFile(reframeS2Image.files[0], "secondary");
-          }
-        });
+      if (reframeAddStickerBtn) {
+        reframeAddStickerBtn.addEventListener("click", addReframeSticker);
       }
       reframeApply.addEventListener("click", applyReframeEdit);
 
