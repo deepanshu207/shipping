@@ -46,12 +46,136 @@
     { slabKb: 60, label: "Mid slab" },
     { slabKb: 63, label: "Near ₹64 ceiling" },
   ];
-  /** SupplierDen parity — purple frame, 1280px cap, mid slabs targeting ~₹50 on Meesho. */
+  /** SupplierDen parity — purple frame, capped dimensions, mid slabs targeting ~₹50 on Meesho. */
   const TIERS_SUPPLIERDEN_50 = [
     { slabKb: 48, label: "Lowest · SupplierDen ₹50 target", lowest: true },
     { slabKb: 50, label: "Recommended · ₹50 match", recommended: true },
     { slabKb: 52, label: "Balanced" },
     { slabKb: 55, label: "High detail backup" },
+  ];
+  /** Tight slabs for tall portrait / capped SupplierDen layouts (703×1024 band). */
+  const TIERS_SUPPLIERDEN_TALL = [
+    { slabKb: 44, label: "44KB · lowest try", lowest: true },
+    { slabKb: 46, label: "46KB · low band" },
+    { slabKb: 48, label: "48KB · ₹50 target", recommended: true },
+    { slabKb: 49, label: "49KB" },
+    { slabKb: 50, label: "50KB · match", recommended: true },
+    { slabKb: 51, label: "51KB" },
+    { slabKb: 52, label: "52KB" },
+  ];
+  const SUPPLIERDEN_MAX_VARIANTS = 56;
+  const SUPPLIERDEN_PROCESS_TIMEOUT_MS = 420000;
+  /**
+   * Tall kaftan / dress — fit into portrait 703×1024 then purple SupplierDen frame.
+   * Native 1280 framed alone often tiers ~₹79 on Meesho; portrait+cap hits ~₹50.
+   */
+  const SUPPLIERDEN_TALL_LAYOUTS = [
+    {
+      layout: "sd_fp703_t",
+      type: "portrait_framed",
+      portraitW: 703,
+      portraitH: 1024,
+      coverage: 0.66,
+      framedMaxSide: 1024,
+      priority: 0,
+      panelTag: "703×1024 tight fit",
+      tiers: TIERS_SUPPLIERDEN_TALL,
+    },
+    {
+      layout: "sd_fp703_m",
+      type: "portrait_framed",
+      portraitW: 703,
+      portraitH: 1024,
+      coverage: 0.72,
+      framedMaxSide: 1024,
+      priority: 2,
+      panelTag: "703×1024 mid fit",
+      tiers: TIERS_SUPPLIERDEN_TALL,
+    },
+    {
+      layout: "sd_fp703_l",
+      type: "portrait_framed",
+      portraitW: 703,
+      portraitH: 1024,
+      coverage: 0.78,
+      framedMaxSide: 1024,
+      priority: 4,
+      panelTag: "703×1024 loose fit",
+      tiers: TIERS_SUPPLIERDEN_TALL,
+    },
+    {
+      layout: "sd_fp580",
+      type: "portrait_framed",
+      portraitW: 580,
+      portraitH: 900,
+      coverage: 0.7,
+      framedMaxSide: 960,
+      priority: 6,
+      panelTag: "580×900 fit",
+      tiers: TIERS_SUPPLIERDEN_TALL,
+    },
+    {
+      layout: "sd_fp620",
+      type: "portrait_framed",
+      portraitW: 620,
+      portraitH: 900,
+      coverage: 0.68,
+      framedMaxSide: 960,
+      priority: 8,
+      panelTag: "620×900 fit",
+      tiers: TIERS_SUPPLIERDEN_TALL,
+    },
+    {
+      layout: "sd_cap900",
+      type: "native_capped_framed",
+      capMaxSide: 900,
+      framedMaxSide: 960,
+      priority: 10,
+      panelTag: "capped 900 framed",
+      tiers: TIERS_SUPPLIERDEN_TALL,
+    },
+    {
+      layout: "sd_cap960",
+      type: "native_capped_framed",
+      capMaxSide: 960,
+      framedMaxSide: 960,
+      priority: 12,
+      panelTag: "capped 960 framed",
+      tiers: TIERS_SUPPLIERDEN_TALL,
+    },
+    {
+      layout: "sd_cap1024",
+      type: "native_capped_framed",
+      capMaxSide: 1024,
+      framedMaxSide: 1024,
+      priority: 14,
+      panelTag: "capped 1024 framed",
+      tiers: TIERS_SUPPLIERDEN_TALL,
+    },
+    {
+      layout: "sd_nf960",
+      type: "native_framed",
+      framedMaxSide: 960,
+      priority: 16,
+      panelTag: "native framed 960",
+      tiers: TIERS_SUPPLIERDEN_TALL,
+    },
+    {
+      layout: "sd_nf1024",
+      type: "native_framed",
+      framedMaxSide: 1024,
+      priority: 18,
+      panelTag: "native framed 1024",
+      tiers: TIERS_SUPPLIERDEN_TALL,
+    },
+    {
+      layout: "sd_classic1280",
+      type: "native_framed",
+      framedMaxSide: 1280,
+      priority: 90,
+      panelTag: "classic 1280 fallback",
+      tiers: TIERS_SUPPLIERDEN_50,
+    },
   ];
   /** Tight framed classic — still orange frame but lower KB targets. */
   const TIERS_FRAMED_CLASSIC_LOW = [
@@ -754,7 +878,9 @@
     const path = variant.processingPath || "";
     const pid = String(variant.profileId || "");
     const backPanel = isLingerieBackProfileId(pid);
-    if (path === "supplierden_match_50" && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
+    if (path === "supplierden_match_50") {
+      if (maxSide > 0 && maxSide <= 1024 && fileKb >= 37 && fileKb <= 55) return Math.min(fileKb, 50);
+      if (maxSide > 1024 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 79);
       return Math.min(fileKb, 50);
     }
     if (path === "framed_collage") {
@@ -937,12 +1063,13 @@
     };
   }
 
-  /** SupplierDen-style: purple frame, FREE DELIVERY + BEST CHOICE stickers, 1280px cap, ~₹50 slabs. */
+  /** SupplierDen-style: purple frame, FREE DELIVERY + BEST CHOICE stickers, multi tall layouts. */
   function profileSupplierDenMatch() {
     return {
       id: "supplierden_match",
       studio: false,
       supplierDenExclusive: true,
+      supplierDenAll: true,
       tiers: TIERS_SUPPLIERDEN_50,
       path: "supplierden_match_50",
       modeName: "SupplierDen Match ₹50",
@@ -952,6 +1079,73 @@
         stickerTemplate: "supplierden_match",
       },
     };
+  }
+
+  function supplierDenLockedFrameStyle() {
+    return {
+      borderColor: SUPPLIERDEN_MATCH_PURPLE,
+      stickerTemplate: "supplierden_match",
+    };
+  }
+
+  function withSupplierDenLayout(layoutSpec) {
+    const base = profileSupplierDenMatch();
+    return {
+      ...base,
+      id: `supplierden_${layoutSpec.layout}`,
+      modeName: `SupplierDen · ${layoutSpec.panelTag || layoutSpec.layout}`,
+      studio: false,
+      supplierDenAll: false,
+      path: "supplierden_match_50",
+      studioLayout: layoutSpec.layout,
+      flatlaySpec: layoutSpec,
+      flatlayPriority: layoutSpec.priority ?? 50,
+      framedMaxSide: layoutSpec.framedMaxSide,
+      tiers: layoutSpec.tiers || TIERS_SUPPLIERDEN_TALL,
+    };
+  }
+
+  function supplierDenProfilesForImage() {
+    return SUPPLIERDEN_TALL_LAYOUTS.map((layoutSpec) => withSupplierDenLayout(layoutSpec)).sort(
+      (a, b) => (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99)
+    );
+  }
+
+  async function optimizeSupplierDenAll(img, _frameStyle, onProgress) {
+    const profiles = supplierDenProfilesForImage();
+    const lockedStyle = supplierDenLockedFrameStyle();
+    const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
+    const allVariants = [];
+    let done = 0;
+    for (const profile of profiles) {
+      const canvas = prepareFlatlayLayoutCanvas(img, profile.flatlaySpec, lockedStyle);
+      const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
+      for (const tier of profile.tiers) {
+        if (onProgress) {
+          onProgress(
+            10 + (done / totalSteps) * 85,
+            `SupplierDen · ${profile.modeName} · ${tier.label}`
+          );
+        }
+        allVariants.push(
+          await buildVariantForTier(canvas, whiteRatio, profile, tier, {
+            showMode: true,
+            reframeMeta: buildReframeMeta(profile, tier, {
+              frameStyle: lockedStyle,
+              studioLayout: profile.studioLayout,
+              whiteRatio,
+            }),
+          })
+        );
+        done += 1;
+        await yieldToMain();
+      }
+      releaseCanvas(canvas);
+    }
+    return finalizeAutoVariants(allVariants, {
+      maxVariants: SUPPLIERDEN_MAX_VARIANTS,
+      minVariants: 1,
+    });
   }
 
   function profileFramedAuto(overrides = {}) {
@@ -1979,6 +2173,7 @@
     if (isFlatlayTagName(tagName)) return FLATLAY_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     if (isModelPhotoTagName(tagName)) return MODEL_PHOTO_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     if (isFullLengthTagName(tagName)) return FULL_LENGTH_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
+    if (isSupplierDenTagName(tagName)) return SUPPLIERDEN_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     return PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
   }
 
@@ -3473,6 +3668,9 @@
     if (profile.fullLength) {
       return optimizeFullLengthAll(img, frameStyle, onProgress);
     }
+    if (profile.supplierDenAll) {
+      return optimizeSupplierDenAll(img, frameStyle, onProgress);
+    }
     if (onProgress) onProgress(15, `Running ${profile.modeName || profile.id}…`);
     const style = mergeFrameStyle(frameStyle, profile.frameStyleOverride);
     const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide, style);
@@ -3565,6 +3763,7 @@
     const isFlatlay = isFlatlayTagName(tagName);
     const isModelPhoto = isModelPhotoTagName(tagName);
     const isFullLength = isFullLengthTagName(tagName);
+    const isSupplierDen = isSupplierDenTagName(tagName);
     const timeoutMs = isAuto
       ? AUTO_PROCESS_TIMEOUT_MS
       : isLingerie
@@ -3575,7 +3774,9 @@
             ? MODEL_PHOTO_PROCESS_TIMEOUT_MS
             : isFullLength
               ? FULL_LENGTH_PROCESS_TIMEOUT_MS
-              : PROCESS_TIMEOUT_MS;
+              : isSupplierDen
+                ? SUPPLIERDEN_PROCESS_TIMEOUT_MS
+                : PROCESS_TIMEOUT_MS;
     const deadline = Date.now() + timeoutMs;
     const checkDeadline = () => {
       if (Date.now() > deadline) throw new Error("Image processing timeout");
@@ -3625,7 +3826,7 @@
           api: "own",
           service: "own-api.js",
           processing: useServerProcessing ? "server" : "client",
-          version: 93,
+          version: 94,
           platform: "cloudflare-static",
         },
       };

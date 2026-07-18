@@ -44,10 +44,10 @@ async function run() {
 
   try {
     const { res, text } = await get("/");
-    if (res.ok && text.includes("Framed Compress") && text.includes("own-api.js")) {
-      checks.push(["GET / embedded UI", true, "Auto + Studio + Framed in single HTML"]);
+    if (res.ok && text.includes("SupplierDen Match")) {
+      checks.push(["GET / SupplierDen mode", true, "SupplierDen Match ₹50 in UI"]);
     } else {
-      checks.push(["GET / embedded UI", false, "missing modes or api"]);
+      checks.push(["GET / SupplierDen mode", false, "missing SupplierDen mode"]);
     }
   } catch (e) {
     checks.push(["GET / embedded UI", false, e.message]);

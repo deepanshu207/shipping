@@ -58,7 +58,7 @@ jobs:
               '',
               `**Test this PR before merging:** [${preview}](${preview})`,
               '',
-              '- Hard refresh with `?v=93` after deploy finishes',
+              '- Hard refresh with `?v=94` after deploy finishes',
               '- SupplierDen mode: **More modes → SupplierDen Match ₹50**',
               '',
               '_Updated on each push to this branch. Production `main` deploys separately._',
