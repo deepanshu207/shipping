@@ -310,16 +310,16 @@ async function prepareFramedBuffer(buffer, width, height, framedMaxSide = MEESHO
       });
     } else if (template === "supplierden_match") {
       const delivery = freeDeliverySvg(scale);
-      const badge = bestChoiceOfferSvg(scale * 0.95);
+      const badge = bestChoiceOfferSvg(scale * 0.92);
       composites.push({
         input: delivery,
-        left: Math.round(border + width * 0.04),
-        top: Math.round(border + height * 0.42 - (Math.max(34 * scale, 52 * scale) + 20 * scale) / 2),
+        left: Math.round(border + width * 0.03),
+        top: Math.round(border + height * 0.06),
       });
       composites.push({
         input: badge,
-        left: Math.round(border + width * 0.5 - (96 * scale * 0.95 + 20 * scale) / 2),
-        top: Math.round(border + height * 0.38 - (96 * scale * 0.95 + 20 * scale) / 2),
+        left: Math.round(border + width * 0.62),
+        top: Math.round(border + height * 0.04),
       });
     } else {
       composites.push({ input: specialOfferSvg(scale), left: offerLeft, top: offerTop });
