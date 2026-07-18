@@ -69,10 +69,10 @@ async function run() {
     if (res.ok) {
       const body = JSON.parse(text);
       const leaves = body.meeshoCategoryArray?.find((g) => g.type === "sub-sub-category")?.data?.length;
-      if (leaves >= 7) {
+      if (leaves >= 13) {
         checks.push(["GET /data/product-types.json", true, `${leaves} compression modes`]);
       } else {
-        checks.push(["GET /data/product-types.json", false, `expected 7 modes, got ${leaves}`]);
+        checks.push(["GET /data/product-types.json", false, `expected 13+ modes, got ${leaves}`]);
       }
     } else {
       checks.push(["GET /data/product-types.json", false, `status ${res.status}`]);
