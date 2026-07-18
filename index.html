@@ -556,8 +556,8 @@
         </button>
         <button type="button" class="mode framed supplierden" data-id="mo_supplierden_50" data-tag="SupplierDen Match ₹50 supplierden lowest shipping" data-name="SupplierDen Match ₹50" data-supplierden="1">
           <p class="mode-title">SupplierDen Match ₹50</p>
-          <p class="mode-for"><b>For:</b> Full-length / kaftan / dress — fixed purple frame like SupplierDen, est. ~₹50</p>
-          <span class="mode-tag">Independent · purple · FREE DELIVERY · ~48–55 KB</span>
+          <p class="mode-for"><b>For:</b> Tall kaftan / dress — multi-scenario portrait fit + purple SupplierDen frame</p>
+          <span class="mode-tag">56 ranked · 703×1024 fit · purple · ~44–52 KB</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
           </div>
@@ -694,7 +694,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=93"></script>
+  <script src="/own-api.js?v=94"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1118,7 +1118,7 @@
         if (framedNote) {
           if (isSupplierDen) {
             framedNote.innerHTML =
-              "<b>SupplierDen Match</b> uses a <b>fixed purple frame</b> and <b>FREE DELIVERY + BEST CHOICE</b> stickers — border &amp; sticker settings below are <b>not used</b> for this mode.";
+              "<b>SupplierDen Match</b> runs <b>56 ranked scenarios</b> (703×1024 portrait fit, capped 960/1024) with fixed purple frame + FREE DELIVERY stickers. Border settings below are <b>not used</b>.";
           } else if (isCollage) {
             framedNote.innerHTML =
               "Generates <b>studio white</b> scenarios plus <b>framed copies</b> using your border color and sticker template.";
@@ -1532,7 +1532,7 @@
                 : isFullLength
                   ? "Full-Length — fit + cap scenarios…"
                   : isSupplierDen
-                    ? "SupplierDen Match — purple frame · ~₹50 band…"
+                    ? "SupplierDen — tall fit scenarios (703×1024, capped)…"
                     : "Running " + modeName + "…";
         processingHint.textContent = serverMode
           ? "Server is working — switch apps or lock your phone. We'll notify you when done."
