@@ -216,6 +216,17 @@
     .processing-resume {
       margin: 0.65rem 0 0; font-size: 0.82rem; color: var(--muted); line-height: 1.45;
     }
+    .processing-actions {
+      margin-top: 1.35rem; display: flex; flex-direction: column; gap: 0.55rem; align-items: center;
+    }
+    .processing-stop {
+      border: 1px solid #fecaca; background: #fff; color: #b91c1c;
+      font: inherit; font-size: 0.9rem; font-weight: 800; padding: 0.65rem 1.1rem;
+      border-radius: 0.75rem; cursor: pointer; min-width: 12rem;
+    }
+    .dark .processing-stop { background: rgb(24 24 27); border-color: rgb(127 29 29 / 0.45); color: #fca5a5; }
+    .processing-stop:hover { background: #fef2f2; }
+    .dark .processing-stop:hover { background: rgb(127 29 29 / 0.2); }
     .spinner {
       width: 2.75rem; height: 2.75rem; margin: 0 auto 1rem;
       border: 3px solid var(--border); border-top-color: var(--emerald);
@@ -645,6 +656,9 @@
       <p class="processing-badge hidden" id="processing-badge"></p>
       <p style="color:var(--muted);margin:0" id="processing-hint">Usually takes 10–30 seconds. Please wait.</p>
       <p class="processing-resume hidden" id="processing-resume"></p>
+      <div class="processing-actions">
+        <button type="button" class="processing-stop" id="btn-stop-processing">Stop · back to home</button>
+      </div>
     </section>
 
     <!-- RESULTS -->
@@ -702,7 +716,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=99"></script>
+  <script src="/own-api.js?v=100"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -729,6 +743,7 @@
       var processingStage = document.getElementById("processing-stage");
       var processingPercent = document.getElementById("processing-percent");
       var processingBar = document.getElementById("processing-bar");
+      var btnStopProcessing = document.getElementById("btn-stop-processing");
       var resultsTitle = document.getElementById("results-title");
       var accordionModes = document.getElementById("accordion-modes");
       var accordionModeHint = document.getElementById("accordion-mode-hint");
@@ -1220,6 +1235,46 @@
 
       var wakeLockSentinel = null;
       var pollAbort = false;
+      var uploadAbortController = null;
+
+      function formatProcessingError(err) {
+        var msg = (err && err.message) || String(err || "Something went wrong.");
+        if (msg === "Cancelled") return "";
+        if (/image processing timeout/i.test(msg) || /processing timed out/i.test(msg)) {
+          return "Processing took too long and timed out. Tap Generate again, or try a faster mode (Framed / Studio instead of Auto or Tall).";
+        }
+        if (/timed out.*background/i.test(msg)) {
+          return "Still running in the background. Reopen this page later to check results, or tap Stop during the next run to return home.";
+        }
+        return msg;
+      }
+
+      function resetProcessingUi() {
+        resetProcessingProgress();
+        if (processingBadge) processingBadge.classList.add("hidden");
+        if (processingResume) processingResume.classList.add("hidden");
+      }
+
+      function stopProcessingAndGoHome() {
+        var job = loadActiveJob();
+        var requestId = job && job.requestId;
+        pollAbort = true;
+        if (uploadAbortController) {
+          try { uploadAbortController.abort(); } catch (e) { /* ignore */ }
+          uploadAbortController = null;
+        }
+        clearActiveJob();
+        resetProcessingUi();
+        show("form");
+        setError("");
+        if (requestId) {
+          fetch("/api/meesho/cancel-request/" + requestId, {
+            method: "POST",
+            credentials: "include",
+            cache: "no-store",
+          }).catch(function () { /* ignore */ });
+        }
+      }
 
       function saveActiveJob(job) {
         try {
@@ -1388,9 +1443,12 @@
           })
           .catch(function (err) {
             releaseWakeLock();
-            if (pollAbort) return;
+            if (pollAbort) {
+              pollAbort = false;
+              return;
+            }
             show("form");
-            setError(err.message || "Something went wrong.");
+            setError(formatProcessingError(err));
           });
       }
 
@@ -1560,7 +1618,13 @@
         form.append("image", imageFile);
 
         setProcessingProgress(1, "Uploading image…");
-        fetch("/api/meesho/getLowestShippingCharge", { method: "POST", body: form, credentials: "include" })
+        uploadAbortController = new AbortController();
+        fetch("/api/meesho/getLowestShippingCharge", {
+          method: "POST",
+          body: form,
+          credentials: "include",
+          signal: uploadAbortController.signal,
+        })
           .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
           .then(function (_ref) {
             if (!_ref.ok || !_ref.d.requestId) throw new Error((_ref.d && _ref.d.message) || "Upload failed");
@@ -1578,16 +1642,23 @@
             return poll(job.requestId, isAuto, isLingerie);
           })
           .then(function (results) {
+            uploadAbortController = null;
             clearActiveJob();
             showResults(results, modeName, isLingerie);
           })
           .catch(function (err) {
             releaseWakeLock();
-            if (pollAbort) return;
+            uploadAbortController = null;
+            if (pollAbort || (err && err.name === "AbortError")) {
+              pollAbort = false;
+              return;
+            }
             show("form");
-            setError(err.message || "Something went wrong.");
+            setError(formatProcessingError(err));
           });
       });
+
+      btnStopProcessing.addEventListener("click", stopProcessingAndGoHome);
 
       window.addEventListener("beforeunload", function (e) {
         if (loadActiveJob() && !window.__MEESHO_USE_SERVER__) {

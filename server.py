@@ -160,19 +160,36 @@ class SPAHandler(SimpleHTTPRequestHandler):
         req["progress"] = 5
         req["progressLabel"] = "Server received image…"
         try:
+            if req.get("status") == "cancelled":
+                return
             req["progress"] = 12
             req["progressLabel"] = "Server optimizing (same logic as browser)…"
             req["results"] = self._optimize_image(req["image_bytes"], req["tag_name"], req.get("frame_style"))
+            if req.get("status") == "cancelled":
+                return
             req["status"] = "completed"
             req["progress"] = 100
             req["progressLabel"] = "Done"
             req["image_bytes"] = None
         except Exception as exc:
-            req["status"] = "failed"
-            req["error"] = str(exc)
-            req["progressLabel"] = "Failed"
+            if req.get("status") != "cancelled":
+                req["status"] = "failed"
+                req["error"] = str(exc)
+                req["progressLabel"] = "Failed"
         finally:
             req["processing"] = False
+
+    def _cancel_request(self, request_id: str) -> dict | None:
+        req = MOCK_REQUESTS.get(request_id)
+        if not req:
+            return None
+        if req.get("status") == "completed":
+            return req
+        req["status"] = "cancelled"
+        req["error"] = "Cancelled"
+        req["progressLabel"] = "Cancelled"
+        req["image_bytes"] = None
+        return req
 
     def _start_process(self, request_id: str) -> None:
         thread = threading.Thread(target=self._process_request, args=(request_id,), daemon=True)
@@ -276,6 +293,18 @@ class SPAHandler(SimpleHTTPRequestHandler):
                     },
                 )
                 return True
+            if req.get("status") == "cancelled":
+                self._json_response(
+                    200,
+                    {
+                        "status": "failed",
+                        "progress": req.get("progress", 0),
+                        "progressLabel": "Cancelled",
+                        "results": [],
+                        "message": "Cancelled",
+                    },
+                )
+                return True
             if req.get("status") != "completed":
                 if not req.get("processing") and req.get("status") == "processing":
                     self._start_process(request_id)
@@ -298,6 +327,16 @@ class SPAHandler(SimpleHTTPRequestHandler):
                     "results": req.get("results", []),
                 },
             )
+            return True
+
+        cancel_match = re.fullmatch(r"/api/meesho/cancel-request/([^/]+)", path)
+        if cancel_match and self.command == "POST":
+            request_id = cancel_match.group(1)
+            req = self._cancel_request(request_id)
+            if not req:
+                self._json_response(404, {"message": "Request not found"})
+                return True
+            self._json_response(200, {"ok": True, "status": req.get("status")})
             return True
 
         self._json_response(404, {"message": "Not found", "route": path})
