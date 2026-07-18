@@ -66,63 +66,92 @@
   const SUPPLIERDEN_MAX_VARIANTS = 56;
   const SUPPLIERDEN_PROCESS_TIMEOUT_MS = 420000;
   /**
-   * Tall kaftan / dress — fit into portrait 703×1024 then purple SupplierDen frame.
+   * Tall kaftan / dress — portrait fit with feet/optical anchor, purple frame, max side ≤1024.
    * Native 1280 framed alone often tiers ~₹79 on Meesho; portrait+cap hits ~₹50.
    */
   const SUPPLIERDEN_TALL_LAYOUTS = [
     {
-      layout: "sd_fp703_t",
+      layout: "sd_fp703_feet",
       type: "portrait_framed",
       portraitW: 703,
       portraitH: 1024,
-      coverage: 0.66,
+      coverage: 0.7,
+      verticalAnchor: "feet",
       framedMaxSide: 1024,
       priority: 0,
-      panelTag: "703×1024 tight fit",
+      panelTag: "703×1024 feet-anchor",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
-      layout: "sd_fp703_m",
+      layout: "sd_fp703_opt",
       type: "portrait_framed",
       portraitW: 703,
       portraitH: 1024,
       coverage: 0.72,
+      verticalAnchor: "optical",
       framedMaxSide: 1024,
-      priority: 2,
-      panelTag: "703×1024 mid fit",
+      priority: 1,
+      panelTag: "703×1024 optical-center",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
-      layout: "sd_fp703_l",
+      layout: "sd_fp703_ctr",
       type: "portrait_framed",
       portraitW: 703,
       portraitH: 1024,
-      coverage: 0.78,
+      coverage: 0.68,
+      verticalAnchor: "center",
       framedMaxSide: 1024,
-      priority: 4,
-      panelTag: "703×1024 loose fit",
+      priority: 2,
+      panelTag: "703×1024 centered",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
-      layout: "sd_fp580",
+      layout: "sd_fp703_mid",
+      type: "portrait_framed",
+      portraitW: 703,
+      portraitH: 1024,
+      coverage: 0.74,
+      verticalAnchor: "feet",
+      framedMaxSide: 1024,
+      priority: 3,
+      panelTag: "703×1024 mid fill",
+      tiers: TIERS_SUPPLIERDEN_TALL,
+    },
+    {
+      layout: "sd_fp650_feet",
+      type: "portrait_framed",
+      portraitW: 650,
+      portraitH: 940,
+      coverage: 0.72,
+      verticalAnchor: "feet",
+      framedMaxSide: 960,
+      priority: 5,
+      panelTag: "650×940 feet-anchor",
+      tiers: TIERS_SUPPLIERDEN_TALL,
+    },
+    {
+      layout: "sd_fp580_feet",
       type: "portrait_framed",
       portraitW: 580,
       portraitH: 900,
-      coverage: 0.7,
+      coverage: 0.72,
+      verticalAnchor: "feet",
       framedMaxSide: 960,
-      priority: 6,
-      panelTag: "580×900 fit",
+      priority: 7,
+      panelTag: "580×900 feet-anchor",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
-      layout: "sd_fp620",
+      layout: "sd_fp620_feet",
       type: "portrait_framed",
       portraitW: 620,
       portraitH: 900,
-      coverage: 0.68,
+      coverage: 0.7,
+      verticalAnchor: "feet",
       framedMaxSide: 960,
-      priority: 8,
-      panelTag: "620×900 fit",
+      priority: 9,
+      panelTag: "620×900 feet-anchor",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
@@ -130,7 +159,7 @@
       type: "native_capped_framed",
       capMaxSide: 900,
       framedMaxSide: 960,
-      priority: 10,
+      priority: 11,
       panelTag: "capped 900 framed",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
@@ -139,7 +168,7 @@
       type: "native_capped_framed",
       capMaxSide: 960,
       framedMaxSide: 960,
-      priority: 12,
+      priority: 13,
       panelTag: "capped 960 framed",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
@@ -148,33 +177,9 @@
       type: "native_capped_framed",
       capMaxSide: 1024,
       framedMaxSide: 1024,
-      priority: 14,
+      priority: 15,
       panelTag: "capped 1024 framed",
       tiers: TIERS_SUPPLIERDEN_TALL,
-    },
-    {
-      layout: "sd_nf960",
-      type: "native_framed",
-      framedMaxSide: 960,
-      priority: 16,
-      panelTag: "native framed 960",
-      tiers: TIERS_SUPPLIERDEN_TALL,
-    },
-    {
-      layout: "sd_nf1024",
-      type: "native_framed",
-      framedMaxSide: 1024,
-      priority: 18,
-      panelTag: "native framed 1024",
-      tiers: TIERS_SUPPLIERDEN_TALL,
-    },
-    {
-      layout: "sd_classic1280",
-      type: "native_framed",
-      framedMaxSide: 1280,
-      priority: 90,
-      panelTag: "classic 1280 fallback",
-      tiers: TIERS_SUPPLIERDEN_50,
     },
   ];
   /** Tight framed classic — still orange frame but lower KB targets. */
@@ -1118,7 +1123,7 @@
     const allVariants = [];
     let done = 0;
     for (const profile of profiles) {
-      const canvas = prepareFlatlayLayoutCanvas(img, profile.flatlaySpec, lockedStyle);
+      const canvas = prepareSupplierDenLayoutCanvas(img, profile.flatlaySpec, lockedStyle);
       const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
       for (const tier of profile.tiers) {
         if (onProgress) {
@@ -1142,7 +1147,7 @@
       }
       releaseCanvas(canvas);
     }
-    return finalizeAutoVariants(allVariants, {
+    return finalizeSupplierDenVariants(allVariants, {
       maxVariants: SUPPLIERDEN_MAX_VARIANTS,
       minVariants: 1,
     });
@@ -1642,6 +1647,91 @@
     return c;
   }
 
+  /** SupplierDen-only trim — tighter margins so tall kaftan fills portrait canvas. */
+  function prepareSupplierDenSubjectCanvas(img) {
+    return trimContentMargins(imageToWhiteCanvas(img), 0.012);
+  }
+
+  /** Portrait placement — feet-anchor keeps full-length dress clear; optical lifts subject slightly. */
+  function fitSubjectIntoPortrait(trimmed, pw, ph, coverage, anchor = "feet") {
+    const fitScale = Math.min((pw * coverage) / trimmed.width, (ph * coverage) / trimmed.height);
+    const dw = Math.round(trimmed.width * fitScale);
+    const dh = Math.round(trimmed.height * fitScale);
+    const dx = Math.round((pw - dw) / 2);
+    const bottomMargin = Math.max(8, Math.round(ph * 0.018));
+    const topMargin = Math.max(8, Math.round(ph * 0.022));
+    let dy;
+    if (anchor === "feet") {
+      dy = ph - dh - bottomMargin;
+    } else if (anchor === "optical") {
+      dy = Math.round((ph - dh) * 0.36);
+    } else {
+      dy = Math.round((ph - dh) / 2);
+    }
+    dy = Math.max(topMargin, Math.min(ph - dh - bottomMargin, dy));
+    return { dx, dy, dw, dh };
+  }
+
+  function prepareSupplierDenPortraitCanvas(img, spec) {
+    const pw = spec.portraitW ?? 703;
+    const ph = spec.portraitH ?? 1024;
+    const coverage = spec.coverage ?? 0.7;
+    const anchor = spec.verticalAnchor ?? "feet";
+    const trimmed = prepareSupplierDenSubjectCanvas(img);
+    const c = document.createElement("canvas");
+    c.width = pw;
+    c.height = ph;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, pw, ph);
+    const { dx, dy, dw, dh } = fitSubjectIntoPortrait(trimmed, pw, ph, coverage, anchor);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(trimmed, 0, 0, trimmed.width, trimmed.height, dx, dy, dw, dh);
+    return c;
+  }
+
+  function prepareSupplierDenNativeCapped(img, maxSide = 1024) {
+    const trimmed = prepareSupplierDenSubjectCanvas(img);
+    const max = Math.max(trimmed.width, trimmed.height);
+    if (max <= maxSide) return trimmed;
+    const scale = maxSide / max;
+    const w = Math.round(trimmed.width * scale);
+    const h = Math.round(trimmed.height * scale);
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(trimmed, 0, 0, trimmed.width, trimmed.height, 0, 0, w, h);
+    return c;
+  }
+
+  /** SupplierDen layout prep — isolated from flatlay/full-length portrait centering. */
+  function prepareSupplierDenLayoutCanvas(img, layoutSpec, frameStyle) {
+    const type = layoutSpec.type;
+    if (type === "portrait_framed") {
+      const studio = prepareSupplierDenPortraitCanvas(img, layoutSpec);
+      return prepareFramedCanvas(
+        studio,
+        layoutSpec.framedMaxSide ?? 1024,
+        flatlayFramedStyle(layoutSpec, frameStyle)
+      );
+    }
+    if (type === "native_capped_framed") {
+      const studio = prepareSupplierDenNativeCapped(img, layoutSpec.capMaxSide ?? 1024);
+      return prepareFramedCanvas(
+        studio,
+        layoutSpec.framedMaxSide ?? 1024,
+        flatlayFramedStyle(layoutSpec, frameStyle)
+      );
+    }
+    return prepareFlatlayLayoutCanvas(img, layoutSpec, frameStyle);
+  }
+
   function prepareFlatlayNativeStudio(img) {
     return trimContentMargins(imageToWhiteCanvas(img), 0.02);
   }
@@ -2075,6 +2165,13 @@
       v.lowest = i === 0;
     });
     return results;
+  }
+
+  /** SupplierDen — prefer max side ≤1024 (₹50 band); drop 1280-class fallbacks when portrait exists. */
+  function finalizeSupplierDenVariants(variants, options = {}) {
+    const portraitBand = variants.filter((v) => Math.max(v.width, v.height) <= 1024);
+    const pool = portraitBand.length > 0 ? portraitBand : variants;
+    return finalizeAutoVariants(pool, options);
   }
 
   function pathOf(url) {
@@ -3090,20 +3187,20 @@
   function drawSupplierDenMatchOverlays(ctx, border, photoW, photoH) {
     const scale = Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
     const delivery = renderFreeDeliverySticker(scale);
-    const badge = renderBestChoiceOfferBadge(scale * 0.95);
+    const badge = renderBestChoiceOfferBadge(scale * 0.92);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(
       delivery.canvas,
-      border + photoW * 0.04,
-      border + photoH * 0.42 - delivery.height / 2,
+      border + photoW * 0.03,
+      border + photoH * 0.06,
       delivery.width,
       delivery.height
     );
     ctx.drawImage(
       badge.canvas,
-      border + photoW * 0.5 - badge.width / 2,
-      border + photoH * 0.38 - badge.height / 2,
+      border + photoW * 0.62,
+      border + photoH * 0.04,
       badge.width,
       badge.height
     );
@@ -3398,6 +3495,7 @@
       width: canvas.width,
       height: canvas.height,
       lingeriePriority: profile.lingeriePriority,
+      flatlayPriority: profile.flatlayPriority,
       reframeMeta: options.reframeMeta || null,
     };
   }
@@ -3436,6 +3534,9 @@
 
   function findApparelLayoutSpec(layout, profileId) {
     const pid = String(profileId || "");
+    if (pid.startsWith("supplierden_")) {
+      return SUPPLIERDEN_TALL_LAYOUTS.find((s) => s.layout === layout);
+    }
     if (pid.startsWith("full_length_")) return FULL_LENGTH_LAYOUTS.find((s) => s.layout === layout);
     if (pid.startsWith("model_")) return MODEL_PHOTO_LAYOUTS.find((s) => s.layout === layout);
     if (pid.startsWith("flatlay_")) return FLATLAY_LAYOUTS.find((s) => s.layout === layout);
@@ -3452,6 +3553,9 @@
               stickerTemplate: meta.frameStyle.stickerTemplate,
             }
           : null;
+        if (String(meta.profileId || "").startsWith("supplierden_")) {
+          return prepareSupplierDenLayoutCanvas(sourceImg, spec, style);
+        }
         return prepareFlatlayLayoutCanvas(sourceImg, spec, style);
       }
       return prepareLingerieLayoutCanvas(sourceImg, meta.studioLayout);
