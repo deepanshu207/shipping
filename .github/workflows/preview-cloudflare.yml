@@ -1,0 +1,93 @@
+name: Preview — Cloudflare Workers
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy PR preview to Cloudflare
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --name shipping-pr-${{ github.event.pull_request.number }}
+
+      - name: Find preview URL
+        id: url
+        run: |
+          URL=$(echo "${{ steps.deploy.outputs.command-output }}" | grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' | head -1)
+          if [ -z "$URL" ]; then
+            URL="https://shipping-pr-${{ github.event.pull_request.number }}.workers.dev"
+          fi
+          echo "preview=$URL" >> "$GITHUB_OUTPUT"
+          echo "Preview URL: $URL"
+
+      - name: Comment preview link on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const preview = `${{ steps.url.outputs.preview }}`;
+            const marker = '<!-- cloudflare-preview -->';
+            const body = [
+              marker,
+              '### Cloudflare preview ready',
+              '',
+              `**Test this PR before merging:** [${preview}](${preview})`,
+              '',
+              '- Hard refresh with `?v=93` after deploy finishes',
+              '- SupplierDen mode: **More modes → SupplierDen Match ₹50**',
+              '',
+              '_Updated on each push to this branch. Production `main` deploys separately._',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Verify preview
+        env:
+          DEPLOY_URL: ${{ steps.url.outputs.preview }}
+        run: node scripts/verify-deploy.mjs "$DEPLOY_URL"

@@ -46,6 +46,13 @@
     { slabKb: 60, label: "Mid slab" },
     { slabKb: 63, label: "Near ₹64 ceiling" },
   ];
+  /** SupplierDen parity — purple frame, 1280px cap, mid slabs targeting ~₹50 on Meesho. */
+  const TIERS_SUPPLIERDEN_50 = [
+    { slabKb: 48, label: "Lowest · SupplierDen ₹50 target", lowest: true },
+    { slabKb: 50, label: "Recommended · ₹50 match", recommended: true },
+    { slabKb: 52, label: "Balanced" },
+    { slabKb: 55, label: "High detail backup" },
+  ];
   /** Tight framed classic — still orange frame but lower KB targets. */
   const TIERS_FRAMED_CLASSIC_LOW = [
     { slabKb: 85, label: "Lowest classic frame", lowest: true },
@@ -507,6 +514,7 @@
   const STALE_BUFFER_MS = 30000;
   const PROGRESS_PERSIST_MS = 400;
   const PROCESSING = new Set();
+  let yieldCounter = 0;
   const MOZJPEG_URL = () => new URL("/vendor/mozjpeg.mjs", location.origin).href;
   const FRAME_DEFAULT_ORANGE = "#FF7900";
   const FRAME_DEFAULT_PURPLE = "#7C3AED";
@@ -524,6 +532,11 @@
   ];
   const STICKER_TEMPLATE_META = [
     { id: "classic_promo", name: "Classic Promo", desc: "SPECIAL OFFER + HOT SALE" },
+    {
+      id: "supplierden_match",
+      name: "SupplierDen Match",
+      desc: "FREE DELIVERY truck + BEST CHOICE OFFER badge",
+    },
     { id: "none", name: "Frame only", desc: "No promotion stickers" },
     { id: "mega_sale", name: "Mega Sale", desc: "Large MEGA SALE badge" },
     { id: "best_price", name: "Best Price", desc: "BEST PRICE corner ribbon" },
@@ -532,8 +545,9 @@
     { id: "super_offer", name: "Super Offer", desc: "SUPER OFFER + 50% OFF" },
   ];
   const STICKER_TEMPLATE_IDS = new Set(STICKER_TEMPLATE_META.map((t) => t.id));
-  const STICKER_TEMPLATE_ALIASES = { supplierden: "classic_promo" };
-  const BORDER_PRESET_ALIASES = { supplierden: "classic_orange" };
+  const STICKER_TEMPLATE_ALIASES = { supplierden: "supplierden_match" };
+  const BORDER_PRESET_ALIASES = { supplierden: "purple" };
+  const SUPPLIERDEN_MATCH_PURPLE = "#7C3AED";
   const FRAME_BORDER_RATIO = 0.048;
   const FRAME_MIN_BORDER = 34;
   const MEESHO_FRAMED_DIM_CAP_PATHS = new Set([
@@ -548,6 +562,7 @@
     "full_length_framed",
     "supplierden",
     "supplierden_heavy",
+    "supplierden_match_50",
   ]);
   /** Meesho may tier on max framed side — pro sellers often cap near 1280px. */
   const MEESHO_FRAMED_MAX_SIDE = 1280;
@@ -739,6 +754,9 @@
     const path = variant.processingPath || "";
     const pid = String(variant.profileId || "");
     const backPanel = isLingerieBackProfileId(pid);
+    if (path === "supplierden_match_50" && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
+      return Math.min(fileKb, 50);
+    }
     if (path === "framed_collage") {
       if (backPanel) {
         if (fileKb >= 53 && fileKb <= 58) return 41;
@@ -916,6 +934,23 @@
       path: "framed_pro",
       modeName: "Framed Pro",
       framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+    };
+  }
+
+  /** SupplierDen-style: purple frame, FREE DELIVERY + BEST CHOICE stickers, 1280px cap, ~₹50 slabs. */
+  function profileSupplierDenMatch() {
+    return {
+      id: "supplierden_match",
+      studio: false,
+      supplierDenExclusive: true,
+      tiers: TIERS_SUPPLIERDEN_50,
+      path: "supplierden_match_50",
+      modeName: "SupplierDen Match ₹50",
+      framedMaxSide: MEESHO_FRAMED_MAX_SIDE,
+      frameStyleOverride: {
+        borderColor: SUPPLIERDEN_MATCH_PURPLE,
+        stickerTemplate: "supplierden_match",
+      },
     };
   }
 
@@ -1800,6 +1835,7 @@
         done += 1;
         await yieldToMain();
       }
+      releaseCanvas(canvas);
     }
     return done;
   }
@@ -1914,6 +1950,7 @@
   }
 
   function isFullLengthTagName(tagName) {
+    if (isSupplierDenTagName(tagName)) return false;
     const tag = String(tagName || "").toLowerCase();
     return (
       tag.includes("full-length") ||
@@ -1926,6 +1963,16 @@
     );
   }
 
+  function isSupplierDenTagName(tagName) {
+    const tag = String(tagName || "").toLowerCase();
+    return (
+      tag.includes("supplierden match") ||
+      tag.includes("supplierden ₹50") ||
+      tag.includes("supplierden 50") ||
+      tag.includes("supplierden lowest")
+    );
+  }
+
   function staleProcessingMs(tagName) {
     if (isAutoTagName(tagName)) return AUTO_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     if (isLingerieTagName(tagName)) return LINGERIE_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
@@ -1935,8 +1982,32 @@
     return PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
   }
 
-  function yieldToMain() {
-    return new Promise((resolve) => setTimeout(resolve, 0));
+  function yieldToMain(forceGcPause = false) {
+    yieldCounter += 1;
+    const delay = forceGcPause || yieldCounter % 5 === 0 ? 16 : 0;
+    return new Promise((resolve) => setTimeout(resolve, delay));
+  }
+
+  function releaseCanvas(canvas) {
+    if (!canvas) return;
+    try {
+      const ctx = canvas.getContext("2d");
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      canvas.width = 0;
+      canvas.height = 0;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function releaseVariantBlob(variant) {
+    if (!variant) return;
+    variant.blob = null;
+  }
+
+  function releaseVariantMemory(variants) {
+    if (!Array.isArray(variants)) return;
+    for (const variant of variants) releaseVariantBlob(variant);
   }
 
   const JOB_IMAGE_DB = "meesho-job-images";
@@ -2348,6 +2419,9 @@
     if (tag.includes("auto lowest") || tag.includes("auto detect") || tag.includes("auto shipping")) {
       return { id: "auto_all", auto: true, modeName: "Auto Lowest Shipping" };
     }
+    if (isSupplierDenTagName(tag)) {
+      return profileSupplierDenMatch();
+    }
     if (
       tag.includes("flat-lay") ||
       tag.includes("flatlay") ||
@@ -2402,8 +2476,8 @@
       tag.includes("framed pro") ||
       tag.includes("framed large") ||
       tag.includes("pro match") ||
-      tag.includes("framed supplierden") ||
-      tag.includes("supplierden match")
+      tag.includes("framed supplierden heavy") ||
+      tag.includes("supplierden heavy")
     ) {
       return profileFramedPro();
     }
@@ -2730,6 +2804,116 @@
     return { canvas: c, width: d, height: d };
   }
 
+  function renderFreeDeliverySticker(scale) {
+    const truckW = 54 * scale;
+    const truckH = 34 * scale;
+    const textW = 92 * scale;
+    const textH = 52 * scale;
+    const gap = 6 * scale;
+    const pad = 10 * scale;
+    const bw = truckW + gap + textW + pad * 2;
+    const bh = Math.max(truckH, textH) + pad * 2;
+    const ss = OVERLAY_SUPERSAMPLE;
+    const c = document.createElement("canvas");
+    c.width = Math.ceil(bw * ss);
+    c.height = Math.ceil(bh * ss);
+    const ctx = c.getContext("2d");
+    ctx.scale(ss, ss);
+    ctx.translate(pad, pad);
+
+    const truckY = (bh - pad * 2 - truckH) / 2;
+    ctx.fillStyle = "#D32F2F";
+    roundRectPath(ctx, 0, truckY + truckH * 0.42, truckW * 0.72, truckH * 0.34, 3 * scale);
+    ctx.fill();
+    roundRectPath(ctx, truckW * 0.08, truckY + truckH * 0.18, truckW * 0.52, truckH * 0.42, 4 * scale);
+    ctx.fill();
+    ctx.fillStyle = "#FFFFFF";
+    ctx.beginPath();
+    ctx.arc(truckW * 0.2, truckY + truckH * 0.82, 5 * scale, 0, Math.PI * 2);
+    ctx.arc(truckW * 0.58, truckY + truckH * 0.82, 5 * scale, 0, Math.PI * 2);
+    ctx.fill();
+
+    const boxX = truckW + gap;
+    const boxY = (bh - pad * 2 - textH) / 2;
+    roundRectPath(ctx, boxX, boxY, textW, textH, 8 * scale);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fill();
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 2.2 * scale;
+    ctx.stroke();
+    ctx.font = `900 ${18 * scale}px Arial,Helvetica,sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#111827";
+    ctx.fillText("FREE", boxX + textW / 2, boxY + textH * 0.38);
+    ctx.font = `800 ${11 * scale}px Arial,Helvetica,sans-serif`;
+    ctx.fillText("DELIVERY", boxX + textW / 2, boxY + textH * 0.72);
+
+    return { canvas: c, width: bw, height: bh };
+  }
+
+  function renderBestChoiceOfferBadge(scale) {
+    const d = 96 * scale;
+    const pad = 10 * scale;
+    const size = d + pad * 2;
+    const ss = OVERLAY_SUPERSAMPLE;
+    const c = document.createElement("canvas");
+    c.width = Math.ceil(size * ss);
+    c.height = Math.ceil(size * ss);
+    const ctx = c.getContext("2d");
+    ctx.scale(ss, ss);
+    const center = size / 2;
+
+    ctx.beginPath();
+    ctx.arc(center, center, d / 2, 0, Math.PI * 2);
+    const grad = ctx.createRadialGradient(center, center, d * 0.1, center, center, d / 2);
+    grad.addColorStop(0, "#FF7043");
+    grad.addColorStop(0.55, "#7B1FA2");
+    grad.addColorStop(1, "#4A148C");
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = "#FFD600";
+    ctx.lineWidth = 2.5 * scale;
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(center, center - d * 0.18);
+    ctx.rotate(-0.08);
+    roundRectPath(ctx, -d * 0.42, -d * 0.12, d * 0.84, d * 0.24, 5 * scale);
+    ctx.fillStyle = "#2E7D32";
+    ctx.fill();
+    ctx.strokeStyle = "#A5D6A7";
+    ctx.lineWidth = 1.5 * scale;
+    ctx.stroke();
+    drawStickerText(ctx, "BEST CHOICE", 0, 0, 9.5, scale, { fill: "#FFFFFF", stroke: "#1B5E20", strokeWidth: 1.1 });
+    ctx.restore();
+
+    drawStickerText(ctx, "OFFER", center, center + d * 0.16, 12, scale, { fill: "#FFD600", stroke: "#4A148C", strokeWidth: 1.3 });
+    return { canvas: c, width: size, height: size };
+  }
+
+  function drawSupplierDenMatchOverlays(ctx, border, photoW, photoH) {
+    const scale = Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
+    const delivery = renderFreeDeliverySticker(scale);
+    const badge = renderBestChoiceOfferBadge(scale * 0.95);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(
+      delivery.canvas,
+      border + photoW * 0.04,
+      border + photoH * 0.42 - delivery.height / 2,
+      delivery.width,
+      delivery.height
+    );
+    ctx.drawImage(
+      badge.canvas,
+      border + photoW * 0.5 - badge.width / 2,
+      border + photoH * 0.38 - badge.height / 2,
+      badge.width,
+      badge.height
+    );
+  }
+
   function drawClassicPromoOverlays(ctx, border, photoW, photoH) {
     const scale = Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
     const badge = renderSpecialOfferBadge(scale);
@@ -2756,6 +2940,11 @@
 
     if (template === "classic_promo") {
       drawClassicPromoOverlays(ctx, border, photoW, photoH);
+      return;
+    }
+
+    if (template === "supplierden_match") {
+      drawSupplierDenMatchOverlays(ctx, border, photoW, photoH);
       return;
     }
 
@@ -3162,6 +3351,7 @@
           }),
         })
       );
+      releaseCanvas(framedCanvas);
       await yieldToMain();
     }
     return out;
@@ -3243,6 +3433,7 @@
         }
         await yieldToMain();
       }
+      releaseCanvas(canvas);
     }
     if (collageProfiles.length) {
       done = await appendCollageProfileVariants(
@@ -3283,7 +3474,8 @@
       return optimizeFullLengthAll(img, frameStyle, onProgress);
     }
     if (onProgress) onProgress(15, `Running ${profile.modeName || profile.id}…`);
-    const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide, frameStyle);
+    const style = mergeFrameStyle(frameStyle, profile.frameStyleOverride);
+    const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide, style);
     const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
     const studioVariants = await buildVariants(
       canvas,
@@ -3294,6 +3486,7 @@
       75,
       { frameStyle }
     );
+    releaseCanvas(canvas);
     if (profile.studio) {
       const framedExtras = await appendStudioFramedExtras(img, profile, frameStyle, onProgress);
       return [...studioVariants, ...framedExtras];
@@ -3344,6 +3537,8 @@
         [OPT_FLAG]: true,
         categoryName: tagName,
       });
+      releaseVariantBlob(v);
+      await yieldToMain(true);
     }
     return out;
   }
@@ -3429,8 +3624,8 @@
           ok: true,
           api: "own",
           service: "own-api.js",
-          processing: "client",
-          version: 91,
+          processing: useServerProcessing ? "server" : "client",
+          version: 93,
           platform: "cloudflare-static",
         },
       };

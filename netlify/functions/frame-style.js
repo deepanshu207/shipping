@@ -14,6 +14,11 @@ export const BORDER_PRESETS = [
 
 export const STICKER_TEMPLATES = [
   { id: "classic_promo", name: "Classic Promo", desc: "SPECIAL OFFER + HOT SALE burst" },
+  {
+    id: "supplierden_match",
+    name: "SupplierDen Match",
+    desc: "FREE DELIVERY truck + BEST CHOICE OFFER badge",
+  },
   { id: "none", name: "Frame only", desc: "Border color only — no stickers" },
   { id: "mega_sale", name: "Mega Sale", desc: "Large MEGA SALE badge top-right" },
   { id: "best_price", name: "Best Price", desc: "BEST PRICE ribbon corner" },
@@ -23,8 +28,8 @@ export const STICKER_TEMPLATES = [
 ];
 
 const TEMPLATE_IDS = new Set(STICKER_TEMPLATES.map((t) => t.id));
-const TEMPLATE_ALIASES = { supplierden: "classic_promo" };
-const PRESET_ALIASES = { supplierden: "classic_orange" };
+const TEMPLATE_ALIASES = { supplierden: "supplierden_match" };
+const PRESET_ALIASES = { supplierden: "purple" };
 
 export function normalizeBorderColor(input) {
   const raw = String(input || "").trim();

@@ -149,6 +149,7 @@
     }
     .mode.selected.model .mode-selected-pill { color: #7e22ce; }
     .mode.fulllength .mode-tag { background: #fef3c7; color: #b45309; }
+    .mode.supplierden .mode-tag { background: #ede9fe; color: #6d28d9; }
     .mode.selected.fulllength {
       border-color: #d97706;
       box-shadow: 0 0 0 3px rgb(217 119 6 / 0.15);
@@ -553,6 +554,12 @@
           <span class="mode-tag">Full frame · ~177–200 KB · est. ₹93</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
+        <button type="button" class="mode framed supplierden" data-id="mo_supplierden_50" data-tag="SupplierDen Match ₹50 supplierden lowest shipping" data-name="SupplierDen Match ₹50" data-supplierden="1">
+          <p class="mode-title">SupplierDen Match ₹50</p>
+          <p class="mode-for"><b>For:</b> Full-length / kaftan / dress — fixed purple frame like SupplierDen, est. ~₹50</p>
+          <span class="mode-tag">Independent · purple · FREE DELIVERY · ~48–55 KB</span>
+          <span class="mode-selected-pill">✓ Selected</span>
+        </button>
           </div>
         </div>
       </details>
@@ -687,7 +694,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=91"></script>
+  <script src="/own-api.js?v=93"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1100,15 +1107,19 @@
       function syncFramedSettingsUI() {
         if (!framedSettings) return;
         var isCollage = selected && selected.dataset.lingerie === "1";
+        var isSupplierDen = selected && selected.dataset.supplierden === "1";
         framedSettings.classList.remove("hidden");
         framedSettings.setAttribute("aria-hidden", "false");
         if (!isCollage) {
           if (accordionBorder) accordionBorder.open = false;
           if (accordionStickers) accordionStickers.open = false;
         }
-        framedSettings.classList.toggle("framed-settings--inactive", false);
+        framedSettings.classList.toggle("framed-settings--inactive", !!isSupplierDen);
         if (framedNote) {
-          if (isCollage) {
+          if (isSupplierDen) {
+            framedNote.innerHTML =
+              "<b>SupplierDen Match</b> uses a <b>fixed purple frame</b> and <b>FREE DELIVERY + BEST CHOICE</b> stickers — border &amp; sticker settings below are <b>not used</b> for this mode.";
+          } else if (isCollage) {
             framedNote.innerHTML =
               "Generates <b>studio white</b> scenarios plus <b>framed copies</b> using your border color and sticker template.";
           } else if (selected && selected.dataset.auto === "1") {
@@ -1505,6 +1516,7 @@
         var isFlatlay = selected && selected.dataset.flatlay === "1";
         var isModel = selected && selected.dataset.model === "1";
         var isFullLength = selected && selected.dataset.fulllength === "1";
+        var isSupplierDen = selected && selected.dataset.supplierden === "1";
         lastUploadDataUrl = previewUrl;
         var modeName = selected.dataset.name;
         var serverMode = !!window.__MEESHO_USE_SERVER__;
@@ -1519,7 +1531,9 @@
                 ? "Model Photo — framed 1024 scenarios…"
                 : isFullLength
                   ? "Full-Length — fit + cap scenarios…"
-                  : "Running " + modeName + "…";
+                  : isSupplierDen
+                    ? "SupplierDen Match — purple frame · ~₹50 band…"
+                    : "Running " + modeName + "…";
         processingHint.textContent = serverMode
           ? "Server is working — switch apps or lock your phone. We'll notify you when done."
           : "Processing in this browser — switch apps OK, but don't force-close the tab. We'll notify you when done.";
