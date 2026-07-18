@@ -70,34 +70,24 @@
   const SUPPLIERDEN_EXACT_OUTER_H = 1024;
   const SUPPLIERDEN_EXACT_BORDER_PX = 10;
   /**
-   * Exact outer dimensions matching SupplierDen — 703×1024 total, ~15% top / ~5% bottom / ~10% side margins.
-   * Old portrait_framed + thick border scaled to 1024 produced ~724×1024 and still tiered ~₹79 on Meesho.
+   * Meesho-confirmed tiers from seller tests:
+   *  - loose 703×1024 · thin border · ~48KB → ₹50 (screenshot 3)
+   *  - standard fill · thin border → ₹56 (screenshot 1)
+   *  - tight fill / thick border → ₹79 (screenshot 2)
    */
   const SUPPLIERDEN_TALL_LAYOUTS = [
     {
-      layout: "sd_exact703",
+      layout: "sd_exact703_r50",
       type: "exact_framed",
       outerW: 703,
       outerH: 1024,
       borderPx: 10,
-      topMarginRatio: 0.15,
-      bottomMarginRatio: 0.05,
+      topMarginRatio: 0.17,
+      bottomMarginRatio: 0.12,
       sideMarginRatio: 0.1,
       priority: 0,
-      panelTag: "exact 703×1024 · SupplierDen match",
-      tiers: TIERS_SUPPLIERDEN_TALL,
-    },
-    {
-      layout: "sd_exact703_tight",
-      type: "exact_framed",
-      outerW: 703,
-      outerH: 1024,
-      borderPx: 10,
-      topMarginRatio: 0.12,
-      bottomMarginRatio: 0.04,
-      sideMarginRatio: 0.08,
-      priority: 1,
-      panelTag: "exact 703×1024 · tight fill",
+      supplierDenRank: 0,
+      panelTag: "703×1024 · ₹50 pattern",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
@@ -107,10 +97,25 @@
       outerH: 1024,
       borderPx: 10,
       topMarginRatio: 0.18,
-      bottomMarginRatio: 0.06,
+      bottomMarginRatio: 0.12,
       sideMarginRatio: 0.12,
-      priority: 2,
-      panelTag: "exact 703×1024 · loose fill",
+      priority: 1,
+      supplierDenRank: 4,
+      panelTag: "703×1024 · loose ₹50 try",
+      tiers: TIERS_SUPPLIERDEN_TALL,
+    },
+    {
+      layout: "sd_exact703",
+      type: "exact_framed",
+      outerW: 703,
+      outerH: 1024,
+      borderPx: 10,
+      topMarginRatio: 0.15,
+      bottomMarginRatio: 0.08,
+      sideMarginRatio: 0.1,
+      priority: 3,
+      supplierDenRank: 28,
+      panelTag: "703×1024 · standard (~₹56)",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
@@ -120,10 +125,25 @@
       outerH: 1024,
       borderPx: 12,
       topMarginRatio: 0.15,
-      bottomMarginRatio: 0.05,
+      bottomMarginRatio: 0.08,
       sideMarginRatio: 0.1,
-      priority: 3,
-      panelTag: "exact 703×1024 · border 12",
+      priority: 40,
+      supplierDenRank: 42,
+      panelTag: "703×1024 · thick border (~₹56)",
+      tiers: TIERS_SUPPLIERDEN_TALL,
+    },
+    {
+      layout: "sd_exact703_tight",
+      type: "exact_framed",
+      outerW: 703,
+      outerH: 1024,
+      borderPx: 10,
+      topMarginRatio: 0.1,
+      bottomMarginRatio: 0.03,
+      sideMarginRatio: 0.06,
+      priority: 90,
+      supplierDenRank: 95,
+      panelTag: "703×1024 · tight (~₹79)",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
@@ -132,11 +152,12 @@
       outerW: 680,
       outerH: 990,
       borderPx: 10,
-      topMarginRatio: 0.15,
-      bottomMarginRatio: 0.05,
+      topMarginRatio: 0.17,
+      bottomMarginRatio: 0.12,
       sideMarginRatio: 0.1,
-      priority: 5,
-      panelTag: "exact 680×990",
+      priority: 8,
+      supplierDenRank: 12,
+      panelTag: "680×990 · ₹50 try",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
     {
@@ -145,24 +166,12 @@
       outerW: 640,
       outerH: 960,
       borderPx: 10,
-      topMarginRatio: 0.15,
-      bottomMarginRatio: 0.05,
+      topMarginRatio: 0.17,
+      bottomMarginRatio: 0.12,
       sideMarginRatio: 0.1,
-      priority: 7,
-      panelTag: "exact 640×960",
-      tiers: TIERS_SUPPLIERDEN_TALL,
-    },
-    {
-      layout: "sd_exact600",
-      type: "exact_framed",
-      outerW: 600,
-      outerH: 880,
-      borderPx: 10,
-      topMarginRatio: 0.14,
-      bottomMarginRatio: 0.05,
-      sideMarginRatio: 0.1,
-      priority: 9,
-      panelTag: "exact 600×880",
+      priority: 10,
+      supplierDenRank: 15,
+      panelTag: "640×960 · ₹50 try",
       tiers: TIERS_SUPPLIERDEN_TALL,
     },
   ];
@@ -868,8 +877,11 @@
     const pid = String(variant.profileId || "");
     const backPanel = isLingerieBackProfileId(pid);
     if (path === "supplierden_match_50") {
-      if (maxSide > 0 && maxSide <= 1024 && fileKb >= 37 && fileKb <= 55) return Math.min(fileKb, 50);
+      const rank = variant.supplierDenRank ?? 50;
+      if (rank >= 90) return Math.min(Math.max(fileKb, 79), 79);
+      if (rank >= 40) return Math.min(Math.max(fileKb, 56), 56);
       if (maxSide > 1024 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 79);
+      if (maxSide > 0 && maxSide <= 1024 && fileKb >= 37 && fileKb <= 55) return Math.min(fileKb, 50);
       return Math.min(fileKb, 50);
     }
     if (path === "framed_collage") {
@@ -1090,6 +1102,7 @@
       flatlaySpec: layoutSpec,
       flatlayPriority: layoutSpec.priority ?? 50,
       framedMaxSide: layoutSpec.framedMaxSide ?? layoutSpec.outerH ?? 1024,
+      supplierDenRank: layoutSpec.supplierDenRank ?? 50,
       tiers: layoutSpec.tiers || TIERS_SUPPLIERDEN_TALL,
     };
   }
@@ -2127,12 +2140,38 @@
     return results;
   }
 
-  /** SupplierDen — prefer exact 703×1024, then any max side ≤1024. */
+  /** Rank variants — ₹50 loose pattern first; tight/thick demoted to bottom. */
+  function supplierDenVariantScore(variant) {
+    const fileKb = kb(variant.bytes);
+    const layoutRank = variant.supplierDenRank ?? 50;
+    let kbRank = 0;
+    if (fileKb >= 47 && fileKb <= 51) kbRank = 0;
+    else if (fileKb >= 44 && fileKb <= 46) kbRank = 12;
+    else if (fileKb >= 52 && fileKb <= 55) kbRank = 18;
+    const exactBonus = variant.width === 703 && variant.height === 1024 ? 0 : 8;
+    return layoutRank + kbRank + exactBonus;
+  }
+
   function finalizeSupplierDenVariants(variants, options = {}) {
-    const exact703 = variants.filter((v) => v.width === 703 && v.height === 1024);
-    const portraitBand = variants.filter((v) => Math.max(v.width, v.height) <= 1024);
-    const pool = exact703.length > 0 ? exact703 : portraitBand.length > 0 ? portraitBand : variants;
-    return finalizeAutoVariants(pool, options);
+    const maxVariants = options.maxVariants ?? SUPPLIERDEN_MAX_VARIANTS;
+    const minVariants = options.minVariants ?? 1;
+    const sorted = dedupeAutoVariants(variants).sort(
+      (a, b) =>
+        supplierDenVariantScore(a) - supplierDenVariantScore(b) ||
+        estimateMeeshoInr(a) - estimateMeeshoInr(b) ||
+        a.bytes - b.bytes
+    );
+    const capped = sorted.slice(0, maxVariants);
+    const minCount = Math.min(minVariants, sorted.length);
+    const results =
+      capped.length >= minCount ? capped : sorted.slice(0, Math.max(minCount, capped.length));
+    results.forEach((v, i) => {
+      v.autoRank = i + 1;
+      v.autoBest = i === 0;
+      v.recommended = i < 3;
+      v.lowest = i === 0;
+    });
+    return results;
   }
 
   function pathOf(url) {
@@ -3160,8 +3199,8 @@
     );
     ctx.drawImage(
       badge.canvas,
-      border + photoW * 0.5 - badge.width / 2,
-      border + photoH * 0.38 - badge.height / 2,
+      border + photoW * 0.62,
+      border + photoH * 0.34 - badge.height / 2,
       badge.width,
       badge.height
     );
@@ -3457,6 +3496,7 @@
       height: canvas.height,
       lingeriePriority: profile.lingeriePriority,
       flatlayPriority: profile.flatlayPriority,
+      supplierDenRank: profile.supplierDenRank,
       reframeMeta: options.reframeMeta || null,
     };
   }

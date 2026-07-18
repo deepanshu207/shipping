@@ -62,27 +62,16 @@ const TIERS_SUPPLIERDEN_TALL = [
 
 const SUPPLIERDEN_TALL_LAYOUTS = [
   {
-    layout: "sd_exact703",
+    layout: "sd_exact703_r50",
     outerW: 703,
     outerH: 1024,
     borderPx: 10,
-    topMarginRatio: 0.15,
-    bottomMarginRatio: 0.05,
+    topMarginRatio: 0.17,
+    bottomMarginRatio: 0.12,
     sideMarginRatio: 0.1,
     priority: 0,
-    panelTag: "exact 703×1024 · SupplierDen match",
-    tiers: TIERS_SUPPLIERDEN_TALL,
-  },
-  {
-    layout: "sd_exact703_tight",
-    outerW: 703,
-    outerH: 1024,
-    borderPx: 10,
-    topMarginRatio: 0.12,
-    bottomMarginRatio: 0.04,
-    sideMarginRatio: 0.08,
-    priority: 1,
-    panelTag: "exact 703×1024 · tight fill",
+    supplierDenRank: 0,
+    panelTag: "703×1024 · ₹50 pattern",
     tiers: TIERS_SUPPLIERDEN_TALL,
   },
   {
@@ -91,10 +80,50 @@ const SUPPLIERDEN_TALL_LAYOUTS = [
     outerH: 1024,
     borderPx: 10,
     topMarginRatio: 0.18,
-    bottomMarginRatio: 0.06,
+    bottomMarginRatio: 0.12,
     sideMarginRatio: 0.12,
-    priority: 2,
-    panelTag: "exact 703×1024 · loose fill",
+    priority: 1,
+    supplierDenRank: 4,
+    panelTag: "703×1024 · loose ₹50 try",
+    tiers: TIERS_SUPPLIERDEN_TALL,
+  },
+  {
+    layout: "sd_exact703",
+    outerW: 703,
+    outerH: 1024,
+    borderPx: 10,
+    topMarginRatio: 0.15,
+    bottomMarginRatio: 0.08,
+    sideMarginRatio: 0.1,
+    priority: 3,
+    supplierDenRank: 28,
+    panelTag: "703×1024 · standard (~₹56)",
+    tiers: TIERS_SUPPLIERDEN_TALL,
+  },
+  {
+    layout: "sd_exact703_b12",
+    outerW: 703,
+    outerH: 1024,
+    borderPx: 12,
+    topMarginRatio: 0.15,
+    bottomMarginRatio: 0.08,
+    sideMarginRatio: 0.1,
+    priority: 40,
+    supplierDenRank: 42,
+    panelTag: "703×1024 · thick border (~₹56)",
+    tiers: TIERS_SUPPLIERDEN_TALL,
+  },
+  {
+    layout: "sd_exact703_tight",
+    outerW: 703,
+    outerH: 1024,
+    borderPx: 10,
+    topMarginRatio: 0.1,
+    bottomMarginRatio: 0.03,
+    sideMarginRatio: 0.06,
+    priority: 90,
+    supplierDenRank: 95,
+    panelTag: "703×1024 · tight (~₹79)",
     tiers: TIERS_SUPPLIERDEN_TALL,
   },
   {
@@ -102,11 +131,12 @@ const SUPPLIERDEN_TALL_LAYOUTS = [
     outerW: 680,
     outerH: 990,
     borderPx: 10,
-    topMarginRatio: 0.15,
-    bottomMarginRatio: 0.05,
+    topMarginRatio: 0.17,
+    bottomMarginRatio: 0.12,
     sideMarginRatio: 0.1,
-    priority: 5,
-    panelTag: "exact 680×990",
+    priority: 8,
+    supplierDenRank: 12,
+    panelTag: "680×990 · ₹50 try",
     tiers: TIERS_SUPPLIERDEN_TALL,
   },
   {
@@ -114,11 +144,12 @@ const SUPPLIERDEN_TALL_LAYOUTS = [
     outerW: 640,
     outerH: 960,
     borderPx: 10,
-    topMarginRatio: 0.15,
-    bottomMarginRatio: 0.05,
+    topMarginRatio: 0.17,
+    bottomMarginRatio: 0.12,
     sideMarginRatio: 0.1,
-    priority: 7,
-    panelTag: "exact 640×960",
+    priority: 10,
+    supplierDenRank: 15,
+    panelTag: "640×960 · ₹50 try",
     tiers: TIERS_SUPPLIERDEN_TALL,
   },
 ];
@@ -393,8 +424,8 @@ async function prepareFramedBuffer(buffer, width, height, framedMaxSide = MEESHO
       });
       composites.push({
         input: badge,
-        left: Math.round(border + width * 0.5 - badgeSize / 2),
-        top: Math.round(border + height * 0.38 - badgeSize / 2),
+        left: Math.round(border + width * 0.62),
+        top: Math.round(border + height * 0.34 - badgeSize / 2),
       });
     } else {
       composites.push({ input: specialOfferSvg(scale), left: offerLeft, top: offerTop });
@@ -425,14 +456,28 @@ function estimateMeeshoInr(item) {
   const maxSide = Math.max(item.width || 0, item.height || 0);
   const path = item.processingPath || "";
   if (path === "supplierden_match_50") {
-    if (maxSide > 0 && maxSide <= 1024 && fileKb >= 37 && fileKb <= 55) return Math.min(fileKb, 50);
+    const rank = item.supplierDenRank ?? 50;
+    if (rank >= 90) return Math.min(Math.max(fileKb, 79), 79);
+    if (rank >= 40) return Math.min(Math.max(fileKb, 56), 56);
     if (maxSide > 1024 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 79);
+    if (maxSide > 0 && maxSide <= 1024 && fileKb >= 37 && fileKb <= 55) return Math.min(fileKb, 50);
     return Math.min(fileKb, 50);
   }
   if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
     return Math.min(fileKb, 93);
   }
   return fileKb;
+}
+
+function supplierDenVariantScore(item) {
+  const fileKb = kbFromBytes(item.fileSizeBytes);
+  const layoutRank = item.supplierDenRank ?? 50;
+  let kbRank = 0;
+  if (fileKb >= 47 && fileKb <= 51) kbRank = 0;
+  else if (fileKb >= 44 && fileKb <= 46) kbRank = 12;
+  else if (fileKb >= 52 && fileKb <= 55) kbRank = 18;
+  const exactBonus = item.width === 703 && item.height === 1024 ? 0 : 8;
+  return layoutRank + kbRank + exactBonus;
 }
 
 function isSupplierDenTagName(tagName) {
@@ -512,8 +557,8 @@ async function prepareSupplierDenExactBuffer(imageBuffer, spec, frameStyleInput)
       },
       {
         input: badge,
-        left: Math.round(border + photoW * 0.5 - badgeSize / 2),
-        top: Math.round(border + photoH * 0.38 - badgeSize / 2),
+        left: Math.round(border + photoW * 0.62),
+        top: Math.round(border + photoH * 0.34 - badgeSize / 2),
       },
     ])
     .png()
@@ -554,21 +599,17 @@ async function generateSupplierDenVariants(imageBuffer, frameStyleInput) {
         profileId: profile.id,
         modeName: profile.modeName,
         flatlayPriority: layoutSpec.priority,
+        supplierDenRank: layoutSpec.supplierDenRank ?? 50,
       });
     }
   }
   built.sort(
     (a, b) =>
+      supplierDenVariantScore(a) - supplierDenVariantScore(b) ||
       estimateMeeshoInr(a) - estimateMeeshoInr(b) ||
-      (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99) ||
       a.fileSizeBytes - b.fileSizeBytes
   );
-  const exact703 = built.filter((b) => b.width === 703 && b.height === 1024);
-  const pool =
-    exact703.length > 0
-      ? exact703
-      : built.filter((b) => Math.max(b.width, b.height) <= 1024);
-  return pool.slice(0, 56);
+  return built.slice(0, 56);
 }
 
 function profileStudio() {
