@@ -738,7 +738,8 @@
   function isProcessingRoute(path) {
     return (
       path === "/api/meesho/getLowestShippingCharge" ||
-      /^\/api\/meesho\/request(?:-status)?\/[^/]+$/.test(path)
+      /^\/api\/meesho\/request(?:-status)?\/[^/]+$/.test(path) ||
+      /^\/api\/meesho\/cancel-request\/[^/]+$/.test(path)
     );
   }
 
@@ -2179,7 +2180,8 @@
       path === "/api/meesho/fetchCategoryTreeOrder" ||
       path === "/api/meesho/fetchAllRequestId" ||
       path === "/api/meesho/getLowestShippingCharge" ||
-      /^\/api\/meesho\/request(?:-status)?\/[^/]+$/.test(path)
+      /^\/api\/meesho\/request(?:-status)?\/[^/]+$/.test(path) ||
+      /^\/api\/meesho\/cancel-request\/[^/]+$/.test(path)
     );
   }
 
@@ -2432,6 +2434,19 @@
     req.progressLabel = "Timed out";
     STORE.requests.set(id, req);
     persistRequest(id, req);
+  }
+
+  function cancelRequest(id) {
+    const req = loadRequest(id);
+    if (!req) return null;
+    if (req.status === "completed") return req;
+    req.status = "cancelled";
+    req.error = "Cancelled";
+    req.progressLabel = "Cancelled";
+    STORE.requests.set(id, req);
+    persistRequest(id, req);
+    void deleteJobImage(id);
+    return req;
   }
 
   function loadImageFromFile(file) {
@@ -3897,7 +3912,12 @@
                 ? SUPPLIERDEN_PROCESS_TIMEOUT_MS
                 : PROCESS_TIMEOUT_MS;
     const deadline = Date.now() + timeoutMs;
+    const checkCancelled = () => {
+      const live = STORE.requests.get(id);
+      if (!live || live.status === "cancelled") throw new Error("Cancelled");
+    };
     const checkDeadline = () => {
+      checkCancelled();
       if (Date.now() > deadline) throw new Error("Image processing timeout");
     };
     const onProgress = (progress, progressLabel) => {
@@ -3917,9 +3937,12 @@
       req.progress = 100;
       req.progressLabel = "Done";
     } catch (e) {
-      req.status = "failed";
-      req.error = String(e);
-      req.progressLabel = "Failed";
+      const live = STORE.requests.get(id);
+      if (!live || live.status !== "cancelled") {
+        req.status = "failed";
+        req.error = String(e);
+        req.progressLabel = "Failed";
+      }
       console.error("[own-api] processImage failed:", e);
     } finally {
       PROCESSING.delete(id);
@@ -4036,6 +4059,18 @@
           },
         };
       }
+      if (req.status === "cancelled") {
+        return {
+          status: 200,
+          body: {
+            status: "failed",
+            progress: req.progress || 0,
+            progressLabel: "Cancelled",
+            message: "Cancelled",
+            results: [],
+          },
+        };
+      }
       if (Date.now() - req.createdAt > staleProcessingMs(req.tagName)) {
         markStaleProcessingFailed(id, req);
         return {
@@ -4058,6 +4093,14 @@
           results: [],
         },
       };
+    }
+
+    const cancelMatch = path.match(/^\/api\/meesho\/cancel-request\/([^/]+)$/);
+    if (cancelMatch && method === "POST") {
+      const id = cancelMatch[1];
+      const req = cancelRequest(id);
+      if (!req) return { status: 404, body: { message: "Request not found" } };
+      return { status: 200, body: { ok: true, status: req.status } };
     }
 
     return { status: 404, body: { message: "Not found", route: path } };
