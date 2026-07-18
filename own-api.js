@@ -815,10 +815,14 @@
 
   function parseFrameStyle(fields) {
     if (!fields) return defaultFrameStyle();
-    return {
+    const style = {
       borderColor: normalizeBorderColor(fields.frameBorderColor || fields.borderColor),
       stickerTemplate: normalizeStickerTemplate(fields.frameStickerTemplate || fields.stickerTemplate),
     };
+    if (fields.stickerLayout) {
+      style.stickerLayout = fields.stickerLayout;
+    }
+    return style;
   }
 
   function getFieldFromBody(body, key) {
@@ -3372,8 +3376,29 @@
     },
   };
 
-  function defaultStickerSlot(slotDef) {
+  const STICKER_ASSET_TYPES = [
+    { id: "free_delivery", name: "Free delivery" },
+    { id: "best_choice", name: "Best choice offer" },
+    { id: "special_offer", name: "Special offer" },
+    { id: "hot_sale", name: "Hot sale burst" },
+    { id: "limited_time", name: "Limited time" },
+    { id: "flash_deal", name: "Flash deal" },
+    { id: "best_price", name: "Best price ribbon" },
+    { id: "super_offer", name: "Super offer" },
+    { id: "flat_off", name: "50% off badge" },
+    { id: "mega_sale", name: "Mega sale" },
+  ];
+  const STICKER_ASSET_TYPE_IDS = new Set(STICKER_ASSET_TYPES.map((t) => t.id));
+  const REFRAME_MAX_STICKERS = 5;
+
+  function newStickerSlotId() {
+    return "st_" + Math.random().toString(16).slice(2, 10);
+  }
+
+  function defaultStickerSlotFromDef(slotDef) {
     return {
+      id: newStickerSlotId(),
+      type: slotDef.type,
       x: slotDef.x,
       y: slotDef.y,
       text1: "",
@@ -3383,40 +3408,106 @@
     };
   }
 
-  function defaultStickerLayoutForTemplate(templateId) {
+  function defaultStickersForTemplate(templateId) {
     const template = normalizeStickerTemplate(templateId);
     const defs = STICKER_SLOT_DEFS[template] || STICKER_SLOT_DEFS.classic_promo;
+    const stickers = [defaultStickerSlotFromDef(defs.primary)];
+    if (defs.secondary) {
+      stickers.push(defaultStickerSlotFromDef(defs.secondary));
+    } else {
+      stickers.push(
+        defaultStickerSlotFromDef({
+          type: "special_offer",
+          x: 0.2,
+          y: 0.72,
+        })
+      );
+    }
+    return stickers;
+  }
+
+  function defaultStickerLayoutForTemplate(templateId) {
     return {
-      visibility: "both",
-      primary: defaultStickerSlot(defs.primary),
-      secondary: defs.secondary ? defaultStickerSlot(defs.secondary) : null,
+      version: 2,
+      stickers: defaultStickersForTemplate(templateId),
     };
   }
 
-  function normalizeStickerLayout(input, templateId) {
+  function normalizeStickerSlot(slot, fallback) {
+    const base = fallback || { type: "special_offer", x: 0.5, y: 0.5 };
+    const s = slot || {};
+    const type = STICKER_ASSET_TYPE_IDS.has(s.type) ? s.type : base.type;
+    return {
+      id: String(s.id || newStickerSlotId()),
+      type,
+      x: clamp01(typeof s.x === "number" ? s.x : base.x),
+      y: clamp01(typeof s.y === "number" ? s.y : base.y),
+      text1: String(s.text1 || "").slice(0, 16),
+      text2: String(s.text2 || "").slice(0, 16),
+      imageUrl: String(s.imageUrl || ""),
+      scale: Math.min(1.6, Math.max(0.45, Number(s.scale) || 1)),
+      _image: s._image || null,
+    };
+  }
+
+  function migrateLegacyStickerLayout(input, templateId) {
     const defaults = defaultStickerLayoutForTemplate(templateId);
     const src = input || {};
-    const visibility = ["both", "primary", "secondary"].includes(src.visibility)
-      ? src.visibility
-      : defaults.visibility;
-    function normSlot(slot, fallback) {
-      if (!fallback) return null;
-      const s = slot || {};
+    if (Array.isArray(src.stickers)) {
+      if (!src.stickers.length) {
+        return { version: 2, stickers: [] };
+      }
       return {
-        x: clamp01(typeof s.x === "number" ? s.x : fallback.x),
-        y: clamp01(typeof s.y === "number" ? s.y : fallback.y),
-        text1: String(s.text1 || "").slice(0, 16),
-        text2: String(s.text2 || "").slice(0, 16),
-        imageUrl: String(s.imageUrl || ""),
-        scale: Math.min(1.6, Math.max(0.45, Number(s.scale) || 1)),
-        _image: s._image || null,
+        version: 2,
+        stickers: src.stickers.slice(0, REFRAME_MAX_STICKERS).map((slot, i) =>
+          normalizeStickerSlot(slot, defaults.stickers[i] || defaults.stickers[0])
+        ),
       };
     }
+    const defs = STICKER_SLOT_DEFS[normalizeStickerTemplate(templateId)] || STICKER_SLOT_DEFS.classic_promo;
+    const visibility = src.visibility || "both";
+    const stickers = [];
+    if ((visibility === "both" || visibility === "primary") && defs.primary) {
+      stickers.push(normalizeStickerSlot({ ...src.primary, type: defs.primary.type }, defs.primary));
+    }
+    if ((visibility === "both" || visibility === "secondary") && defs.secondary) {
+      stickers.push(normalizeStickerSlot({ ...src.secondary, type: defs.secondary.type }, defs.secondary));
+    }
+    if (!stickers.length) return defaults;
+    return { version: 2, stickers };
+  }
+
+  function normalizeStickerLayout(input, templateId) {
+    return migrateLegacyStickerLayout(input, templateId);
+  }
+
+  function cloneStickerLayout(layout, templateId) {
+    const normalized = normalizeStickerLayout(layout, templateId);
     return {
-      visibility,
-      primary: normSlot(src.primary, defaults.primary),
-      secondary: normSlot(src.secondary, defaults.secondary),
+      version: 2,
+      stickers: normalized.stickers.map((slot) => ({
+        id: slot.id,
+        type: slot.type,
+        x: slot.x,
+        y: slot.y,
+        text1: slot.text1,
+        text2: slot.text2,
+        imageUrl: slot.imageUrl,
+        scale: slot.scale,
+      })),
     };
+  }
+
+  function newStickerSlot(type, position) {
+    const pos = position || { x: 0.5, y: 0.5 };
+    return normalizeStickerSlot(
+      {
+        type: type || "special_offer",
+        x: pos.x,
+        y: pos.y,
+      },
+      { type: type || "special_offer", x: pos.x, y: pos.y }
+    );
   }
 
   function clamp01(n) {
@@ -3494,15 +3585,9 @@
     const template = normalizeStickerTemplate(templateId);
     if (template === "none") return;
     const layout = normalizeStickerLayout(stickerLayout, template);
-    const defs = STICKER_SLOT_DEFS[template] || STICKER_SLOT_DEFS.classic_promo;
     const scale = Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
-    const showPrimary = layout.visibility === "both" || layout.visibility === "primary";
-    const showSecondary = layout.visibility === "both" || layout.visibility === "secondary";
-    if (showPrimary && defs.primary) {
-      drawStickerSlotOnPhoto(ctx, border, photoW, photoH, defs.primary.type, layout.primary, scale);
-    }
-    if (showSecondary && defs.secondary && layout.secondary) {
-      drawStickerSlotOnPhoto(ctx, border, photoW, photoH, defs.secondary.type, layout.secondary, scale);
+    for (const slot of layout.stickers) {
+      drawStickerSlotOnPhoto(ctx, border, photoW, photoH, slot.type, slot, scale);
     }
   }
 
@@ -3517,9 +3602,8 @@
 
   async function hydrateStickerLayoutImages(stickerLayout, templateId) {
     const layout = normalizeStickerLayout(stickerLayout, templateId);
-    for (const key of ["primary", "secondary"]) {
-      const slot = layout[key];
-      if (slot && slot.imageUrl && !slot._image) {
+    for (const slot of layout.stickers) {
+      if (slot.imageUrl && !slot._image) {
         try {
           slot._image = await loadStickerImageElement(slot.imageUrl);
         } catch {
@@ -4463,8 +4547,12 @@
     defaultFrameStyle,
     defaultStickerLayoutForTemplate,
     normalizeStickerLayout,
+    cloneStickerLayout,
+    newStickerSlot,
     templateHasDualStickers,
     getTemplateStickerSlotInfo,
+    STICKER_ASSET_TYPES,
+    REFRAME_MAX_STICKERS,
     normalizeBorderColor,
     normalizeStickerTemplate,
     normalizeBorderPreset,
