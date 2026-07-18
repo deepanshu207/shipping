@@ -339,6 +339,9 @@
     .dark .reframe-slot-card { background: rgb(24 24 27 / 0.55); }
     .reframe-slot-title { margin: 0 0 0.45rem; font-size: 0.78rem; font-weight: 800; }
     .reframe-range-meta { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--muted); margin-top: 0.15rem; }
+    .border-width-hint { font-size: 0.72rem; color: var(--muted); margin-top: 0.25rem; line-height: 1.35; }
+    .framed-settings input[type="range"],
+    #reframe-frame-controls input[type="range"].border-width-range { width: 100%; }
     .reframe-slot-preview { margin-top: 0.35rem; font-size: 0.7rem; color: var(--muted); }
     .reframe-slot-actions { display: flex; gap: 0.45rem; margin-top: 0.45rem; }
     .reframe-slot-remove, .reframe-add-sticker, .reframe-reset-stickers {
@@ -636,6 +639,15 @@
               <div class="field"><label for="border-b">B</label><input type="number" id="border-b" min="0" max="255" value="237" /></div>
             </div>
             <div class="frame-preview-bar" id="border-preview" style="background:#7C3AED"></div>
+            <div class="field" style="margin-top:0.75rem">
+              <label for="border-width-preset">Border width</label>
+              <select id="border-width-preset"></select>
+            </div>
+            <div class="field">
+              <label for="border-width-adjust">Fine-tune (<span id="border-width-adjust-label">100%</span>)</label>
+              <input type="range" id="border-width-adjust" class="border-width-range" min="60" max="140" step="1" value="100" aria-valuemin="60" aria-valuemax="140" aria-valuenow="100" />
+              <div class="border-width-hint" id="border-width-hint">Standard · 100%</div>
+            </div>
             <label class="save-default"><input type="checkbox" id="save-border-default" checked /> Save border as default (localStorage)</label>
           </div>
         </details>
@@ -726,6 +738,15 @@
                 </div>
               </div>
               <div class="frame-preview-bar" id="reframe-border-preview" style="background:#7C3AED"></div>
+              <div class="field" style="margin-top:0.75rem">
+                <label for="reframe-border-width-preset">Border width</label>
+                <select id="reframe-border-width-preset"></select>
+              </div>
+              <div class="field">
+                <label for="reframe-border-width-adjust">Fine-tune (<span id="reframe-border-width-adjust-label">100%</span>)</label>
+                <input type="range" id="reframe-border-width-adjust" class="border-width-range" min="60" max="140" step="1" value="100" aria-valuemin="60" aria-valuemax="140" aria-valuenow="100" />
+                <div class="border-width-hint" id="reframe-border-width-hint">Standard · 100%</div>
+              </div>
             </div>
           </details>
           <details class="accordion" open style="margin-top:0.5rem">
@@ -755,7 +776,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=107"></script>
+  <script src="/own-api.js?v=108"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -802,6 +823,10 @@
       var borderB = document.getElementById("border-b");
       var borderPreview = document.getElementById("border-preview");
       var borderSwatches = document.getElementById("border-swatches");
+      var borderWidthPreset = document.getElementById("border-width-preset");
+      var borderWidthAdjust = document.getElementById("border-width-adjust");
+      var borderWidthAdjustLabel = document.getElementById("border-width-adjust-label");
+      var borderWidthHint = document.getElementById("border-width-hint");
       var stickerTemplate = document.getElementById("sticker-template");
       var templateDesc = document.getElementById("template-desc");
       var saveBorderDefault = document.getElementById("save-border-default");
@@ -813,6 +838,10 @@
       var reframeBorderColor = document.getElementById("reframe-border-color");
       var reframeBorderHex = document.getElementById("reframe-border-hex");
       var reframeBorderPreview = document.getElementById("reframe-border-preview");
+      var reframeBorderWidthPreset = document.getElementById("reframe-border-width-preset");
+      var reframeBorderWidthAdjust = document.getElementById("reframe-border-width-adjust");
+      var reframeBorderWidthAdjustLabel = document.getElementById("reframe-border-width-adjust-label");
+      var reframeBorderWidthHint = document.getElementById("reframe-border-width-hint");
       var reframeStickerTemplate = document.getElementById("reframe-sticker-template");
       var reframeTemplateDesc = document.getElementById("reframe-template-desc");
       var reframeApply = document.getElementById("reframe-apply");
@@ -840,6 +869,85 @@
         return Math.min(255, Math.max(0, parseInt(n, 10) || 0));
       }
 
+      function borderWidthPresetName(presetId) {
+        if (!FS) return presetId;
+        var preset = FS.BORDER_WIDTH_PRESETS.find(function (p) { return p.id === presetId; });
+        return preset ? preset.name : presetId;
+      }
+
+      function formatBorderWidthHint(presetId, adjust) {
+        if (!FS) return "";
+        var scale = FS.resolveBorderWidthScale({
+          borderWidthPreset: presetId,
+          borderWidthAdjust: adjust,
+        });
+        return borderWidthPresetName(presetId) + " · " + adjust + "% · scale " + scale.toFixed(2) + "×";
+      }
+
+      function syncBorderWidthUi(presetEl, adjustEl, labelEl, hintEl) {
+        if (!FS || !presetEl || !adjustEl) return;
+        var presetId = FS.normalizeBorderWidthPreset(presetEl.value);
+        var adjust = FS.normalizeBorderWidthAdjust(adjustEl.value);
+        presetEl.value = presetId;
+        adjustEl.value = String(adjust);
+        adjustEl.setAttribute("aria-valuenow", String(adjust));
+        if (labelEl) labelEl.textContent = adjust + "%";
+        if (hintEl) hintEl.textContent = formatBorderWidthHint(presetId, adjust);
+      }
+
+      function syncGenerationBorderWidthUi() {
+        syncBorderWidthUi(borderWidthPreset, borderWidthAdjust, borderWidthAdjustLabel, borderWidthHint);
+      }
+
+      function syncReframeBorderWidthUi() {
+        syncBorderWidthUi(
+          reframeBorderWidthPreset,
+          reframeBorderWidthAdjust,
+          reframeBorderWidthAdjustLabel,
+          reframeBorderWidthHint
+        );
+      }
+
+      function setBorderWidthUi(presetId, adjust, target) {
+        if (!FS) return;
+        var preset = FS.normalizeBorderWidthPreset(presetId);
+        var pct = FS.normalizeBorderWidthAdjust(adjust);
+        if (target === "reframe") {
+          if (reframeBorderWidthPreset) reframeBorderWidthPreset.value = preset;
+          if (reframeBorderWidthAdjust) reframeBorderWidthAdjust.value = String(pct);
+          syncReframeBorderWidthUi();
+        } else {
+          if (borderWidthPreset) borderWidthPreset.value = preset;
+          if (borderWidthAdjust) borderWidthAdjust.value = String(pct);
+          syncGenerationBorderWidthUi();
+        }
+      }
+
+      function getBorderWidthFromUi(target) {
+        if (!FS) return { borderWidthPreset: "standard", borderWidthAdjust: 100 };
+        if (target === "reframe") {
+          return {
+            borderWidthPreset: FS.normalizeBorderWidthPreset(reframeBorderWidthPreset && reframeBorderWidthPreset.value),
+            borderWidthAdjust: FS.normalizeBorderWidthAdjust(reframeBorderWidthAdjust && reframeBorderWidthAdjust.value),
+          };
+        }
+        return {
+          borderWidthPreset: FS.normalizeBorderWidthPreset(borderWidthPreset && borderWidthPreset.value),
+          borderWidthAdjust: FS.normalizeBorderWidthAdjust(borderWidthAdjust && borderWidthAdjust.value),
+        };
+      }
+
+      function populateBorderWidthSelect(selectEl) {
+        if (!FS || !selectEl) return;
+        selectEl.innerHTML = "";
+        FS.BORDER_WIDTH_PRESETS.forEach(function (p) {
+          var opt = document.createElement("option");
+          opt.value = p.id;
+          opt.textContent = p.name;
+          selectEl.appendChild(opt);
+        });
+      }
+
       function syncBorderUiFromHex(hex) {
         var norm = FS.normalizeBorderColor(hex);
         borderHex.value = norm;
@@ -861,10 +969,20 @@
       }
 
       function getFrameSettingsFromUi() {
-        if (!FS) return { borderColor: DEFAULT_BORDER_COLOR, stickerTemplate: RECOMMENDED_STICKER };
+        if (!FS) {
+          return {
+            borderColor: DEFAULT_BORDER_COLOR,
+            stickerTemplate: RECOMMENDED_STICKER,
+            borderWidthPreset: "standard",
+            borderWidthAdjust: 100,
+          };
+        }
+        var width = getBorderWidthFromUi("generation");
         return {
           borderColor: FS.normalizeBorderColor(borderHex.value),
           stickerTemplate: FS.normalizeStickerTemplate(stickerTemplate.value),
+          borderWidthPreset: width.borderWidthPreset,
+          borderWidthAdjust: width.borderWidthAdjust,
         };
       }
 
@@ -873,6 +991,8 @@
         if (saveBorderDefault.checked) {
           localStorage.setItem(FS.STORAGE_KEYS.border, borderHex.value);
           localStorage.setItem(FS.STORAGE_KEYS.preset, borderPreset.value);
+          localStorage.setItem(FS.STORAGE_KEYS.borderWidth, borderWidthPreset.value);
+          localStorage.setItem(FS.STORAGE_KEYS.borderWidthAdjust, borderWidthAdjust.value);
         }
         if (saveTemplateDefault.checked) {
           localStorage.setItem(FS.STORAGE_KEYS.template, stickerTemplate.value);
@@ -884,12 +1004,19 @@
         var savedColor = localStorage.getItem(FS.STORAGE_KEYS.border);
         var savedPreset = FS.normalizeBorderPreset(localStorage.getItem(FS.STORAGE_KEYS.preset) || RECOMMENDED_BORDER);
         var savedTemplate = FS.normalizeStickerTemplate(localStorage.getItem(FS.STORAGE_KEYS.template) || RECOMMENDED_STICKER);
+        var savedBorderWidth = FS.normalizeBorderWidthPreset(
+          localStorage.getItem(FS.STORAGE_KEYS.borderWidth) || "standard"
+        );
+        var savedBorderWidthAdjust = FS.normalizeBorderWidthAdjust(
+          localStorage.getItem(FS.STORAGE_KEYS.borderWidthAdjust) || 100
+        );
         borderPreset.value = savedPreset;
         if (savedPreset !== "custom") {
           setBorderFromPreset(savedPreset);
         } else {
           syncBorderUiFromHex(savedColor || DEFAULT_BORDER_COLOR);
         }
+        setBorderWidthUi(savedBorderWidth, savedBorderWidthAdjust, "generation");
         stickerTemplate.value = FS.normalizeStickerTemplate(savedTemplate);
         updateTemplateDesc();
       }
@@ -971,6 +1098,8 @@
           result.reframeMeta.baselineFrameStyle = {
             borderColor: result.reframeMeta.frameStyle.borderColor,
             stickerTemplate: result.reframeMeta.frameStyle.stickerTemplate,
+            borderWidthPreset: result.reframeMeta.frameStyle.borderWidthPreset || "standard",
+            borderWidthAdjust: result.reframeMeta.frameStyle.borderWidthAdjust ?? 100,
             stickerLayout: null,
           };
         }
@@ -982,10 +1111,20 @@
       }
 
       function getReframeSettingsFromUi() {
-        if (!FS) return { borderColor: DEFAULT_BORDER_COLOR, stickerTemplate: RECOMMENDED_STICKER };
+        if (!FS) {
+          return {
+            borderColor: DEFAULT_BORDER_COLOR,
+            stickerTemplate: RECOMMENDED_STICKER,
+            borderWidthPreset: "standard",
+            borderWidthAdjust: 100,
+          };
+        }
+        var width = getBorderWidthFromUi("reframe");
         var settings = {
           borderColor: FS.normalizeBorderColor(reframeBorderHex.value),
           stickerTemplate: FS.normalizeStickerTemplate(reframeStickerTemplate.value),
+          borderWidthPreset: width.borderWidthPreset,
+          borderWidthAdjust: width.borderWidthAdjust,
         };
         if (reframeDisplayMode === "framed" && reframeStickerCustomized) {
           settings.stickerLayout = getStickerLayoutFromUi();
@@ -1174,6 +1313,11 @@
         if (!baseline) return;
         reframeStickerCustomized = false;
         syncReframeBorderUi(baseline.borderColor || DEFAULT_BORDER_COLOR);
+        setBorderWidthUi(
+          baseline.borderWidthPreset || "standard",
+          baseline.borderWidthAdjust ?? 100,
+          "reframe"
+        );
         reframeStickerTemplate.value = FS.normalizeStickerTemplate(baseline.stickerTemplate || RECOMMENDED_STICKER);
         updateReframeTemplateDesc();
         setStickerLayoutToUi(
@@ -1280,10 +1424,16 @@
         reframeStickerCustomized = !!(meta.frameStyle && meta.frameStyle.stickerLayout);
         if (meta.frameStyle) {
           syncReframeBorderUi(meta.frameStyle.borderColor || DEFAULT_BORDER_COLOR);
+          setBorderWidthUi(
+            meta.frameStyle.borderWidthPreset || "standard",
+            meta.frameStyle.borderWidthAdjust ?? 100,
+            "reframe"
+          );
           reframeStickerTemplate.value = FS.normalizeStickerTemplate(meta.frameStyle.stickerTemplate || RECOMMENDED_STICKER);
         } else {
           var defaults = getFrameSettingsFromUi();
           syncReframeBorderUi(defaults.borderColor);
+          setBorderWidthUi(defaults.borderWidthPreset, defaults.borderWidthAdjust, "reframe");
           reframeStickerTemplate.value = defaults.stickerTemplate;
         }
         if (reframeStickerCustomized && meta.frameStyle && meta.frameStyle.stickerLayout) {
@@ -1338,6 +1488,8 @@
               borderColor: frame.borderColor,
               stickerTemplate:
                 reframeDisplayMode === "frame_only" ? "none" : frame.stickerTemplate,
+              borderWidthPreset: frame.borderWidthPreset || "standard",
+              borderWidthAdjust: frame.borderWidthAdjust ?? 100,
               stickerLayout:
                 reframeDisplayMode === "framed" && reframeStickerCustomized
                   ? frame.stickerLayout || null
@@ -1386,6 +1538,8 @@
       populateBorderPresetSelect();
       populateStickerTemplateSelect();
       populateReframeStickerSelect();
+      populateBorderWidthSelect(borderWidthPreset);
+      populateBorderWidthSelect(reframeBorderWidthPreset);
 
       FS && FS.BORDER_PRESETS.forEach(function (p) {
         if (!p.color) return;
@@ -1447,6 +1601,30 @@
       });
       saveBorderDefault.addEventListener("change", persistFrameDefaults);
       saveTemplateDefault.addEventListener("change", persistFrameDefaults);
+      if (borderWidthPreset) {
+        borderWidthPreset.addEventListener("change", function () {
+          syncGenerationBorderWidthUi();
+          persistFrameDefaults();
+        });
+      }
+      if (borderWidthAdjust) {
+        borderWidthAdjust.addEventListener("input", function () {
+          syncGenerationBorderWidthUi();
+          persistFrameDefaults();
+        });
+      }
+      if (reframeBorderWidthPreset) {
+        reframeBorderWidthPreset.addEventListener("change", function () {
+          syncReframeBorderWidthUi();
+          scheduleReframePreview();
+        });
+      }
+      if (reframeBorderWidthAdjust) {
+        reframeBorderWidthAdjust.addEventListener("input", function () {
+          syncReframeBorderWidthUi();
+          scheduleReframePreview();
+        });
+      }
 
       loadFrameDefaults();
 
@@ -1978,6 +2156,8 @@
         var frame = getFrameSettingsFromUi();
         form.append("frameBorderColor", frame.borderColor);
         form.append("frameStickerTemplate", frame.stickerTemplate);
+        form.append("frameBorderWidthPreset", frame.borderWidthPreset);
+        form.append("frameBorderWidthAdjust", String(frame.borderWidthAdjust));
         persistFrameDefaults();
         form.append("image", imageFile);
 
