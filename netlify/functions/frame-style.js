@@ -16,8 +16,8 @@ export const STICKER_TEMPLATES = [
   { id: "classic_promo", name: "Classic Promo", desc: "SPECIAL OFFER + HOT SALE burst" },
   {
     id: "supplierden_match",
-    name: "SupplierDen Match",
-    desc: "FREE DELIVERY truck + BEST CHOICE OFFER badge",
+    name: "Tall dress promo",
+    desc: "FREE DELIVERY + BEST CHOICE OFFER",
   },
   { id: "none", name: "Frame only", desc: "Border color only — no stickers" },
   { id: "mega_sale", name: "Mega Sale", desc: "Large MEGA SALE badge top-right" },

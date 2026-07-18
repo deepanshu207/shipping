@@ -149,7 +149,7 @@
     }
     .mode.selected.model .mode-selected-pill { color: #7e22ce; }
     .mode.fulllength .mode-tag { background: #fef3c7; color: #b45309; }
-    .mode.supplierden .mode-tag { background: #ede9fe; color: #6d28d9; }
+    .mode.tall50 .mode-tag { background: #ede9fe; color: #6d28d9; }
     .mode.selected.fulllength {
       border-color: #d97706;
       box-shadow: 0 0 0 3px rgb(217 119 6 / 0.15);
@@ -554,10 +554,10 @@
           <span class="mode-tag">Full frame · ~177–200 KB · est. ₹93</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
-        <button type="button" class="mode framed supplierden" data-id="mo_supplierden_50" data-tag="SupplierDen Match ₹50 supplierden lowest shipping" data-name="SupplierDen Match ₹50" data-supplierden="1">
-          <p class="mode-title">SupplierDen Match ₹50</p>
-          <p class="mode-for"><b>For:</b> Tall kaftan / dress — multi-scenario portrait fit + purple SupplierDen frame</p>
-          <span class="mode-tag">56 ranked · 703×1024 fit · purple · ~44–52 KB</span>
+        <button type="button" class="mode framed tall50" data-id="mo_supplierden_50" data-tag="Tall dress kaftan ₹50 supplierden lowest shipping" data-name="Tall Dress ₹50" data-tall50="1">
+          <p class="mode-title">Tall Dress · ₹50 Match</p>
+          <p class="mode-for"><b>For:</b> Full-length kaftan / dress — exact 703×1024 purple frame, ~₹50 shipping band</p>
+          <span class="mode-tag">49 ranked · 703×1024 · purple · ~44–52 KB</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
           </div>
@@ -694,7 +694,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=96"></script>
+  <script src="/own-api.js?v=98"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1107,18 +1107,18 @@
       function syncFramedSettingsUI() {
         if (!framedSettings) return;
         var isCollage = selected && selected.dataset.lingerie === "1";
-        var isSupplierDen = selected && selected.dataset.supplierden === "1";
+        var isTall50 = selected && selected.dataset.tall50 === "1";
         framedSettings.classList.remove("hidden");
         framedSettings.setAttribute("aria-hidden", "false");
         if (!isCollage) {
           if (accordionBorder) accordionBorder.open = false;
           if (accordionStickers) accordionStickers.open = false;
         }
-        framedSettings.classList.toggle("framed-settings--inactive", !!isSupplierDen);
+        framedSettings.classList.toggle("framed-settings--inactive", false);
         if (framedNote) {
-          if (isSupplierDen) {
+          if (isTall50) {
             framedNote.innerHTML =
-              "<b>SupplierDen Match</b> runs <b>56 ranked scenarios</b> (703×1024 portrait fit, capped 960/1024) with fixed purple frame + FREE DELIVERY stickers. Border settings below are <b>not used</b>.";
+              "Generates <b>49 ranked tall-dress scenarios</b> (703×1024 exact) with default purple frame + promo stickers. <b>Tap any result</b> after generation to change border color, stickers, or remove frame — same KB target (~₹50 band).";
           } else if (isCollage) {
             framedNote.innerHTML =
               "Generates <b>studio white</b> scenarios plus <b>framed copies</b> using your border color and sticker template.";
@@ -1516,7 +1516,7 @@
         var isFlatlay = selected && selected.dataset.flatlay === "1";
         var isModel = selected && selected.dataset.model === "1";
         var isFullLength = selected && selected.dataset.fulllength === "1";
-        var isSupplierDen = selected && selected.dataset.supplierden === "1";
+        var isTall50 = selected && selected.dataset.tall50 === "1";
         lastUploadDataUrl = previewUrl;
         var modeName = selected.dataset.name;
         var serverMode = !!window.__MEESHO_USE_SERVER__;
@@ -1531,8 +1531,8 @@
                 ? "Model Photo — framed 1024 scenarios…"
                 : isFullLength
                   ? "Full-Length — fit + cap scenarios…"
-                  : isSupplierDen
-                    ? "SupplierDen — exact 703×1024 match scenarios…"
+                  : isTall50
+                    ? "Tall dress — 703×1024 exact scenarios…"
                     : "Running " + modeName + "…";
         processingHint.textContent = serverMode
           ? "Server is working — switch apps or lock your phone. We'll notify you when done."

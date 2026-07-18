@@ -33,7 +33,7 @@ const results = await page.evaluate(
   async ({ dataUrl, tag }) => window.MeeshoProcessor.optimize(dataUrl, tag, {}),
   {
     dataUrl,
-    tag: "SupplierDen Match ₹50 supplierden lowest shipping",
+    tag: "Tall dress kaftan ₹50 supplierden lowest shipping",
   }
 );
 
