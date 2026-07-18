@@ -32,9 +32,16 @@ export const STICKER_TEMPLATES = [
   { id: "super_offer", name: "Super Offer", desc: "SUPER OFFER + flat 50% tag" },
 ];
 
+export const BORDER_WIDTH_PRESETS = [
+  { id: "thin", name: "Thin border", scale: 0.55 },
+  { id: "standard", name: "Standard", scale: 1 },
+  { id: "thick", name: "Thick border", scale: 1.35 },
+];
+
 const TEMPLATE_IDS = new Set(STICKER_TEMPLATES.map((t) => t.id));
 const TEMPLATE_ALIASES = { supplierden: "supplierden_match", supplierden_one_sticker: "supplierden_one" };
 const PRESET_ALIASES = { supplierden: "purple" };
+const BORDER_WIDTH_PRESET_IDS = new Set(BORDER_WIDTH_PRESETS.map((p) => p.id));
 
 export function normalizeBorderColor(input) {
   const raw = String(input || "").trim();
@@ -86,13 +93,40 @@ export function normalizeBorderPreset(input) {
   return id;
 }
 
+export function normalizeBorderWidthPreset(input) {
+  const id = String(input || "standard").trim().toLowerCase();
+  return BORDER_WIDTH_PRESET_IDS.has(id) ? id : "standard";
+}
+
+export function normalizeBorderWidthAdjust(input) {
+  const n = Number(input);
+  if (!Number.isFinite(n)) return 100;
+  return Math.min(140, Math.max(60, Math.round(n)));
+}
+
+export function resolveBorderWidthScale(frameStyle) {
+  const style = frameStyle || {};
+  const preset =
+    BORDER_WIDTH_PRESETS.find((p) => p.id === normalizeBorderWidthPreset(style.borderWidthPreset)) ||
+    BORDER_WIDTH_PRESETS.find((p) => p.id === "standard");
+  const adjust = normalizeBorderWidthAdjust(style.borderWidthAdjust ?? 100);
+  return Math.max(0.35, Math.min(1.75, preset.scale * (adjust / 100)));
+}
+
 export function parseFrameStyle(fields = {}) {
   return {
     borderColor: normalizeBorderColor(fields.frameBorderColor || fields.borderColor),
     stickerTemplate: normalizeStickerTemplate(fields.frameStickerTemplate || fields.stickerTemplate),
+    borderWidthPreset: normalizeBorderWidthPreset(fields.frameBorderWidthPreset || fields.borderWidthPreset),
+    borderWidthAdjust: normalizeBorderWidthAdjust(fields.frameBorderWidthAdjust ?? fields.borderWidthAdjust),
   };
 }
 
 export function defaultFrameStyle() {
-  return { borderColor: DEFAULT_BORDER_COLOR, stickerTemplate: "classic_promo" };
+  return {
+    borderColor: DEFAULT_BORDER_COLOR,
+    stickerTemplate: "classic_promo",
+    borderWidthPreset: "standard",
+    borderWidthAdjust: 100,
+  };
 }
