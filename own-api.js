@@ -3675,6 +3675,86 @@
     return c;
   }
 
+  /** Photo area only — fitted for framed output, no border or stickers (reframe base). */
+  function prepareFramedPhotoCanvas(img, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
+    const fitted = fitFramedPhotoDims(img.width, img.height, framedMaxSide);
+    const w = fitted.w;
+    const h = fitted.h;
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, w, h);
+    return c;
+  }
+
+  function layoutSpecIncludesFrame(spec) {
+    return String(spec?.type || "").includes("framed");
+  }
+
+  function isDefaultStickerLayoutForTemplate(slots, templateId) {
+    const template = normalizeStickerTemplate(templateId);
+    const defaults = defaultStickerLayoutForTemplate(template);
+    const current = Array.isArray(slots) ? slots : [];
+    if (current.length !== defaults.stickers.length) return false;
+    return current.every((slot, i) => {
+      const def = defaults.stickers[i];
+      return (
+        slot.type === def.type &&
+        Math.abs((slot.x ?? 0) - def.x) < 0.012 &&
+        Math.abs((slot.y ?? 0) - def.y) < 0.012 &&
+        !String(slot.text1 || "").trim() &&
+        !String(slot.text2 || "").trim() &&
+        !String(slot.imageUrl || "").trim()
+      );
+    });
+  }
+
+  function estimateReframeShippingInr(variant, meta) {
+    const anchorBytes = meta?.tier?.anchorBytes;
+    const anchorInr = meta?.tier?.anchorInr;
+    const inr = estimateMeeshoInr(variant);
+    if (anchorBytes != null && anchorInr != null && variant.bytes <= anchorBytes) {
+      return Math.min(inr, anchorInr);
+    }
+    return inr;
+  }
+
+  async function buildReframeFramedCanvas(sourceImg, meta, style) {
+    const framedMaxSide = meta.framedMaxSide ?? MEESHO_FRAMED_MAX_SIDE;
+    const mergedStyle = { ...defaultFrameStyle(), ...(style || {}) };
+    const template = normalizeStickerTemplate(mergedStyle.stickerTemplate);
+    if (mergedStyle.stickerLayout) {
+      mergedStyle.stickerLayout = await hydrateStickerLayoutImages(mergedStyle.stickerLayout, template);
+    }
+
+    if (meta.studioLayout) {
+      const spec = findApparelLayoutSpec(meta.studioLayout, meta.profileId);
+      if (spec) {
+        const supplierDen = String(meta.profileId || "").startsWith("supplierden_");
+        if (supplierDen && spec.type === "exact_framed") {
+          return prepareSupplierDenExactFramedCanvas(sourceImg, spec, mergedStyle);
+        }
+        if (layoutSpecIncludesFrame(spec)) {
+          return supplierDen
+            ? prepareSupplierDenLayoutCanvas(sourceImg, spec, mergedStyle)
+            : prepareFlatlayLayoutCanvas(sourceImg, spec, mergedStyle);
+        }
+        const studioCanvas = supplierDen
+          ? prepareSupplierDenLayoutCanvas(sourceImg, spec, null)
+          : prepareFlatlayLayoutCanvas(sourceImg, spec, null);
+        return prepareFramedCanvas(studioCanvas, spec.framedMaxSide ?? framedMaxSide, mergedStyle);
+      }
+    }
+
+    const photo = prepareFramedPhotoCanvas(sourceImg, framedMaxSide);
+    return prepareFramedCanvas(photo, framedMaxSide, mergedStyle);
+  }
+
   /** Promo frame + stickers — photo scaled to Meesho framed cap. */
   function prepareFramedCanvas(img, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, frameStyle) {
     const style = { ...defaultFrameStyle(), ...(frameStyle || {}) };
@@ -3805,17 +3885,18 @@
     blob = await compressBusyUnderBytes(canvas, maxBytes);
     if (blob.size <= maxBytes) return blob;
 
-    let factor = 0.98;
-    let fallback = blob;
-    while (factor >= 0.82) {
+    let factor = 0.97;
+    while (factor >= 0.7) {
       const scaled = scaleCanvas(canvas, factor);
       const candidate = await compressBusyUnderBytes(scaled, maxBytes);
       releaseCanvas(scaled);
       if (candidate.size <= maxBytes) return candidate;
-      if (candidate.size < fallback.size) fallback = candidate;
       factor -= 0.02;
     }
-    return fallback;
+    const tiny = scaleCanvas(canvas, 0.7);
+    const last = await compressBusyUnderBytes(tiny, maxBytes);
+    releaseCanvas(tiny);
+    return last.size <= maxBytes ? last : last;
   }
 
   function cloneFrameStyleRecord(style) {
@@ -4018,8 +4099,9 @@
   async function renderCustomVariant(sourceImg, meta, displayMode, frameStyle) {
     await loadMozjpeg();
     const preserveKb = meta.tier?.preserveKb ?? meta.tier?.targetKb ?? meta.tier?.slabKb ?? 51;
-    const preserveBytes =
-      meta.tier?.anchorBytes ?? meta.tier?.preserveBytes ?? Math.round(preserveKb * 1024);
+    const anchorBytes = meta.tier?.anchorBytes ?? meta.tier?.preserveBytes ?? null;
+    const preserveBytes = anchorBytes ?? Math.round(preserveKb * 1024);
+    const capBytes = anchorBytes ? Math.max(1024, anchorBytes - 128) : preserveBytes;
     const framedMode = displayMode === "framed" || displayMode === "frame_only";
 
     if (isSupplierDenProfileId(meta.profileId) && meta.studioLayout) {
@@ -4032,9 +4114,7 @@
         const canvas =
           displayMode === "studio"
             ? prepareSupplierDenExactStudioCanvas(sourceImg, spec)
-            : style.stickerLayout
-              ? await prepareSupplierDenExactFramedCanvasForReframe(sourceImg, spec, style)
-              : prepareSupplierDenExactFramedCanvas(sourceImg, spec, style);
+            : await buildReframeFramedCanvas(sourceImg, meta, style);
         const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
         const profile = {
           id: meta.profileId,
@@ -4046,24 +4126,19 @@
           displayMode === "studio"
             ? { targetKb: preserveKb, label: "custom" }
             : { slabKb: preserveKb, label: "custom" };
-        return buildVariantForTier(canvas, whiteRatio, profile, tier, { preserveBytes });
+        return buildVariantForTier(canvas, whiteRatio, profile, tier, { preserveBytes: capBytes });
       }
     }
-
-    let canvas = resolveReframeBaseCanvas(sourceImg, meta);
-    let whiteRatio =
-      meta.whiteRatio ?? Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
 
     let style = parseFrameStyle(frameStyle);
     if (displayMode === "frame_only") {
       style = mergeFrameStyle(style, { stickerTemplate: "none" });
+      style.stickerLayout = null;
     }
 
     if (framedMode) {
-      canvas = style.stickerLayout
-        ? await prepareFramedCanvasForReframe(canvas, meta.framedMaxSide ?? MEESHO_FRAMED_MAX_SIDE, style)
-        : prepareFramedCanvas(canvas, meta.framedMaxSide ?? MEESHO_FRAMED_MAX_SIDE, style);
-      whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
+      const canvas = await buildReframeFramedCanvas(sourceImg, meta, style);
+      const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
       const profile = {
         id: meta.profileId,
         path: meta.processingPath,
@@ -4071,8 +4146,12 @@
         modeName: "custom framed",
       };
       const tier = { slabKb: preserveKb, label: "custom" };
-      return buildVariantForTier(canvas, whiteRatio, profile, tier, { preserveBytes });
+      return buildVariantForTier(canvas, whiteRatio, profile, tier, { preserveBytes: capBytes });
     }
+
+    let canvas = resolveReframeBaseCanvas(sourceImg, meta);
+    let whiteRatio =
+      meta.whiteRatio ?? Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
 
     const profile = {
       id: meta.profileId,
@@ -4082,7 +4161,7 @@
       modeName: "custom studio",
     };
     const tier = { targetKb: preserveKb, label: "custom" };
-    return buildVariantForTier(canvas, whiteRatio, profile, tier, { preserveBytes });
+    return buildVariantForTier(canvas, whiteRatio, profile, tier, { preserveBytes: capBytes });
   }
 
   /** Studio-only modes — append framed copies without jumping to ₹66+ slabs. */
@@ -4659,6 +4738,7 @@
     renderCustomVariant,
     blobToDataUrl,
     estimateMeeshoInr,
+    estimateReframeShippingInr,
     kb,
     loadMozjpeg,
   };
@@ -4670,6 +4750,7 @@
     normalizeStickerLayout,
     cloneStickerLayout,
     newStickerSlot,
+    isDefaultStickerLayoutForTemplate,
     templateHasDualStickers,
     getTemplateStickerSlotInfo,
     STICKER_ASSET_TYPES,
