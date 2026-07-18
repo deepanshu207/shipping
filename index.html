@@ -109,7 +109,7 @@
     }
     .mode.auto-featured,
     .mode.lingerie-featured,
-    .mode.framed-featured,
+    .mode.tall50-featured,
     .mode.flatlay-featured { grid-column: auto; }
     .mode.selected.lingerie {
       border-color: #db2777;
@@ -150,6 +150,14 @@
     .mode.selected.model .mode-selected-pill { color: #7e22ce; }
     .mode.fulllength .mode-tag { background: #fef3c7; color: #b45309; }
     .mode.tall50 .mode-tag { background: #ede9fe; color: #6d28d9; }
+    .mode.selected.tall50 .mode-selected-pill { color: #6d28d9; }
+    .mode.selected.tall50 {
+      border-color: #7c3aed;
+      box-shadow: 0 0 0 3px rgb(124 58 237 / 0.18);
+    }
+    .dark .mode.selected.tall50 {
+      background: linear-gradient(135deg, rgb(124 58 237 / 0.16), rgb(24 24 27 / 0.95));
+    }
     .mode.selected.fulllength {
       border-color: #d97706;
       box-shadow: 0 0 0 3px rgb(217 119 6 / 0.15);
@@ -467,7 +475,7 @@
   </header>
 
   <main class="main">
-    <p class="subtitle">Pick a mode below — <b>Auto</b>, <b>Framed</b>, <b>Collage</b>, or <b>Flat-Lay</b>. More modes in the accordion.</p>
+    <p class="subtitle">Pick a mode below — <b>Auto</b>, <b>Tall</b>, <b>Collage</b>, or <b>Flat-Lay</b>. More modes in the accordion.</p>
 
     <!-- FORM -->
     <section class="card" id="panel-form">
@@ -479,10 +487,10 @@
           <span class="mode-tag">Smart · 10–30 options · try #1 on Meesho first</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
-        <button type="button" class="mode framed framed-featured" data-id="mo_indoor" data-tag="Indoor busy background" data-name="Framed Compress">
-          <p class="mode-title"><span class="mode-short">Framed</span><span class="mode-long">Framed Compress</span></p>
-          <p class="mode-for"><b>For:</b> Indoor / busy background (raincoat)</p>
-          <span class="mode-tag">Orange frame · ~91–93 KB</span>
+        <button type="button" class="mode framed tall50 tall50-featured" data-id="mo_supplierden_50" data-tag="Tall dress kaftan ₹50 supplierden lowest shipping" data-name="Tall ₹50" data-tall50="1">
+          <p class="mode-title"><span class="mode-short">Tall</span><span class="mode-long">Tall ₹50</span></p>
+          <p class="mode-for"><b>For:</b> Full-length kaftan / dress — exact 703×1024 purple frame, ~₹50 shipping</p>
+          <span class="mode-tag">49 ranked · 703×1024 · ~44–52 KB</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode studio lingerie lingerie-featured" data-id="mo_lingerie" data-tag="Collage multi-scenario lingerie studio lowest shipping" data-name="Collage · Multi-Scenario" data-lingerie="1">
@@ -506,6 +514,12 @@
         </summary>
         <div class="accordion-body">
           <div class="modes modes-more">
+        <button type="button" class="mode framed" data-id="mo_indoor" data-tag="Indoor busy background" data-name="Framed Compress">
+          <p class="mode-title">Framed Compress</p>
+          <p class="mode-for"><b>For:</b> Indoor / busy background (raincoat)</p>
+          <span class="mode-tag">Orange frame · ~91–93 KB</span>
+          <span class="mode-selected-pill">✓ Selected</span>
+        </button>
         <button type="button" class="mode studio" data-id="mo_studio" data-tag="White studio product" data-name="Studio Compress">
           <p class="mode-title">Studio Compress</p>
           <p class="mode-for"><b>For:</b> White / plain background (bra, lingerie)</p>
@@ -552,12 +566,6 @@
           <p class="mode-title">Framed Pro</p>
           <p class="mode-for"><b>For:</b> Large framed file — 1280px cap, est. ₹93 tier</p>
           <span class="mode-tag">Full frame · ~177–200 KB · est. ₹93</span>
-          <span class="mode-selected-pill">✓ Selected</span>
-        </button>
-        <button type="button" class="mode framed tall50" data-id="mo_supplierden_50" data-tag="Tall dress kaftan ₹50 supplierden lowest shipping" data-name="Tall Dress ₹50" data-tall50="1">
-          <p class="mode-title">Tall Dress · ₹50 Match</p>
-          <p class="mode-for"><b>For:</b> Full-length kaftan / dress — exact 703×1024 purple frame, ~₹50 shipping band</p>
-          <span class="mode-tag">49 ranked · 703×1024 · purple · ~44–52 KB</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
           </div>
@@ -694,7 +702,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=98"></script>
+  <script src="/own-api.js?v=99"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1118,7 +1126,7 @@
         if (framedNote) {
           if (isTall50) {
             framedNote.innerHTML =
-              "Generates <b>49 ranked tall-dress scenarios</b> (703×1024 exact) with default purple frame + promo stickers. <b>Tap any result</b> after generation to change border color, stickers, or remove frame — same KB target (~₹50 band).";
+              "Generates <b>49 ranked tall scenarios</b> (703×1024 exact) with default purple frame + promo stickers. <b>Tap any result</b> after generation to change border, stickers, or remove frame.";
           } else if (isCollage) {
             framedNote.innerHTML =
               "Generates <b>studio white</b> scenarios plus <b>framed copies</b> using your border color and sticker template.";
@@ -1532,7 +1540,7 @@
                 : isFullLength
                   ? "Full-Length — fit + cap scenarios…"
                   : isTall50
-                    ? "Tall dress — 703×1024 exact scenarios…"
+                    ? "Tall — 703×1024 exact scenarios…"
                     : "Running " + modeName + "…";
         processingHint.textContent = serverMode
           ? "Server is working — switch apps or lock your phone. We'll notify you when done."

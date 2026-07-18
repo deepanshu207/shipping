@@ -441,7 +441,8 @@ function isSupplierDenTagName(tagName) {
     tag.includes("supplierden match") ||
     tag.includes("supplierden ₹50") ||
     tag.includes("supplierden 50") ||
-    tag.includes("supplierden lowest")
+    tag.includes("supplierden lowest") ||
+    (tag.includes("tall dress") && tag.includes("₹50"))
   );
 }
 
@@ -536,7 +537,7 @@ async function generateSupplierDenVariants(imageBuffer, frameStyleInput) {
     const profile = {
       id: `supplierden_${layoutSpec.layout}`,
       path: "supplierden_match_50",
-      modeName: `SupplierDen · ${layoutSpec.panelTag}`,
+      modeName: `Tall · ${layoutSpec.panelTag}`,
     };
     const prepared = await prepareSupplierDenExactBuffer(imageBuffer, layoutSpec, frameStyleInput);
     for (const tier of layoutSpec.tiers) {
@@ -636,7 +637,7 @@ function profileSupplierDenMatch() {
     supplierDenAll: true,
     tiers: TIERS_SUPPLIERDEN_50,
     path: "supplierden_match_50",
-    modeName: "SupplierDen Match ₹50",
+    modeName: "Tall ₹50",
     framedMaxSide: 1024,
     frameStyleOverride: {
       borderColor: SUPPLIERDEN_MATCH_PURPLE,
@@ -855,7 +856,8 @@ function resolveProcessingProfile(buffer, categoryName) {
     tag.includes("supplierden match") ||
     tag.includes("supplierden ₹50") ||
     tag.includes("supplierden 50") ||
-    tag.includes("supplierden lowest")
+    tag.includes("supplierden lowest") ||
+    (tag.includes("tall dress") && tag.includes("₹50"))
   ) {
     return profileSupplierDenMatch();
   }
