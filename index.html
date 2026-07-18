@@ -702,7 +702,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=99"></script>
+  <script src="/own-api.js?v=101"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1123,10 +1123,11 @@
           if (accordionStickers) accordionStickers.open = false;
         }
         framedSettings.classList.toggle("framed-settings--inactive", false);
+        updateTemplateDesc();
         if (framedNote) {
           if (isTall50) {
             framedNote.innerHTML =
-              "Generates <b>49 ranked tall scenarios</b> (703×1024 exact) with default purple frame + promo stickers. <b>Tap any result</b> after generation to change border, stickers, or remove frame.";
+              "Your <b>border color</b> and <b>promotion sticker</b> selections above apply to all 49 tall scenarios (703×1024 exact). Pick <b>Tall dress promo</b> for the classic FREE DELIVERY look. <b>Tap any result</b> after generation to tweak further.";
           } else if (isCollage) {
             framedNote.innerHTML =
               "Generates <b>studio white</b> scenarios plus <b>framed copies</b> using your border color and sticker template.";

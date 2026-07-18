@@ -1063,17 +1063,14 @@
       path: "supplierden_match_50",
       modeName: "Tall ₹50",
       framedMaxSide: 1024,
-      frameStyleOverride: {
-        borderColor: SUPPLIERDEN_MATCH_PURPLE,
-        stickerTemplate: "supplierden_match",
-      },
     };
   }
 
-  function supplierDenLockedFrameStyle() {
+  function resolveSupplierDenFrameStyle(frameStyle) {
+    const user = parseFrameStyle(frameStyle || {});
     return {
-      borderColor: SUPPLIERDEN_MATCH_PURPLE,
-      stickerTemplate: "supplierden_match",
+      borderColor: normalizeBorderColor(user.borderColor),
+      stickerTemplate: normalizeStickerTemplate(user.stickerTemplate),
     };
   }
 
@@ -1100,14 +1097,14 @@
     );
   }
 
-  async function optimizeSupplierDenAll(img, _frameStyle, onProgress) {
+  async function optimizeSupplierDenAll(img, frameStyle, onProgress) {
     const profiles = supplierDenProfilesForImage();
-    const lockedStyle = supplierDenLockedFrameStyle();
+    const activeStyle = resolveSupplierDenFrameStyle(frameStyle);
     const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
     const allVariants = [];
     let done = 0;
     for (const profile of profiles) {
-      const canvas = prepareSupplierDenLayoutCanvas(img, profile.flatlaySpec, lockedStyle);
+      const canvas = prepareSupplierDenLayoutCanvas(img, profile.flatlaySpec, activeStyle);
       const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
       for (const tier of profile.tiers) {
         if (onProgress) {
@@ -1120,7 +1117,7 @@
           await buildVariantForTier(canvas, whiteRatio, profile, tier, {
             showMode: true,
             reframeMeta: buildReframeMeta(profile, tier, {
-              frameStyle: lockedStyle,
+              frameStyle: activeStyle,
               studioLayout: profile.studioLayout,
               whiteRatio,
             }),
