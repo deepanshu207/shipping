@@ -337,70 +337,75 @@ function bestChoiceOfferSvg(scale) {
   </svg>`);
 }
 
+function stickerCompositesForTemplate(templateId, border, width, height) {
+  const scale = Math.max(0.78, Math.min(1.35, Math.min(width, height) / 900));
+  const burstScale = scale * 1.05;
+  const template = normalizeStickerTemplate(templateId);
+  const composites = [];
+  if (template === "none") return composites;
+
+  const offerLeft = Math.round(border + width * 0.66);
+  const offerTop = Math.round(border + height * 0.05);
+  const burstLeft = Math.round(border + width * 0.16 - (78 * burstScale * 2 + 28 * burstScale) / 2);
+  const burstTop = Math.round(border + height * 0.72 - (78 * burstScale * 2 + 28 * burstScale) / 2);
+  const burstSize = 78 * burstScale * 2 + 28 * burstScale;
+
+  if (template === "classic_promo") {
+    composites.push({ input: specialOfferSvg(scale), left: offerLeft, top: offerTop });
+    composites.push({ input: hotSaleSvg(burstScale), left: burstLeft, top: burstTop });
+  } else if (template === "mega_sale") {
+    composites.push({ input: megaSaleSvg(scale * 1.08), left: Math.round(border + width * 0.62), top: offerTop });
+  } else if (template === "best_price") {
+    composites.push({ input: bestPriceSvg(scale), left: border + Math.round(width * 0.02), top: border + Math.round(height * 0.02) });
+    composites.push({
+      input: hotSaleSvg(scale * 0.85),
+      left: Math.round(border + width * 0.78 - burstSize / 2),
+      top: Math.round(border + height * 0.68 - burstSize / 2),
+    });
+  } else if (template === "limited_time") {
+    composites.push({ input: limitedTimeSvg(scale), left: Math.round(border + width * 0.58), top: offerTop });
+    composites.push({ input: flashDealSvg(scale * 0.75), left: burstLeft, top: burstTop });
+  } else if (template === "flash_deal") {
+    composites.push({ input: flashDealSvg(scale * 1.05), left: burstLeft, top: burstTop });
+    composites.push({ input: specialOfferSvg(scale * 0.92), left: offerLeft, top: offerTop });
+  } else if (template === "super_offer") {
+    composites.push({ input: superOfferSvg(scale), left: offerLeft, top: offerTop });
+    composites.push({
+      input: flatOffSvg(scale * 0.95),
+      left: Math.round(border + width * 0.1 - 72 * scale * 0.95 / 2),
+      top: Math.round(border + height * 0.72 - 72 * scale * 0.95 / 2),
+    });
+  } else if (template === "supplierden_match") {
+    const delivery = freeDeliverySvg(scale);
+    const badge = bestChoiceOfferSvg(scale * 0.95);
+    const deliveryH = Math.max(34 * scale, 52 * scale) + 20 * scale;
+    const badgeSize = 96 * scale * 0.95 + 20 * scale;
+    composites.push({
+      input: delivery,
+      left: Math.round(border + width * 0.04),
+      top: Math.round(border + height * 0.42 - deliveryH / 2),
+    });
+    composites.push({
+      input: badge,
+      left: Math.round(border + width * 0.5 - badgeSize / 2),
+      top: Math.round(border + height * 0.38 - badgeSize / 2),
+    });
+  } else {
+    composites.push({ input: specialOfferSvg(scale), left: offerLeft, top: offerTop });
+    composites.push({ input: hotSaleSvg(burstScale), left: burstLeft, top: burstTop });
+  }
+
+  return composites;
+}
+
 async function prepareFramedBuffer(buffer, width, height, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, frameStyleInput) {
   const style = parseFrameStyle(frameStyleInput || {});
   const border = framedBorderPx(width, height, framedMaxSide);
   const fw = width + border * 2;
   const fh = height + border * 2;
-  const scale = Math.max(0.78, Math.min(1.35, Math.min(width, height) / 900));
-  const burstScale = scale * 1.05;
   const bg = hexToRgb(style.borderColor);
-  const template = normalizeStickerTemplate(style.stickerTemplate);
-
   const composites = [{ input: buffer, left: border, top: border }];
-
-  if (template !== "none") {
-    const offerLeft = Math.round(border + width * 0.66);
-    const offerTop = Math.round(border + height * 0.05);
-    const burstLeft = Math.round(border + width * 0.16 - (78 * burstScale * 2 + 28 * burstScale) / 2);
-    const burstTop = Math.round(border + height * 0.72 - (78 * burstScale * 2 + 28 * burstScale) / 2);
-    const burstSize = 78 * burstScale * 2 + 28 * burstScale;
-
-    if (template === "classic_promo") {
-      composites.push({ input: specialOfferSvg(scale), left: offerLeft, top: offerTop });
-      composites.push({ input: hotSaleSvg(burstScale), left: burstLeft, top: burstTop });
-    } else if (template === "mega_sale") {
-      composites.push({ input: megaSaleSvg(scale * 1.08), left: Math.round(border + width * 0.62), top: offerTop });
-    } else if (template === "best_price") {
-      composites.push({ input: bestPriceSvg(scale), left: border + Math.round(width * 0.02), top: border + Math.round(height * 0.02) });
-      composites.push({
-        input: hotSaleSvg(scale * 0.85),
-        left: Math.round(border + width * 0.78 - burstSize / 2),
-        top: Math.round(border + height * 0.68 - burstSize / 2),
-      });
-    } else if (template === "limited_time") {
-      composites.push({ input: limitedTimeSvg(scale), left: Math.round(border + width * 0.58), top: offerTop });
-      composites.push({ input: flashDealSvg(scale * 0.75), left: burstLeft, top: burstTop });
-    } else if (template === "flash_deal") {
-      composites.push({ input: flashDealSvg(scale * 1.05), left: burstLeft, top: burstTop });
-      composites.push({ input: specialOfferSvg(scale * 0.92), left: offerLeft, top: offerTop });
-    } else if (template === "super_offer") {
-      composites.push({ input: superOfferSvg(scale), left: offerLeft, top: offerTop });
-      composites.push({
-        input: flatOffSvg(scale * 0.95),
-        left: Math.round(border + width * 0.1 - 72 * scale * 0.95 / 2),
-        top: Math.round(border + height * 0.72 - 72 * scale * 0.95 / 2),
-      });
-    } else if (template === "supplierden_match") {
-      const delivery = freeDeliverySvg(scale);
-      const badge = bestChoiceOfferSvg(scale * 0.95);
-      const deliveryH = Math.max(34 * scale, 52 * scale) + 20 * scale;
-      const badgeSize = 96 * scale * 0.95 + 20 * scale;
-      composites.push({
-        input: delivery,
-        left: Math.round(border + width * 0.04),
-        top: Math.round(border + height * 0.42 - deliveryH / 2),
-      });
-      composites.push({
-        input: badge,
-        left: Math.round(border + width * 0.5 - badgeSize / 2),
-        top: Math.round(border + height * 0.38 - badgeSize / 2),
-      });
-    } else {
-      composites.push({ input: specialOfferSvg(scale), left: offerLeft, top: offerTop });
-      composites.push({ input: hotSaleSvg(burstScale), left: burstLeft, top: burstTop });
-    }
-  }
+  composites.push(...stickerCompositesForTemplate(style.stickerTemplate, border, width, height));
 
   const framed = await sharp({
     create: { width: fw, height: fh, channels: 3, background: bg },
@@ -478,12 +483,7 @@ async function prepareSupplierDenExactBuffer(imageBuffer, spec, frameStyleInput)
   const innerDx = Math.round(sideM + (availW - dw) / 2);
   const innerDy = Math.round(topM + (availH - dh) / 2);
 
-  const style = {
-    ...defaultFrameStyle(),
-    ...parseFrameStyle(frameStyleInput || {}),
-    borderColor: SUPPLIERDEN_MATCH_PURPLE,
-    stickerTemplate: "supplierden_match",
-  };
+  const style = parseFrameStyle(frameStyleInput || {});
   const bg = hexToRgb(style.borderColor);
   const subject = await sharp(trimmed).resize(dw, dh, { fit: "fill" }).toBuffer();
   const whitePlate = await sharp({
@@ -496,27 +496,14 @@ async function prepareSupplierDenExactBuffer(imageBuffer, spec, frameStyleInput)
     .png()
     .toBuffer();
 
-  const scale = Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
-  const delivery = freeDeliverySvg(scale);
-  const badge = bestChoiceOfferSvg(scale * 0.95);
-  const deliveryH = Math.max(34 * scale, 52 * scale) + 20 * scale;
-  const badgeSize = 96 * scale * 0.95 + 20 * scale;
+  const composites = [
+    { input: plateWithSubject, left: border, top: border },
+    ...stickerCompositesForTemplate(style.stickerTemplate, border, photoW, photoH),
+  ];
   const buffer = await sharp({
     create: { width: outerW, height: outerH, channels: 3, background: bg },
   })
-    .composite([
-      { input: plateWithSubject, left: border, top: border },
-      {
-        input: delivery,
-        left: Math.round(border + photoW * 0.04),
-        top: Math.round(border + photoH * 0.42 - deliveryH / 2),
-      },
-      {
-        input: badge,
-        left: Math.round(border + photoW * 0.5 - badgeSize / 2),
-        top: Math.round(border + photoH * 0.38 - badgeSize / 2),
-      },
-    ])
+    .composite(composites)
     .png()
     .toBuffer();
 
@@ -639,10 +626,6 @@ function profileSupplierDenMatch() {
     path: "supplierden_match_50",
     modeName: "Tall ₹50",
     framedMaxSide: 1024,
-    frameStyleOverride: {
-      borderColor: SUPPLIERDEN_MATCH_PURPLE,
-      stickerTemplate: "supplierden_match",
-    },
   };
 }
 
