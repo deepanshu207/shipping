@@ -1061,7 +1061,7 @@
       supplierDenAll: true,
       tiers: TIERS_SUPPLIERDEN_50,
       path: "supplierden_match_50",
-      modeName: "Tall Dress ₹50",
+      modeName: "Tall ₹50",
       framedMaxSide: 1024,
       frameStyleOverride: {
         borderColor: SUPPLIERDEN_MATCH_PURPLE,

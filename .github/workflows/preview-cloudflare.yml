@@ -59,7 +59,7 @@ jobs:
               `**Test this PR before merging:** [${preview}](${preview})`,
               '',
               '- Hard refresh with `?v=96` after deploy finishes',
-              '- SupplierDen mode: **More modes → SupplierDen Match ₹50**',
+              '- Tall mode: **Tall** (primary row) · kaftan / dress ~₹50',
               '',
               '_Updated on each push to this branch. Production `main` deploys separately._',
             ].join('\n');

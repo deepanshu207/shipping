@@ -44,10 +44,10 @@ async function run() {
 
   try {
     const { res, text } = await get("/");
-    if (res.ok && text.includes("Tall Dress")) {
-      checks.push(["GET / Tall Dress mode", true, "Tall Dress ₹50 in UI"]);
+    if (res.ok && (text.includes(">Tall</span>") || text.includes("Tall ₹50"))) {
+      checks.push(["GET / Tall mode", true, "Tall ₹50 in UI"]);
     } else {
-      checks.push(["GET / Tall Dress mode", false, "missing Tall Dress mode"]);
+      checks.push(["GET / Tall mode", false, "missing Tall mode"]);
     }
   } catch (e) {
     checks.push(["GET / embedded UI", false, e.message]);
