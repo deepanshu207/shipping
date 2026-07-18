@@ -749,7 +749,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=105"></script>
+  <script src="/own-api.js?v=104"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -970,45 +970,9 @@
         }
       }
 
-      function getReframeBaselineStyle() {
-        if (reframeIndex < 0) return {};
-        var r = lastResults[reframeIndex];
-        if (!r || !r.reframeMeta) return {};
-        return r.reframeMeta.baselineFrameStyle || r.reframeMeta.frameStyle || {};
-      }
-
-      function syncStickerCustomizedState() {
-        if (!FS || reframeDisplayMode !== "framed") {
-          reframeStickerCustomized = false;
-          return;
-        }
-        var baseline = getReframeBaselineStyle();
-        var borderSame =
-          FS.normalizeBorderColor(reframeBorderHex.value) ===
-          FS.normalizeBorderColor(baseline.borderColor || DEFAULT_BORDER_COLOR);
-        var templateSame =
-          FS.normalizeStickerTemplate(reframeStickerTemplate.value) ===
-          FS.normalizeStickerTemplate(baseline.stickerTemplate || RECOMMENDED_STICKER);
-        if (!borderSame || !templateSame) {
-          reframeStickerCustomized = true;
-          return;
-        }
-        reframeStickerCustomized = !FS.isDefaultStickerLayoutForTemplate(
-          reframeStickerSlots,
-          reframeStickerTemplate.value
-        );
-      }
-
-      function onStickerControlChanged() {
-        syncStickerCustomizedState();
+      function markStickerLayoutCustomized() {
+        reframeStickerCustomized = true;
         scheduleReframePreview();
-      }
-
-      function estimateReframeDisplayInr(variant, meta) {
-        if (MR && MR.estimateReframeShippingInr) {
-          return MR.estimateReframeShippingInr(variant, meta);
-        }
-        return MR.estimateMeeshoInr(variant);
       }
 
       function getReframeSettingsFromUi() {
@@ -1078,7 +1042,7 @@
           typeSelect.addEventListener("change", function () {
             slot.type = typeSelect.value;
             title.textContent = "Sticker " + (index + 1) + " · " + stickerTypeLabel(slot.type);
-            onStickerControlChanged();
+            markStickerLayoutCustomized();
           });
           typeField.appendChild(typeSelect);
           card.appendChild(typeField);
@@ -1108,7 +1072,7 @@
             input.addEventListener("input", function () {
               slot[key] = normFromPct(input.value);
               valSpan.textContent = input.value + "%";
-              onStickerControlChanged();
+              markStickerLayoutCustomized();
             });
             field.appendChild(input);
             field.appendChild(meta);
@@ -1131,7 +1095,7 @@
             input.value = slot[key] || "";
             input.addEventListener("input", function () {
               slot[key] = input.value.trim();
-              onStickerControlChanged();
+              markStickerLayoutCustomized();
             });
             field.appendChild(input);
             card.appendChild(field);
@@ -1149,7 +1113,7 @@
             reader.onload = function () {
               slot.imageUrl = reader.result;
               imageNote.textContent = imageInput.files[0].name;
-              onStickerControlChanged();
+              markStickerLayoutCustomized();
             };
             reader.readAsDataURL(imageInput.files[0]);
           });
@@ -1186,13 +1150,13 @@
         var seed = defaults.stickers[reframeStickerSlots.length] || defaults.stickers[0];
         reframeStickerSlots.push(FS.newStickerSlot(seed.type, { x: seed.x, y: seed.y }));
         renderStickerSlotCards();
-        onStickerControlChanged();
+        markStickerLayoutCustomized();
       }
 
       function removeReframeSticker(slotId) {
         reframeStickerSlots = reframeStickerSlots.filter(function (s) { return s.id !== slotId; });
         renderStickerSlotCards();
-        onStickerControlChanged();
+        markStickerLayoutCustomized();
       }
 
       function resetReframeStickers() {
@@ -1210,7 +1174,6 @@
           FS.defaultStickerLayoutForTemplate(reframeStickerTemplate.value),
           reframeStickerTemplate.value
         );
-        syncStickerCustomizedState();
         scheduleReframePreview();
       }
 
@@ -1235,8 +1198,6 @@
           await MR.loadMozjpeg();
           var r = lastResults[reframeIndex];
           if (!r || !r.reframeMeta) return;
-          ensureReframeAnchorMeta(r);
-          syncStickerCustomizedState();
           var sourceImg = await loadImageFromDataUrl(lastUploadDataUrl);
           var frame = getReframeSettingsFromUi();
           var variant = await MR.renderCustomVariant(sourceImg, r.reframeMeta, reframeDisplayMode, frame);
@@ -1247,7 +1208,7 @@
           if (reframePreviewStatus) {
             var anchorInr =
               r.reframeMeta.tier && (r.reframeMeta.tier.anchorInr || r.estimatedShippingInr);
-            var currentInr = estimateReframeDisplayInr(variant, r.reframeMeta);
+            var currentInr = MR.estimateMeeshoInr(variant);
             var anchorKb =
               r.reframeMeta.tier && r.reframeMeta.tier.anchorBytes
                 ? MR.kb(r.reframeMeta.tier.anchorBytes)
@@ -1310,6 +1271,7 @@
         var isStudioKind = meta.kind === "collage_studio" || meta.kind === "studio";
         var stickerNone = meta.frameStyle && meta.frameStyle.stickerTemplate === "none";
         reframeDisplayMode = isStudioKind ? "studio" : stickerNone ? "frame_only" : "framed";
+        reframeStickerCustomized = !!(meta.frameStyle && meta.frameStyle.stickerLayout);
         if (meta.frameStyle) {
           syncReframeBorderUi(meta.frameStyle.borderColor || DEFAULT_BORDER_COLOR);
           reframeStickerTemplate.value = FS.normalizeStickerTemplate(meta.frameStyle.stickerTemplate || RECOMMENDED_STICKER);
@@ -1318,7 +1280,7 @@
           syncReframeBorderUi(defaults.borderColor);
           reframeStickerTemplate.value = defaults.stickerTemplate;
         }
-        if (meta.frameStyle && meta.frameStyle.stickerLayout) {
+        if (reframeStickerCustomized && meta.frameStyle && meta.frameStyle.stickerLayout) {
           setStickerLayoutToUi(meta.frameStyle.stickerLayout, reframeStickerTemplate.value);
         } else {
           setStickerLayoutToUi(
@@ -1326,7 +1288,6 @@
             reframeStickerTemplate.value
           );
         }
-        syncStickerCustomizedState();
         updateReframeTemplateDesc();
         syncReframeStickerLayoutLabels();
         syncReframeModeUi();
@@ -1343,8 +1304,6 @@
         reframeApply.textContent = "Applying…";
         try {
           await MR.loadMozjpeg();
-          ensureReframeAnchorMeta(r);
-          syncStickerCustomizedState();
           var sourceImg = await loadImageFromDataUrl(lastUploadDataUrl);
           var frame = getReframeSettingsFromUi();
           var variant = await MR.renderCustomVariant(
@@ -1355,7 +1314,7 @@
           );
           var imageUrl = await MR.blobToDataUrl(variant.blob);
           var fileSizeKb = MR.kb(variant.bytes);
-          var estimatedShippingInr = estimateReframeDisplayInr(variant, r.reframeMeta);
+          var estimatedShippingInr = MR.estimateMeeshoInr(variant);
           r.imageUrl = imageUrl;
           r.fileSizeKb = fileSizeKb;
           r.estimatedShippingInr = estimatedShippingInr;
@@ -2095,7 +2054,7 @@
       reframeStickerTemplate.addEventListener("change", function () {
         updateReframeTemplateDesc();
         setStickerLayoutToUi(FS.defaultStickerLayoutForTemplate(reframeStickerTemplate.value), reframeStickerTemplate.value);
-        onStickerControlChanged();
+        markStickerLayoutCustomized();
       });
       if (reframeAddStickerBtn) {
         reframeAddStickerBtn.addEventListener("click", addReframeSticker);

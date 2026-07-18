@@ -1,5 +1,5 @@
 /**
- * Verifies reframe sticker edits keep shipping stable (no double-frame, byte cap).
+ * Verifies post-generation sticker layout and shipping byte cap on reframe.
  */
 import { chromium } from "playwright";
 import { spawn } from "child_process";
@@ -33,7 +33,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/optimizer-shell.html?v=105`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/optimizer-shell.html?v=104`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoFrameSettings && window.MeeshoReframe, { timeout: 20000 });
 
     const result = await page.evaluate(async () => {
@@ -41,11 +41,6 @@ async function run() {
       const MR = window.MeeshoReframe;
 
       const defaults = FS.defaultStickerLayoutForTemplate("supplierden_match");
-      const tweaked = FS.cloneStickerLayout(defaults, "supplierden_match");
-      tweaked.stickers[0].x = Math.min(0.95, tweaked.stickers[0].x + 0.12);
-      tweaked.stickers[0].text1 = "FREE";
-      tweaked.stickers[0].text2 = "SHIP";
-
       const heavyLayout = FS.normalizeStickerLayout(
         {
           version: 2,
@@ -53,6 +48,7 @@ async function run() {
             { type: "free_delivery", x: 0.15, y: 0.2, text1: "FREE", text2: "SHIP" },
             { type: "special_offer", x: 0.8, y: 0.75, text1: "DEAL", text2: "NOW" },
             { type: "mega_sale", x: 0.5, y: 0.5, text1: "MEGA", text2: "SALE" },
+            { type: "hot_sale", x: 0.3, y: 0.8, text1: "HOT", text2: "SALE" },
           ],
         },
         "supplierden_match"
@@ -84,10 +80,13 @@ async function run() {
         },
       };
 
-      const frame = { borderColor: "#7C3AED", stickerTemplate: "supplierden_match" };
-      const img = await loadImg();
+      const original = await MR.renderCustomVariant(
+        await loadImg(),
+        meta,
+        "framed",
+        { borderColor: "#7C3AED", stickerTemplate: "supplierden_match" }
+      );
 
-      const original = await MR.renderCustomVariant(img, meta, "framed", frame);
       const anchorBytes = original.bytes;
       const anchorInr = MR.estimateMeeshoInr(original);
       const anchoredMeta = {
@@ -101,61 +100,44 @@ async function run() {
         },
       };
 
-      const tweakedVariant = await MR.renderCustomVariant(img, anchoredMeta, "framed", {
-        ...frame,
-        stickerLayout: tweaked,
-      });
-
-      const revertedVariant = await MR.renderCustomVariant(img, anchoredMeta, "framed", frame);
-
-      const heavyVariant = await MR.renderCustomVariant(img, anchoredMeta, "framed", {
-        ...frame,
-        stickerLayout: heavyLayout,
-      });
-
-      const defaultsMatch = FS.isDefaultStickerLayoutForTemplate(
-        defaults.stickers,
-        "supplierden_match"
+      const reframedHeavy = await MR.renderCustomVariant(
+        await loadImg(),
+        anchoredMeta,
+        "framed",
+        {
+          borderColor: "#7C3AED",
+          stickerTemplate: "supplierden_match",
+          stickerLayout: heavyLayout,
+        }
       );
-      const tweakedMatch = FS.isDefaultStickerLayoutForTemplate(
-        tweaked.stickers,
-        "supplierden_match"
+
+      const reframedReset = await MR.renderCustomVariant(
+        await loadImg(),
+        anchoredMeta,
+        "framed",
+        { borderColor: "#7C3AED", stickerTemplate: "supplierden_match" }
       );
 
       return {
-        defaultsMatch,
-        tweakedMatch,
+        defaultCount: defaults.stickers.length,
         anchorBytes,
         anchorInr,
-        originalW: original.width,
-        originalH: original.height,
-        tweakedW: tweakedVariant.width,
-        tweakedH: tweakedVariant.height,
-        tweakedBytes: tweakedVariant.bytes,
-        tweakedInr: MR.estimateReframeShippingInr(tweakedVariant, anchoredMeta),
-        revertedBytes: revertedVariant.bytes,
-        revertedInr: MR.estimateReframeShippingInr(revertedVariant, anchoredMeta),
-        heavyBytes: heavyVariant.bytes,
-        heavyInr: MR.estimateReframeShippingInr(heavyVariant, anchoredMeta),
-        sameDimensions: tweakedVariant.width === original.width && tweakedVariant.height === original.height,
-        tweakedWithinCap: tweakedVariant.bytes <= anchorBytes,
-        revertedWithinCap: revertedVariant.bytes <= anchorBytes,
-        heavyWithinCap: heavyVariant.bytes <= anchorBytes,
-        inrStable:
-          MR.estimateReframeShippingInr(tweakedVariant, anchoredMeta) <= anchorInr &&
-          MR.estimateReframeShippingInr(revertedVariant, anchoredMeta) <= anchorInr &&
-          MR.estimateReframeShippingInr(heavyVariant, anchoredMeta) <= anchorInr,
+        heavyBytes: reframedHeavy.bytes,
+        heavyInr: MR.estimateMeeshoInr(reframedHeavy),
+        resetBytes: reframedReset.bytes,
+        resetInr: MR.estimateMeeshoInr(reframedReset),
+        heavyWithinCap: reframedHeavy.bytes <= anchorBytes,
+        resetWithinCap: reframedReset.bytes <= anchorBytes,
+        heavyInrOk: MR.estimateMeeshoInr(reframedHeavy) <= anchorInr,
       };
     });
 
     const ok =
-      result.defaultsMatch &&
-      !result.tweakedMatch &&
-      result.sameDimensions &&
-      result.tweakedWithinCap &&
-      result.revertedWithinCap &&
+      result.defaultCount === 2 &&
+      result.anchorBytes > 0 &&
       result.heavyWithinCap &&
-      result.inrStable;
+      result.resetWithinCap &&
+      result.heavyInrOk;
 
     if (!ok) {
       console.error("FAIL", result);
