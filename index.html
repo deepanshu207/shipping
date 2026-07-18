@@ -75,8 +75,22 @@
       color: var(--muted); margin: 0 0 0.85rem;
     }
     .modes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
-    @media (min-width: 640px) { .modes { grid-template-columns: repeat(3, 1fr); } }
-    @media (max-width: 420px) { .modes { grid-template-columns: 1fr; } }
+    .modes-primary { margin-bottom: 0.75rem; grid-template-columns: repeat(2, 1fr); }
+    .modes-more {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.65rem;
+    }
+    @media (min-width: 640px) {
+      .modes-more { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 420px) {
+      .modes-more { grid-template-columns: 1fr; }
+    }
+    .accordion-modes { margin-top: 0.15rem; }
+    .accordion-modes summary .accordion-mode-hint {
+      font-size: 0.72rem; font-weight: 600; color: var(--muted); text-transform: none;
+      letter-spacing: normal; margin-left: auto; margin-right: 0.35rem;
+    }
+    .accordion-modes[open] summary .accordion-mode-hint { display: none; }
     .mode {
       text-align: left; font: inherit; color: inherit; cursor: pointer;
       border: 2px solid var(--border); border-radius: 1rem; padding: 0.9rem;
@@ -85,13 +99,66 @@
     .mode:hover { transform: translateY(-1px); }
     .mode.selected { border-color: var(--emerald); box-shadow: 0 0 0 3px rgb(5 150 105 / 0.15); }
     .mode.selected.framed { border-color: var(--orange); box-shadow: 0 0 0 3px rgb(255 121 0 / 0.15); }
-    .mode.selected.auto { border-color: #6366f1; box-shadow: 0 0 0 3px rgb(99 102 241 / 0.15); }
-    .mode.auto-featured {
-      grid-column: 1 / -1;
+    .mode.selected.auto {
       border-color: #6366f1;
-      background: linear-gradient(135deg, rgb(99 102 241 / 0.06), rgb(5 150 105 / 0.04));
+      box-shadow: 0 0 0 3px rgb(99 102 241 / 0.15);
+      background: linear-gradient(135deg, rgb(99 102 241 / 0.08), rgb(236 253 245 / 0.5));
     }
-    .mode.auto-featured.selected { box-shadow: 0 0 0 3px rgb(99 102 241 / 0.2); }
+    .dark .mode.selected.auto {
+      background: linear-gradient(135deg, rgb(99 102 241 / 0.14), rgb(24 24 27 / 0.95));
+    }
+    .mode.auto-featured,
+    .mode.lingerie-featured,
+    .mode.framed-featured,
+    .mode.flatlay-featured { grid-column: auto; }
+    .mode.selected.lingerie {
+      border-color: #db2777;
+      box-shadow: 0 0 0 3px rgb(219 39 119 / 0.22);
+      background: linear-gradient(135deg, rgb(219 39 119 / 0.12), rgb(253 242 248 / 0.95));
+    }
+    .dark .mode.selected.lingerie {
+      background: linear-gradient(135deg, rgb(219 39 119 / 0.18), rgb(24 24 27 / 0.95));
+    }
+    .mode .mode-selected-pill {
+      display: none; margin-top: 0.5rem; font-size: 0.62rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.05em; color: inherit; opacity: 0.9;
+    }
+    .mode.selected .mode-selected-pill { display: inline-block; }
+    .mode.selected.auto .mode-selected-pill { color: #4338ca; }
+    .mode.selected.lingerie .mode-selected-pill { color: #be185d; }
+    .mode.selected.framed .mode-selected-pill { color: #c2410c; }
+    .mode.selected.studio:not(.lingerie):not(.auto) .mode-selected-pill { color: var(--emerald-dark); }
+    .mode.lingerie .mode-tag { background: #fce7f3; color: #9d174d; }
+    .mode.flatlay .mode-tag { background: #e0f2fe; color: #0369a1; }
+    .mode.selected.flatlay {
+      border-color: #0284c7;
+      box-shadow: 0 0 0 3px rgb(2 132 199 / 0.15);
+    }
+    .dark .mode.selected.flatlay {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 3px rgb(56 189 248 / 0.2);
+    }
+    .mode.model .mode-tag { background: #f3e8ff; color: #7e22ce; }
+    .mode.selected.model {
+      border-color: #9333ea;
+      box-shadow: 0 0 0 3px rgb(147 51 234 / 0.15);
+    }
+    .dark .mode.selected.model {
+      border-color: #a855f7;
+      box-shadow: 0 0 0 3px rgb(168 85 247 / 0.2);
+    }
+    .mode.selected.model .mode-selected-pill { color: #7e22ce; }
+    .mode.fulllength .mode-tag { background: #fef3c7; color: #b45309; }
+    .mode.selected.fulllength {
+      border-color: #d97706;
+      box-shadow: 0 0 0 3px rgb(217 119 6 / 0.15);
+    }
+    .dark .mode.selected.fulllength {
+      border-color: #fbbf24;
+      box-shadow: 0 0 0 3px rgb(251 191 36 / 0.2);
+    }
+    .mode.selected.fulllength .mode-selected-pill { color: #b45309; }
+    .mode.selected.flatlay .mode-selected-pill { color: #0369a1; }
     .mode-title { font-size: 0.92rem; font-weight: 800; margin: 0 0 0.3rem; line-height: 1.25; }
     .mode-for { font-size: 0.75rem; color: var(--muted); margin: 0; line-height: 1.35; }
     .mode-for b { color: var(--text); font-weight: 700; }
@@ -131,6 +198,15 @@
     .dark .error { background: rgb(127 29 29 / 0.3); color: #fca5a5; }
     .hidden { display: none !important; }
     .processing { text-align: center; padding: 2.5rem 1rem; }
+    .processing-badge {
+      display: inline-block; margin: 0.35rem 0 0.5rem; padding: 0.25rem 0.65rem;
+      border-radius: 999px; font-size: 0.78rem; font-weight: 700;
+      background: #dbeafe; color: #1d4ed8;
+    }
+    .processing-badge.client { background: #fef3c7; color: #b45309; }
+    .processing-resume {
+      margin: 0.65rem 0 0; font-size: 0.82rem; color: var(--muted); line-height: 1.45;
+    }
     .spinner {
       width: 2.75rem; height: 2.75rem; margin: 0 auto 1rem;
       border: 3px solid var(--border); border-top-color: var(--emerald);
@@ -185,7 +261,54 @@
       padding: 0.55rem; border-radius: 0.55rem;
     }
     .download:hover { background: var(--emerald-dark); }
+    .result--clickable { cursor: pointer; transition: box-shadow 0.15s, border-color 0.15s; }
+    .result--clickable:hover { border-color: var(--emerald); box-shadow: 0 0 0 2px rgb(5 150 105 / 0.12); }
+    .result-edit-hint {
+      font-size: 0.65rem; font-weight: 700; color: var(--emerald-dark); text-align: center;
+      padding: 0.35rem 0.5rem 0; line-height: 1.3;
+    }
+    .reframe-backdrop {
+      position: fixed; inset: 0; background: rgb(15 23 42 / 0.55); z-index: 50;
+      display: flex; align-items: flex-end; justify-content: center; padding: 0.75rem;
+    }
+    .reframe-backdrop.hidden { display: none; }
+    .reframe-panel {
+      width: min(100%, 520px); max-height: min(92vh, 720px); overflow: auto;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 1rem 1rem 0.75rem 0.75rem;
+      box-shadow: 0 20px 50px rgb(0 0 0 / 0.2); padding: 1rem;
+    }
+    @media (min-width: 640px) {
+      .reframe-backdrop { align-items: center; }
+      .reframe-panel { border-radius: 1rem; }
+    }
+    .reframe-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .reframe-head h3 { margin: 0; font-size: 1rem; }
+    .reframe-close {
+      border: 1px solid var(--border); background: var(--surface); border-radius: 0.5rem;
+      width: 2rem; height: 2rem; font-size: 1.1rem; cursor: pointer; color: var(--muted);
+    }
+    .reframe-preview {
+      border: 1px solid var(--border); border-radius: 0.75rem; background: #f8fafc;
+      min-height: 140px; display: flex; align-items: center; justify-content: center; padding: 0.5rem; margin-bottom: 0.75rem;
+    }
+    .dark .reframe-preview { background: #27272a; }
+    .reframe-preview img { max-width: 100%; max-height: 220px; object-fit: contain; }
+    .reframe-mode-row { display: flex; gap: 0.45rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+    .reframe-mode-btn {
+      flex: 1; min-width: 7rem; border: 1.5px solid var(--border); background: var(--surface);
+      border-radius: 0.65rem; padding: 0.55rem 0.65rem; font: inherit; font-size: 0.78rem; font-weight: 800; cursor: pointer;
+    }
+    .reframe-mode-btn.selected { border-color: var(--emerald); background: #ecfdf5; color: var(--emerald-dark); }
+    .dark .reframe-mode-btn.selected { background: rgb(5 150 105 / 0.15); }
+    .reframe-actions { display: flex; gap: 0.5rem; margin-top: 0.85rem; flex-wrap: wrap; }
+    .reframe-apply {
+      flex: 1; min-width: 8rem; border: none; border-radius: 0.65rem; padding: 0.65rem 1rem;
+      background: var(--emerald); color: #fff; font: inherit; font-weight: 800; cursor: pointer;
+    }
+    .reframe-apply:disabled { opacity: 0.55; cursor: not-allowed; }
+    .reframe-note { font-size: 0.72rem; color: var(--muted); margin: 0 0 0.65rem; line-height: 1.4; }
     .framed-settings { margin-top: 1.15rem; display: flex; flex-direction: column; gap: 0.65rem; }
+    .framed-settings--inactive .accordion { opacity: 0.72; }
     .framed-note { font-size: 0.75rem; color: var(--muted); margin: 0 0 0.25rem; line-height: 1.4; }
     .accordion {
       border: 1px solid var(--border); border-radius: 0.85rem; overflow: hidden; background: var(--surface);
@@ -217,6 +340,7 @@
       cursor: pointer; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.08);
     }
     .swatch.selected { border-color: var(--text); transform: scale(1.08); }
+    .swatch.swatch-recommended { box-shadow: 0 0 0 2px var(--emerald), inset 0 0 0 1px rgb(0 0 0 / 0.08); }
     .template-preview {
       margin-top: 0.65rem; padding: 0.65rem; border-radius: 0.65rem; border: 1px dashed var(--border);
       font-size: 0.78rem; color: var(--muted); line-height: 1.45; background: rgb(248 250 252 / 0.6);
@@ -229,6 +353,95 @@
     .save-default input { width: 1rem; height: 1rem; accent-color: var(--emerald); }
     .frame-preview-bar {
       height: 2.25rem; border-radius: 0.55rem; margin-top: 0.5rem; border: 1px solid var(--border);
+    }
+    .mode-short { display: none; }
+    @media (max-width: 640px) {
+      .header { padding: 0.5rem 0.85rem; }
+      .brand { font-size: 0.88rem; gap: 0.45rem; }
+      .brand img { width: 28px; height: 28px; }
+      .main { padding: 0.65rem 0.75rem 1.25rem; }
+      .subtitle { display: none; }
+      .card { padding: 0.85rem; border-radius: 1rem; }
+      #panel-form { display: flex; flex-direction: column; }
+      #panel-form > .label:first-child { order: 0; }
+      .modes-primary { order: 1; }
+      .accordion-modes { order: 2; }
+      .framed-settings { order: 3; margin-top: 0.35rem; gap: 0.35rem; }
+      .upload { order: 4; margin-top: 0.45rem; }
+      .generate { order: 5; }
+      #error { order: 6; }
+      .label { margin: 0 0 0.45rem; font-size: 0.68rem; }
+      .modes-primary {
+        gap: 0.35rem;
+        margin-bottom: 0.4rem;
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .modes-primary .mode {
+        padding: 0.58rem 0.4rem;
+        border-radius: 0.65rem;
+        border-width: 1.5px;
+        text-align: center;
+        min-height: 2.35rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: none;
+      }
+      .modes-primary .mode.selected {
+        box-shadow: 0 0 0 2px rgb(5 150 105 / 0.12);
+      }
+      .modes-primary .mode.selected.auto {
+        box-shadow: 0 0 0 2px rgb(99 102 241 / 0.2);
+      }
+      .modes-primary .mode.selected.framed {
+        box-shadow: 0 0 0 2px rgb(255 121 0 / 0.25);
+      }
+      .modes-primary .mode.selected.lingerie {
+        box-shadow: 0 0 0 2px rgb(219 39 119 / 0.2);
+      }
+      .modes-primary .mode.selected.flatlay {
+        box-shadow: 0 0 0 2px rgb(2 132 199 / 0.2);
+      }
+      .modes-primary .mode-for,
+      .modes-primary .mode-tag,
+      .modes-primary .mode-selected-pill { display: none !important; }
+      .modes-primary .mode-title { margin: 0; font-size: 0.8rem; line-height: 1.2; }
+      .mode-short { display: inline; }
+      .mode-long { display: none; }
+      .accordion-modes { margin-top: 0; }
+      .accordion-modes summary,
+      .accordion summary {
+        padding: 0.58rem 0.7rem;
+        font-size: 0.78rem;
+      }
+      .accordion-body { padding: 0 0.65rem 0.65rem; }
+      .modes-more { gap: 0.4rem; }
+      .modes-more .mode {
+        padding: 0.5rem 0.6rem;
+        border-radius: 0.6rem;
+        border-width: 1.5px;
+      }
+      .modes-more .mode-for,
+      .modes-more .mode-tag,
+      .modes-more .mode-selected-pill { display: none !important; }
+      .modes-more .mode-title { margin: 0; font-size: 0.78rem; }
+      .framed-note { font-size: 0.66rem; line-height: 1.35; margin-bottom: 0.15rem; }
+      .drop {
+        min-height: 5.5rem;
+        border-radius: 0.75rem;
+      }
+      .drop img { max-height: 6.5rem; }
+      .drop-empty { padding: 0.65rem; }
+      .drop-empty svg { width: 1.5rem; height: 1.5rem; margin-bottom: 0.25rem; }
+      .drop-empty strong { font-size: 0.78rem; margin-bottom: 0.1rem; }
+      .drop-empty span { font-size: 0.68rem; }
+      .generate { margin-top: 0.5rem; padding: 0.78rem; font-size: 0.92rem; border-radius: 0.75rem; }
+      .field-row { margin-top: 0.5rem; gap: 0.45rem; }
+      .color-row { margin-top: 0.5rem; gap: 0.45rem; }
+      .swatches { margin-top: 0.45rem; gap: 0.35rem; }
+      .template-preview { margin-top: 0.45rem; padding: 0.5rem; font-size: 0.72rem; }
+      .save-default { margin-top: 0.5rem; font-size: 0.75rem; }
+      .frame-preview-bar { height: 1.5rem; margin-top: 0.35rem; }
     }
   </style>
   <script>
@@ -253,110 +466,146 @@
   </header>
 
   <main class="main">
-    <p class="subtitle">Upload once — <b>Auto</b> generates up to <b>30 ranked JPEGs</b> (lowest est. ₹ first). Studio strategies run before framed — download #1–#3 and verify on Meesho Seller Panel.</p>
+    <p class="subtitle">Pick a mode below — <b>Auto</b>, <b>Framed</b>, <b>Collage</b>, or <b>Flat-Lay</b>. More modes in the accordion.</p>
 
     <!-- FORM -->
     <section class="card" id="panel-form">
-      <p class="label">1 · Choose compression mode</p>
-      <div class="modes">
+      <p class="label">Mode</p>
+      <div class="modes modes-primary">
         <button type="button" class="mode auto auto-featured selected" data-id="mo_auto" data-tag="Auto Lowest Shipping product photo" data-name="Auto Lowest Shipping" data-auto="1">
-          <p class="mode-title">Auto Lowest Shipping</p>
-          <p class="mode-for"><b>Recommended:</b> Up to 30 variants — studio ₹20–40 first, then compact framed, ranked lowest ₹</p>
+          <p class="mode-title"><span class="mode-short">Auto</span><span class="mode-long">Auto Lowest Shipping</span></p>
+          <p class="mode-for"><b>All products:</b> Up to 30 ranked picks — studio first, then framed</p>
           <span class="mode-tag">Smart · 10–30 options · try #1 on Meesho first</span>
+          <span class="mode-selected-pill">✓ Selected</span>
         </button>
+        <button type="button" class="mode framed framed-featured" data-id="mo_indoor" data-tag="Indoor busy background" data-name="Framed Compress">
+          <p class="mode-title"><span class="mode-short">Framed</span><span class="mode-long">Framed Compress</span></p>
+          <p class="mode-for"><b>For:</b> Indoor / busy background (raincoat)</p>
+          <span class="mode-tag">Orange frame · ~91–93 KB</span>
+          <span class="mode-selected-pill">✓ Selected</span>
+        </button>
+        <button type="button" class="mode studio lingerie lingerie-featured" data-id="mo_lingerie" data-tag="Collage multi-scenario lingerie studio lowest shipping" data-name="Collage · Multi-Scenario" data-lingerie="1">
+          <p class="mode-title"><span class="mode-short">Collage</span><span class="mode-long">Collage · Multi-Scenario</span></p>
+          <p class="mode-for"><b>Front+back collage:</b> 20 front KB options · 25 back — studio + framed each</p>
+          <span class="mode-tag">Up to 72 ranked · multi-layout back ~₹41 band · test #1</span>
+          <span class="mode-selected-pill">✓ Selected</span>
+        </button>
+        <button type="button" class="mode studio flatlay flatlay-featured" data-id="mo_flatlay" data-tag="Flat-lay apparel tops crop tops white studio lowest shipping" data-name="Flat-Lay Apparel Lowest ₹" data-flatlay="1">
+          <p class="mode-title"><span class="mode-short">Flat-Lay</span><span class="mode-long">Flat-Lay Apparel Lowest ₹</span></p>
+          <p class="mode-for"><b>For:</b> Flat-lay tops, crop tops, tees on white — targets ₹39–₹51</p>
+          <span class="mode-tag">11 scenarios · portrait 703×1024 + framed 1024</span>
+          <span class="mode-selected-pill">✓ Selected</span>
+        </button>
+      </div>
+
+      <details class="accordion accordion-modes" id="accordion-modes">
+        <summary>
+          More modes
+          <span class="accordion-mode-hint" id="accordion-mode-hint">Studio &amp; Framed</span>
+        </summary>
+        <div class="accordion-body">
+          <div class="modes modes-more">
         <button type="button" class="mode studio" data-id="mo_studio" data-tag="White studio product" data-name="Studio Compress">
           <p class="mode-title">Studio Compress</p>
           <p class="mode-for"><b>For:</b> White / plain background (bra, lingerie)</p>
           <span class="mode-tag">Full size · ~20–26 KB · ₹20–40</span>
-        </button>
-        <button type="button" class="mode framed" data-id="mo_indoor" data-tag="Indoor busy background" data-name="Framed Compress">
-          <p class="mode-title">Framed Compress</p>
-          <p class="mode-for"><b>For:</b> Indoor / busy background (raincoat)</p>
-          <span class="mode-tag">Orange frame · ~91–93 KB</span>
+          <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode studio" data-id="mo_studio_ultra" data-tag="Studio Ultra white background" data-name="Studio Ultra">
           <p class="mode-title">Studio Ultra</p>
           <p class="mode-for"><b>For:</b> Minimum white-studio shipping</p>
           <span class="mode-tag">Full size · ~16–22 KB</span>
+          <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode studio" data-id="mo_studio_balanced" data-tag="Studio Balanced white product" data-name="Studio ₹20–40">
           <p class="mode-title">Studio ₹20–40</p>
           <p class="mode-for"><b>For:</b> White / plain background — targets ₹20–40 band</p>
           <span class="mode-tag">Full size · ~20–40 KB · best quality in band</span>
+          <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode studio" data-id="mo_studio_any" data-tag="Any photo studio ₹20-40 no frame" data-name="Any Photo → Studio ₹20–40">
           <p class="mode-title">Any Photo → Studio ₹20–40</p>
           <p class="mode-for"><b>For:</b> Indoor / busy photos — no orange frame, studio compress only</p>
           <span class="mode-tag">Try ₹20–40 without frame · verify on Meesho</span>
+          <span class="mode-selected-pill">✓ Selected</span>
+        </button>
+        <button type="button" class="mode studio model" data-id="mo_model" data-tag="Model photo on-person apparel lowest shipping framed 1024" data-name="Model Photo Lowest ₹" data-model="1">
+          <p class="mode-title">Model Photo Lowest ₹</p>
+          <p class="mode-for"><b>For:</b> On-person / model shots — framed 1024 · ~₹39–₹51</p>
+          <span class="mode-tag">6 scenarios · native + portrait 703×1024 · verify on Meesho</span>
+          <span class="mode-selected-pill">✓ Selected</span>
+        </button>
+        <button type="button" class="mode studio fulllength" data-id="mo_full_length" data-tag="Full-length enlarged dress kaftan saree lowest shipping" data-name="Full-Length Lowest ₹" data-fulllength="1">
+          <p class="mode-title">Full-Length Lowest ₹</p>
+          <p class="mode-for"><b>For:</b> Tall full-body (dress, kaftan, saree) — fit into capped 703×1024</p>
+          <span class="mode-tag">10 scenarios · capped 1024/960 · targets ₹39–₹51 band</span>
+          <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode framed" data-id="mo_framed_low" data-tag="Framed Best Rate indoor" data-name="Framed Best Rate">
           <p class="mode-title">Framed Best Rate</p>
           <p class="mode-for"><b>For:</b> Mid slabs — targets ₹66–₹71 tier</p>
           <span class="mode-tag">Orange frame · ~64–71 KB</span>
+          <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode framed" data-id="mo_framed_sd" data-tag="Framed Pro Match indoor" data-name="Framed Pro">
           <p class="mode-title">Framed Pro</p>
           <p class="mode-for"><b>For:</b> Large framed file — 1280px cap, est. ₹93 tier</p>
           <span class="mode-tag">Full frame · ~177–200 KB · est. ₹93</span>
+          <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode framed" data-id="mo_supplierden_50" data-tag="SupplierDen Match ₹50 full length kaftan" data-name="SupplierDen Match ₹50" data-supplierden="1">
           <p class="mode-title">SupplierDen Match ₹50</p>
           <p class="mode-for"><b>For:</b> Full-length / kaftan / dress — purple frame like SupplierDen, est. ~₹50</p>
           <span class="mode-tag">Purple frame · FREE DELIVERY · ~48–55 KB · est. ₹50</span>
+          <span class="mode-selected-pill">✓ Selected</span>
         </button>
-      </div>
+          </div>
+        </div>
+      </details>
 
       <div class="framed-settings" id="framed-settings">
-        <p class="framed-note">Framed options apply to <b>Framed</b> modes and <b>Auto</b> when your photo is indoor/busy. Default border is classic orange.</p>
+        <p class="framed-note" id="framed-note">Border &amp; stickers apply to <b>Auto</b> and <b>Framed</b> runs.</p>
 
-        <details class="accordion" id="accordion-border" open>
+        <details class="accordion" id="accordion-border">
           <summary>Frame border color</summary>
           <div class="accordion-body">
             <div class="field">
               <label for="border-preset">Preset</label>
-              <select id="border-preset">
-                <option value="classic_orange">Classic Orange (#FF7900)</option>
-                <option value="meesho_red">Sale Red</option>
-                <option value="royal_blue">Royal Blue</option>
-                <option value="emerald">Emerald Green</option>
-                <option value="purple">Purple</option>
-                <option value="black">Black</option>
-                <option value="custom">Custom color</option>
-              </select>
+              <select id="border-preset"></select>
             </div>
             <div class="swatches" id="border-swatches" aria-label="Border color presets"></div>
             <div class="color-row">
-              <input type="color" id="border-color" value="#FF7900" aria-label="Border color picker" />
+              <input type="color" id="border-color" value="#7C3AED" aria-label="Border color picker" />
               <div class="field" style="flex:1;min-width:140px">
                 <label for="border-hex">Hex</label>
-                <input type="text" id="border-hex" value="#FF7900" maxlength="7" spellcheck="false" />
+                <input type="text" id="border-hex" value="#7C3AED" maxlength="7" spellcheck="false" />
               </div>
             </div>
             <div class="field-row">
-              <div class="field"><label for="border-r">R</label><input type="number" id="border-r" min="0" max="255" value="255" /></div>
-              <div class="field"><label for="border-g">G</label><input type="number" id="border-g" min="0" max="255" value="121" /></div>
-              <div class="field"><label for="border-b">B</label><input type="number" id="border-b" min="0" max="255" value="0" /></div>
+              <div class="field"><label for="border-r">R</label><input type="number" id="border-r" min="0" max="255" value="124" /></div>
+              <div class="field"><label for="border-g">G</label><input type="number" id="border-g" min="0" max="255" value="58" /></div>
+              <div class="field"><label for="border-b">B</label><input type="number" id="border-b" min="0" max="255" value="237" /></div>
             </div>
-            <div class="frame-preview-bar" id="border-preview" style="background:#FF7900"></div>
+            <div class="frame-preview-bar" id="border-preview" style="background:#7C3AED"></div>
             <label class="save-default"><input type="checkbox" id="save-border-default" checked /> Save border as default (localStorage)</label>
           </div>
         </details>
 
-        <details class="accordion" id="accordion-stickers" open>
+        <details class="accordion" id="accordion-stickers">
           <summary>Promotion sticker template</summary>
           <div class="accordion-body">
             <div class="field">
               <label for="sticker-template">Template</label>
               <select id="sticker-template"></select>
             </div>
-            <div class="template-preview" id="template-desc">Classic promo stickers — SPECIAL OFFER + HOT SALE burst.</div>
+            <div class="template-preview" id="template-desc">Limited Time — LIMITED TIME urgency tag.</div>
             <label class="save-default"><input type="checkbox" id="save-template-default" checked /> Save template as default (localStorage)</label>
           </div>
         </details>
       </div>
 
       <div class="upload">
-        <p class="label">2 · Upload image</p>
+        <p class="label">Upload</p>
         <div class="drop" id="drop">
           <div class="drop-empty" id="drop-empty">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -384,7 +633,9 @@
         </div>
       </div>
       <h2 id="processing-title">Optimizing…</h2>
+      <p class="processing-badge hidden" id="processing-badge"></p>
       <p style="color:var(--muted);margin:0" id="processing-hint">Usually takes 10–30 seconds. Please wait.</p>
+      <p class="processing-resume hidden" id="processing-resume"></p>
     </section>
 
     <!-- RESULTS -->
@@ -395,14 +646,63 @@
       </div>
       <div class="grid" id="results-grid"></div>
     </section>
+
+    <div class="reframe-backdrop hidden" id="reframe-backdrop" aria-hidden="true">
+      <div class="reframe-panel" role="dialog" aria-labelledby="reframe-title">
+        <div class="reframe-head">
+          <h3 id="reframe-title">Customize frame</h3>
+          <button type="button" class="reframe-close" id="reframe-close" aria-label="Close">×</button>
+        </div>
+        <p class="reframe-note" id="reframe-note">Border/sticker changes keep the same file-size target (~₹ band). Switch mode only if you need a different look.</p>
+        <div class="reframe-preview"><img id="reframe-preview-img" alt="Preview" /></div>
+        <div class="reframe-mode-row">
+          <button type="button" class="reframe-mode-btn selected" data-mode="framed" id="reframe-mode-framed">Border + sticker</button>
+          <button type="button" class="reframe-mode-btn" data-mode="frame_only" id="reframe-mode-frame-only">Border only</button>
+          <button type="button" class="reframe-mode-btn" data-mode="studio" id="reframe-mode-studio">No frame (studio)</button>
+        </div>
+        <div id="reframe-frame-controls">
+          <details class="accordion" open>
+            <summary>Border color</summary>
+            <div class="accordion-body">
+              <div class="swatches" id="reframe-border-swatches" aria-label="Border presets"></div>
+              <div class="color-row">
+                <input type="color" id="reframe-border-color" value="#7C3AED" aria-label="Border color" />
+                <div class="field" style="flex:1;min-width:140px">
+                  <label for="reframe-border-hex">Hex</label>
+                  <input type="text" id="reframe-border-hex" value="#7C3AED" maxlength="7" spellcheck="false" />
+                </div>
+              </div>
+              <div class="frame-preview-bar" id="reframe-border-preview" style="background:#7C3AED"></div>
+            </div>
+          </details>
+          <details class="accordion" open style="margin-top:0.5rem">
+            <summary>Promotion sticker</summary>
+            <div class="accordion-body">
+              <div class="field">
+                <label for="reframe-sticker-template">Template</label>
+                <select id="reframe-sticker-template"></select>
+              </div>
+              <div class="template-preview" id="reframe-template-desc"></div>
+            </div>
+          </details>
+        </div>
+        <div class="reframe-actions">
+          <button type="button" class="reframe-apply" id="reframe-apply">Apply to this image</button>
+        </div>
+      </div>
+    </div>
   </main>
 
-  <script src="/own-api.js?v=50"></script>
+  <script src="/own-api.js?v=92"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
       var imageFile = null;
       var previewUrl = null;
+      var lastResults = [];
+      var lastUploadDataUrl = null;
+      var reframeIndex = -1;
+      var reframeDisplayMode = "framed";
 
       var panelForm = document.getElementById("panel-form");
       var panelProcessing = document.getElementById("panel-processing");
@@ -415,11 +715,22 @@
       var resultsGrid = document.getElementById("results-grid");
       var processingTitle = document.getElementById("processing-title");
       var processingHint = document.getElementById("processing-hint");
+      var processingBadge = document.getElementById("processing-badge");
+      var processingResume = document.getElementById("processing-resume");
       var processingStage = document.getElementById("processing-stage");
       var processingPercent = document.getElementById("processing-percent");
       var processingBar = document.getElementById("processing-bar");
       var resultsTitle = document.getElementById("results-title");
+      var accordionModes = document.getElementById("accordion-modes");
+      var accordionModeHint = document.getElementById("accordion-mode-hint");
+      var framedSettings = document.getElementById("framed-settings");
+      var framedNote = document.getElementById("framed-note");
+      var accordionBorder = document.getElementById("accordion-border");
+      var accordionStickers = document.getElementById("accordion-stickers");
       var FS = window.MeeshoFrameSettings;
+      if (!FS) {
+        console.error("[ui] MeeshoFrameSettings not loaded — frame controls disabled");
+      }
       var borderPreset = document.getElementById("border-preset");
       var borderColor = document.getElementById("border-color");
       var borderHex = document.getElementById("border-hex");
@@ -432,6 +743,26 @@
       var templateDesc = document.getElementById("template-desc");
       var saveBorderDefault = document.getElementById("save-border-default");
       var saveTemplateDefault = document.getElementById("save-template-default");
+      var reframeBackdrop = document.getElementById("reframe-backdrop");
+      var reframeClose = document.getElementById("reframe-close");
+      var reframePreviewImg = document.getElementById("reframe-preview-img");
+      var reframeBorderSwatches = document.getElementById("reframe-border-swatches");
+      var reframeBorderColor = document.getElementById("reframe-border-color");
+      var reframeBorderHex = document.getElementById("reframe-border-hex");
+      var reframeBorderPreview = document.getElementById("reframe-border-preview");
+      var reframeStickerTemplate = document.getElementById("reframe-sticker-template");
+      var reframeTemplateDesc = document.getElementById("reframe-template-desc");
+      var reframeApply = document.getElementById("reframe-apply");
+      var reframeFrameControls = document.getElementById("reframe-frame-controls");
+      var reframeModeFramed = document.getElementById("reframe-mode-framed");
+      var reframeModeFrameOnly = document.getElementById("reframe-mode-frame-only");
+      var reframeModeStudio = document.getElementById("reframe-mode-studio");
+      var MR = window.MeeshoReframe;
+      var RECOMMENDED_BORDER = "purple";
+      var RECOMMENDED_STICKER = "limited_time";
+      var DEFAULT_BORDER_COLOR = "#7C3AED";
+      var ACTIVE_JOB_KEY = "meesho:activeJob";
+      var ACTIVE_JOB_TTL_MS = 6 * 60 * 60 * 1000;
 
       function clamp255(n) {
         return Math.min(255, Math.max(0, parseInt(n, 10) || 0));
@@ -458,6 +789,7 @@
       }
 
       function getFrameSettingsFromUi() {
+        if (!FS) return { borderColor: DEFAULT_BORDER_COLOR, stickerTemplate: RECOMMENDED_STICKER };
         return {
           borderColor: FS.normalizeBorderColor(borderHex.value),
           stickerTemplate: FS.normalizeStickerTemplate(stickerTemplate.value),
@@ -465,6 +797,7 @@
       }
 
       function persistFrameDefaults() {
+        if (!FS) return;
         if (saveBorderDefault.checked) {
           localStorage.setItem(FS.STORAGE_KEYS.border, borderHex.value);
           localStorage.setItem(FS.STORAGE_KEYS.preset, borderPreset.value);
@@ -475,28 +808,217 @@
       }
 
       function loadFrameDefaults() {
+        if (!FS) return;
         var savedColor = localStorage.getItem(FS.STORAGE_KEYS.border);
-        var savedPreset = FS.normalizeBorderPreset(localStorage.getItem(FS.STORAGE_KEYS.preset) || "classic_orange");
-        var savedTemplate = FS.normalizeStickerTemplate(localStorage.getItem(FS.STORAGE_KEYS.template) || "classic_promo");
+        var savedPreset = FS.normalizeBorderPreset(localStorage.getItem(FS.STORAGE_KEYS.preset) || RECOMMENDED_BORDER);
+        var savedTemplate = FS.normalizeStickerTemplate(localStorage.getItem(FS.STORAGE_KEYS.template) || RECOMMENDED_STICKER);
         borderPreset.value = savedPreset;
-        syncBorderUiFromHex(savedColor || "#FF7900");
-        if (savedPreset !== "custom") setBorderFromPreset(savedPreset);
+        if (savedPreset !== "custom") {
+          setBorderFromPreset(savedPreset);
+        } else {
+          syncBorderUiFromHex(savedColor || DEFAULT_BORDER_COLOR);
+        }
         stickerTemplate.value = FS.normalizeStickerTemplate(savedTemplate);
         updateTemplateDesc();
       }
 
       function updateTemplateDesc() {
+        if (!FS) return;
         var t = FS.STICKER_TEMPLATES.find(function (x) { return x.id === stickerTemplate.value; });
         templateDesc.textContent = t ? t.name + " — " + t.desc + "." : "";
       }
 
-      FS.BORDER_PRESETS.forEach(function (p) {
+      function populateBorderPresetSelect() {
+        if (!FS || !borderPreset) return;
+        borderPreset.innerHTML = "";
+        FS.BORDER_PRESETS.forEach(function (p) {
+          var opt = document.createElement("option");
+          opt.value = p.id;
+          var label = p.name + (p.color ? " (" + p.color + ")" : "");
+          if (p.id === RECOMMENDED_BORDER) label += " · Recommended";
+          opt.textContent = label;
+          borderPreset.appendChild(opt);
+        });
+        var custom = document.createElement("option");
+        custom.value = "custom";
+        custom.textContent = "Custom color";
+        borderPreset.appendChild(custom);
+      }
+
+      function populateStickerTemplateSelect() {
+        if (!FS || !stickerTemplate) return;
+        stickerTemplate.innerHTML = "";
+        FS.STICKER_TEMPLATES.forEach(function (t) {
+          var opt = document.createElement("option");
+          opt.value = t.id;
+          opt.textContent = t.name + (t.id === RECOMMENDED_STICKER ? " · Recommended" : "");
+          stickerTemplate.appendChild(opt);
+        });
+      }
+
+      function populateReframeStickerSelect() {
+        if (!FS || !reframeStickerTemplate) return;
+        reframeStickerTemplate.innerHTML = "";
+        FS.STICKER_TEMPLATES.forEach(function (t) {
+          var opt = document.createElement("option");
+          opt.value = t.id;
+          opt.textContent = t.name;
+          reframeStickerTemplate.appendChild(opt);
+        });
+      }
+
+      function syncReframeBorderUi(hex) {
+        if (!FS) return;
+        var norm = FS.normalizeBorderColor(hex);
+        reframeBorderHex.value = norm;
+        reframeBorderColor.value = norm;
+        reframeBorderPreview.style.background = norm;
+        reframeBorderSwatches.querySelectorAll(".swatch").forEach(function (s) {
+          s.classList.toggle("selected", s.dataset.color === norm);
+        });
+      }
+
+      function updateReframeTemplateDesc() {
+        if (!FS) return;
+        var t = FS.STICKER_TEMPLATES.find(function (x) { return x.id === reframeStickerTemplate.value; });
+        reframeTemplateDesc.textContent = t ? t.name + " — " + t.desc + "." : "";
+      }
+
+      function getReframeSettingsFromUi() {
+        if (!FS) return { borderColor: DEFAULT_BORDER_COLOR, stickerTemplate: RECOMMENDED_STICKER };
+        return {
+          borderColor: FS.normalizeBorderColor(reframeBorderHex.value),
+          stickerTemplate: FS.normalizeStickerTemplate(reframeStickerTemplate.value),
+        };
+      }
+
+      function syncReframeModeUi() {
+        var framed = reframeDisplayMode === "framed";
+        var frameOnly = reframeDisplayMode === "frame_only";
+        var studio = reframeDisplayMode === "studio";
+        reframeModeFramed.classList.toggle("selected", framed);
+        reframeModeFrameOnly.classList.toggle("selected", frameOnly);
+        reframeModeStudio.classList.toggle("selected", studio);
+        reframeFrameControls.classList.toggle("hidden", studio);
+        if (frameOnly && FS) {
+          reframeStickerTemplate.value = "none";
+          updateReframeTemplateDesc();
+        }
+      }
+
+      function loadImageFromDataUrl(dataUrl) {
+        return new Promise(function (resolve, reject) {
+          var img = new Image();
+          img.onload = function () { resolve(img); };
+          img.onerror = reject;
+          img.src = dataUrl;
+        });
+      }
+
+      function closeReframeEditor() {
+        reframeBackdrop.classList.add("hidden");
+        reframeBackdrop.setAttribute("aria-hidden", "true");
+        reframeIndex = -1;
+      }
+
+      function openReframeEditor(index) {
+        if (!MR || !lastUploadDataUrl) return;
+        var r = lastResults[index];
+        if (!r || !r.reframeMeta) return;
+        reframeIndex = index;
+        reframePreviewImg.src = r.imageUrl;
+        var meta = r.reframeMeta;
+        var isStudioKind = meta.kind === "collage_studio" || meta.kind === "studio";
+        var stickerNone = meta.frameStyle && meta.frameStyle.stickerTemplate === "none";
+        reframeDisplayMode = isStudioKind ? "studio" : stickerNone ? "frame_only" : "framed";
+        if (meta.frameStyle) {
+          syncReframeBorderUi(meta.frameStyle.borderColor || DEFAULT_BORDER_COLOR);
+          reframeStickerTemplate.value = FS.normalizeStickerTemplate(meta.frameStyle.stickerTemplate || RECOMMENDED_STICKER);
+        } else {
+          var defaults = getFrameSettingsFromUi();
+          syncReframeBorderUi(defaults.borderColor);
+          reframeStickerTemplate.value = defaults.stickerTemplate;
+        }
+        updateReframeTemplateDesc();
+        syncReframeModeUi();
+        reframeBackdrop.classList.remove("hidden");
+        reframeBackdrop.setAttribute("aria-hidden", "false");
+      }
+
+      async function applyReframeEdit() {
+        if (!MR || reframeIndex < 0 || !lastUploadDataUrl) return;
+        var r = lastResults[reframeIndex];
+        if (!r || !r.reframeMeta) return;
+        reframeApply.disabled = true;
+        reframeApply.textContent = "Applying…";
+        try {
+          await MR.loadMozjpeg();
+          var sourceImg = await loadImageFromDataUrl(lastUploadDataUrl);
+          var frame = getReframeSettingsFromUi();
+          var variant = await MR.renderCustomVariant(
+            sourceImg,
+            r.reframeMeta,
+            reframeDisplayMode,
+            frame
+          );
+          var imageUrl = await MR.blobToDataUrl(variant.blob);
+          var fileSizeKb = MR.kb(variant.bytes);
+          var estimatedShippingInr = MR.estimateMeeshoInr(variant);
+          r.imageUrl = imageUrl;
+          r.fileSizeKb = fileSizeKb;
+          r.estimatedShippingInr = estimatedShippingInr;
+          r.shippingCharge = String(estimatedShippingInr);
+          r.width = variant.width;
+          r.height = variant.height;
+          r.tagName = variant.label + " · " + fileSizeKb + " KB · customized";
+          if (r.reframeMeta) {
+            var preserveKb =
+              r.reframeMeta.tier && (r.reframeMeta.tier.preserveKb || r.reframeMeta.tier.targetKb || r.reframeMeta.tier.slabKb);
+            if (!preserveKb) preserveKb = fileSizeKb;
+            r.reframeMeta.frameStyle = {
+              borderColor: frame.borderColor,
+              stickerTemplate:
+                reframeDisplayMode === "frame_only" ? "none" : frame.stickerTemplate,
+            };
+            if (reframeDisplayMode === "studio") {
+              r.reframeMeta.kind = "collage_studio";
+              r.reframeMeta.studioBase = true;
+              r.reframeMeta.tier = { targetKb: preserveKb, preserveKb: preserveKb };
+            } else {
+              r.reframeMeta.kind = "framed_slab";
+              r.reframeMeta.studioBase = false;
+              r.reframeMeta.tier = { slabKb: preserveKb, preserveKb: preserveKb };
+            }
+          }
+          var card = resultsGrid.querySelector('[data-result-index="' + reframeIndex + '"]');
+          if (card) {
+            card.querySelector(".result-img img").src = imageUrl;
+            card.querySelector(".result-label").textContent = r.tagName;
+            card.querySelector(".result-meta").textContent =
+              "Est. ~₹" + estimatedShippingInr + " · " + fileSizeKb + " KB · " + variant.width + "×" + variant.height;
+            card.querySelector(".download").href = imageUrl;
+          }
+          reframePreviewImg.src = imageUrl;
+          closeReframeEditor();
+        } catch (err) {
+          setError(err.message || "Could not apply frame changes.");
+        } finally {
+          reframeApply.disabled = false;
+          reframeApply.textContent = "Apply to this image";
+        }
+      }
+
+      populateBorderPresetSelect();
+      populateStickerTemplateSelect();
+      populateReframeStickerSelect();
+
+      FS && FS.BORDER_PRESETS.forEach(function (p) {
         if (!p.color) return;
         var btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "swatch";
+        btn.className = "swatch" + (p.id === RECOMMENDED_BORDER ? " swatch-recommended" : "");
         btn.style.background = p.color;
-        btn.title = p.name;
+        btn.title = p.name + (p.id === RECOMMENDED_BORDER ? " (Recommended)" : "");
         btn.dataset.color = p.color;
         btn.dataset.preset = p.id;
         btn.addEventListener("click", function () {
@@ -507,11 +1029,18 @@
         borderSwatches.appendChild(btn);
       });
 
-      FS.STICKER_TEMPLATES.forEach(function (t) {
-        var opt = document.createElement("option");
-        opt.value = t.id;
-        opt.textContent = t.name;
-        stickerTemplate.appendChild(opt);
+      FS && FS.BORDER_PRESETS.forEach(function (p) {
+        if (!p.color) return;
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "swatch";
+        btn.style.background = p.color;
+        btn.title = p.name;
+        btn.dataset.color = p.color;
+        btn.addEventListener("click", function () {
+          syncReframeBorderUi(p.color);
+        });
+        reframeBorderSwatches.appendChild(btn);
       });
 
       borderPreset.addEventListener("change", function () {
@@ -560,6 +1089,65 @@
         }
       }
 
+      function isMoreMode(btn) {
+        return !!(btn && accordionModes && accordionModes.contains(btn));
+      }
+
+      function frameSettingsApplyToRun() {
+        return true;
+      }
+
+      function isStudioOnlyMode() {
+        if (!selected) return false;
+        if (selected.dataset.lingerie === "1" || selected.dataset.auto === "1") return false;
+        return selected.classList.contains("studio");
+      }
+
+      function syncFramedSettingsUI() {
+        if (!framedSettings) return;
+        var isCollage = selected && selected.dataset.lingerie === "1";
+        framedSettings.classList.remove("hidden");
+        framedSettings.setAttribute("aria-hidden", "false");
+        if (!isCollage) {
+          if (accordionBorder) accordionBorder.open = false;
+          if (accordionStickers) accordionStickers.open = false;
+        }
+        framedSettings.classList.toggle("framed-settings--inactive", false);
+        if (framedNote) {
+          if (isCollage) {
+            framedNote.innerHTML =
+              "Generates <b>studio white</b> scenarios plus <b>framed copies</b> using your border color and sticker template.";
+          } else if (selected && selected.dataset.auto === "1") {
+            framedNote.innerHTML =
+              "Border &amp; stickers apply to <b>framed variants</b> in this Auto run. Tap any result to change frame after generation.";
+          } else if (selected && selected.classList.contains("framed")) {
+            framedNote.innerHTML =
+              "Border &amp; stickers apply to this <b>Framed</b> run. Tap any result to customize after generation.";
+          } else if (isStudioOnlyMode()) {
+            framedNote.innerHTML =
+              "Studio output stays white. We also <b>append framed copies</b> with your border &amp; stickers. Tap results to edit frame.";
+          } else {
+            framedNote.innerHTML =
+              "Border &amp; stickers apply where relevant. <b>Tap any result</b> after generation to change border, sticker, or remove frame.";
+          }
+        }
+      }
+
+      function syncAccordionModeUI() {
+        if (!accordionModes || !accordionModeHint) return;
+        if (selected && isMoreMode(selected)) {
+          accordionModes.open = true;
+          accordionModeHint.textContent = selected.dataset.name;
+        } else {
+          accordionModeHint.textContent = "Studio & Framed";
+        }
+      }
+
+      function syncModeUI() {
+        syncAccordionModeUI();
+        syncFramedSettingsUI();
+      }
+
       function updateGenerate() {
         generateBtn.disabled = !(selected && imageFile);
       }
@@ -568,12 +1156,16 @@
         btn.addEventListener("click", function () {
           document.querySelectorAll(".mode").forEach(function (b) {
             b.classList.remove("selected");
+            b.setAttribute("aria-pressed", "false");
           });
           btn.classList.add("selected");
+          btn.setAttribute("aria-pressed", "true");
           selected = btn;
+          syncModeUI();
           setError("");
           updateGenerate();
         });
+        btn.setAttribute("aria-pressed", btn.classList.contains("selected") ? "true" : "false");
       });
 
       function setImage(file) {
@@ -613,6 +1205,113 @@
         return new Promise(function (r) { setTimeout(r, ms); });
       }
 
+      var wakeLockSentinel = null;
+      var pollAbort = false;
+
+      function saveActiveJob(job) {
+        try {
+          localStorage.setItem(ACTIVE_JOB_KEY, JSON.stringify(job));
+        } catch (e) { /* quota */ }
+      }
+
+      function loadActiveJob() {
+        try {
+          var raw = localStorage.getItem(ACTIVE_JOB_KEY);
+          if (!raw) return null;
+          var job = JSON.parse(raw);
+          if (!job || !job.requestId) return null;
+          if (Date.now() - (job.startedAt || 0) > ACTIVE_JOB_TTL_MS) {
+            clearActiveJob();
+            return null;
+          }
+          return job;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function clearActiveJob() {
+        var job = loadActiveJob();
+        try { localStorage.removeItem(ACTIVE_JOB_KEY); } catch (e) { /* ignore */ }
+        pollAbort = true;
+        releaseWakeLock();
+        if (job && job.requestId) untrackBackgroundJob(job.requestId);
+      }
+
+      function updateProcessingBadge(serverMode) {
+        if (!processingBadge) return;
+        processingBadge.classList.remove("hidden", "client");
+        if (serverMode) {
+          processingBadge.textContent = "Server mode — safe to switch apps";
+        } else {
+          processingBadge.textContent = "In-browser — background tracking on";
+          processingBadge.classList.add("client");
+        }
+      }
+
+      function updateProcessingResume(requestId) {
+        if (!processingResume) return;
+        processingResume.classList.remove("hidden");
+        processingResume.textContent = "Job " + requestId + " — you can switch apps or lock your phone. Reopen this page anytime to pick up results.";
+      }
+
+      async function acquireWakeLock() {
+        if (!navigator.wakeLock) return;
+        try {
+          wakeLockSentinel = await navigator.wakeLock.request("screen");
+        } catch (e) { /* denied */ }
+      }
+
+      function releaseWakeLock() {
+        if (wakeLockSentinel) {
+          try { wakeLockSentinel.release(); } catch (e) { /* ignore */ }
+          wakeLockSentinel = null;
+        }
+      }
+
+      function pollDelayMs() {
+        return document.hidden ? 2800 : 900;
+      }
+
+      async function requestBgNotifyPermission() {
+        if (!("Notification" in window) || Notification.permission !== "default") return;
+        try { await Notification.requestPermission(); } catch (e) { /* ignore */ }
+      }
+
+      function trackBackgroundJob(job) {
+        if (!navigator.serviceWorker) return;
+        navigator.serviceWorker.ready.then(function (reg) {
+          var target = reg.active || reg.waiting || reg.installing;
+          if (!target) return;
+          target.postMessage({
+            type: "TRACK_JOB",
+            requestId: job.requestId,
+            origin: location.origin,
+            modeName: job.modeName,
+            isLingerie: !!job.isLingerie,
+            isAuto: !!job.isAuto,
+            maxMs: job.isAuto || job.isLingerie ? 45 * 60 * 1000 : 25 * 60 * 1000,
+          });
+        });
+      }
+
+      function untrackBackgroundJob(requestId) {
+        if (!navigator.serviceWorker || !requestId) return;
+        navigator.serviceWorker.ready.then(function (reg) {
+          var target = reg.active || reg.waiting || reg.installing;
+          if (!target) return;
+          target.postMessage({ type: "UNTRACK_JOB", requestId: requestId });
+        });
+      }
+
+      function registerServiceWorker() {
+        if (!("serviceWorker" in navigator)) return Promise.resolve(null);
+        return navigator.serviceWorker.register("/sw.js?v=91").catch(function (err) {
+          console.warn("[ui] service worker register failed:", err);
+          return null;
+        });
+      }
+
       function setProcessingProgress(percent, stageText) {
         var pct = Math.max(0, Math.min(100, Math.round(percent || 0)));
         processingPercent.textContent = pct + "%";
@@ -624,12 +1323,14 @@
         setProcessingProgress(0, "Preparing upload…");
       }
 
-      function poll(requestId, isAuto) {
-        var maxAttempts = isAuto ? 480 : 200;
+      function poll(requestId, isAuto, isLingerie) {
+        var maxAttempts = isAuto ? 480 : isLingerie ? 480 : 240;
+        pollAbort = false;
         return new Promise(function (resolve, reject) {
           var attempts = 0;
           function tick() {
-            fetch("/api/meesho/request-status/" + requestId, { credentials: "include" })
+            if (pollAbort) return reject(new Error("Cancelled"));
+            fetch("/api/meesho/request-status/" + requestId, { credentials: "include", cache: "no-store" })
               .then(function (r) { return r.json(); })
               .then(function (d) {
                 if (typeof d.progress === "number") {
@@ -642,46 +1343,149 @@
                 if (d.status === "failed") {
                   return reject(new Error(d.message || d.progressLabel || "Optimization failed. Try another photo or mode."));
                 }
-                if (++attempts >= maxAttempts) return reject(new Error("Timed out. Please try again."));
-                setTimeout(tick, 800);
+                if (++attempts >= maxAttempts) return reject(new Error("Timed out. Reopen this page — your job may still finish in the background."));
+                setTimeout(tick, pollDelayMs());
               })
-              .catch(reject);
+              .catch(function (err) {
+                if (++attempts >= maxAttempts) return reject(err);
+                setTimeout(tick, pollDelayMs());
+              });
           }
           tick();
         });
+      }
+
+      function runJobFlow(job) {
+        var serverMode = !!window.__MEESHO_USE_SERVER__;
+        updateProcessingBadge(serverMode);
+        updateProcessingResume(job.requestId);
+        processingTitle.textContent = job.modeName + "…";
+        processingHint.textContent = serverMode
+          ? "Server is working — switch apps or lock your phone. We'll notify you when done."
+          : "Processing in this browser — switch apps OK, but don't force-close the tab. We'll notify you when done.";
+        resetProcessingProgress();
+        show("processing");
+        acquireWakeLock();
+        requestBgNotifyPermission();
+        trackBackgroundJob(job);
+        return poll(job.requestId, job.isAuto, job.isLingerie)
+          .then(function (results) {
+            clearActiveJob();
+            showResults(results, job.modeName, job.isLingerie);
+          })
+          .catch(function (err) {
+            releaseWakeLock();
+            if (pollAbort) return;
+            show("form");
+            setError(err.message || "Something went wrong.");
+          });
+      }
+
+      function resumeActiveJobIfAny() {
+        var job = loadActiveJob();
+        if (!job) return;
+        runJobFlow(job);
+      }
+
+      function handleServiceWorkerMessage(event) {
+        var data = event.data || {};
+        if (data.type === "JOB_UPDATE" && data.requestId) {
+          var active = loadActiveJob();
+          if (!active || active.requestId !== data.requestId) return;
+          if (typeof data.progress === "number") {
+            setProcessingProgress(data.progress, data.progressLabel || processingStage.textContent);
+          }
+        }
+        if (data.type === "JOB_DONE" && data.results && data.results.length) {
+          var doneJob = loadActiveJob();
+          if (!doneJob || doneJob.requestId !== data.requestId) return;
+          clearActiveJob();
+          showResults(data.results, data.modeName || doneJob.modeName, !!(data.isLingerie || doneJob.isLingerie));
+        }
+        if (data.type === "JOB_FAILED" && data.requestId) {
+          var failedJob = loadActiveJob();
+          if (!failedJob || failedJob.requestId !== data.requestId) return;
+          clearActiveJob();
+          show("form");
+          setError(data.message || "Optimization failed.");
+        }
+        if (data.type === "OPEN_JOB") {
+          resumeActiveJobIfAny();
+        }
       }
 
       function esc(s) {
         return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
       }
 
-      function showResults(results, modeName) {
+      function showResults(results, modeName, isLingerie) {
+        lastResults = results.slice();
         resultsTitle.textContent = modeName + " · " + results.length + " ranked pick" + (results.length === 1 ? "" : "s");
+        var canEdit = !!(MR && lastUploadDataUrl);
         resultsGrid.innerHTML = results.map(function (r, i) {
           var fname = "meesho-" + r.fileSizeKb + "kb-" + (i + 1) + ".jpg";
           var rank = r.autoRank || (i + 1);
+          var tag = String(r.tagName || "");
+          var lingerieBadge = "";
+          var editable = canEdit && r.reframeMeta;
+          if (isLingerie) {
+            if (tag.indexOf("back panel") >= 0 || tag.indexOf("Back ·") >= 0 || tag.indexOf("back ") >= 0) {
+              lingerieBadge = tag.indexOf("framed") >= 0
+                ? '<span class="badge rank">#' + rank + " · FRAMED BACK</span>"
+                : '<span class="badge rank">#' + rank + " · BACK · ~₹41 band</span>";
+            } else if (tag.indexOf("framed") >= 0) {
+              lingerieBadge = '<span class="badge rank">#' + rank + " · FRAMED FRONT</span>";
+            } else if (tag.indexOf("~₹66") >= 0 || (rank === 1 && tag.indexOf("front") >= 0))
+              lingerieBadge = '<span class="badge try-first">#' + rank + " · FRONT · ~₹66 band</span>";
+            else if (tag.indexOf("~₹71") >= 0)
+              lingerieBadge = '<span class="badge try-first">#' + rank + " · FRONT · ~₹71 band</span>";
+            else if (rank <= 4)
+              lingerieBadge = '<span class="badge try-first">#' + rank + " · FRONT · test</span>";
+            else
+              lingerieBadge = '<span class="badge rank">#' + rank + " · FRONT</span>";
+          } else if (r.autoRank && tag.indexOf("Collage") >= 0) {
+            lingerieBadge = '<span class="badge rank">#' + rank + " · Collage scenario</span>";
+          }
           return (
-            '<article class="result">' +
+            '<article class="result' + (editable ? " result--clickable" : "") + '" data-result-index="' + i + '">' +
               '<div class="result-img"><img src="' + r.imageUrl + '" alt="Variant ' + rank + '" loading="lazy" /></div>' +
               '<div class="result-body">' +
-                (r.autoBest ? '<span class="badge try-first">#1 · Try on Meesho first</span>' : "") +
-                (!r.autoBest && rank <= 3 && r.autoRank ? '<span class="badge rank">#' + rank + " · Top pick</span>" : "") +
-                (!r.autoBest && rank > 3 && r.autoRank ? '<span class="badge rank">#' + rank + "</span>" : "") +
-                (!r.autoRank && r.recommended ? '<span class="badge">Recommended</span>' : "") +
-                (!r.autoRank && r.lowest ? '<span class="badge">Lowest est.</span>' : "") +
+                (lingerieBadge ||
+                  (r.autoBest ? '<span class="badge try-first">#1 · Try on Meesho first</span>' : "") +
+                  (!r.autoBest && rank <= 3 && r.autoRank ? '<span class="badge rank">#' + rank + " · Top pick</span>" : "") +
+                  (!r.autoBest && rank > 3 && r.autoRank ? '<span class="badge rank">#' + rank + "</span>" : "") +
+                  (!r.autoRank && r.recommended ? '<span class="badge">Recommended</span>' : "") +
+                  (!r.autoRank && r.lowest ? '<span class="badge">Lowest est.</span>' : "")) +
                 '<div class="result-label">' + esc(r.tagName || "Variant " + rank) + '</div>' +
                 '<div class="result-meta">Est. ~₹' + (r.estimatedShippingInr || r.fileSizeKb) + " · " + r.fileSizeKb + " KB · " + (r.width || "?") + "×" + (r.height || "?") + "</div>" +
-                '<a class="download" href="' + r.imageUrl + '" download="' + fname + '">Download JPEG</a>' +
+                (editable ? '<p class="result-edit-hint">Tap to change border / sticker / no frame</p>' : "") +
+                '<a class="download" href="' + r.imageUrl + '" download="' + fname + '" onclick="event.stopPropagation()">Download JPEG</a>' +
               '</div></article>'
           );
         }).join("");
+        resultsGrid.querySelectorAll(".result--clickable").forEach(function (card) {
+          card.addEventListener("click", function () {
+            openReframeEditor(parseInt(card.getAttribute("data-result-index"), 10));
+          });
+        });
         show("results");
       }
 
       function resetForm() {
         selected = document.querySelector(".mode.auto") || document.querySelector(".mode.selected");
-        document.querySelectorAll(".mode").forEach(function (b) { b.classList.remove("selected"); });
-        if (selected) selected.classList.add("selected");
+        document.querySelectorAll(".mode").forEach(function (b) {
+          b.classList.remove("selected");
+          b.setAttribute("aria-pressed", "false");
+        });
+        if (selected) {
+          selected.classList.add("selected");
+          selected.setAttribute("aria-pressed", "true");
+        }
+        if (accordionModes) accordionModes.open = false;
+        syncModeUI();
+        closeReframeEditor();
+        lastResults = [];
+        lastUploadDataUrl = null;
         imageFile = null;
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         previewUrl = null;
@@ -691,6 +1495,7 @@
         if (oldImg) oldImg.remove();
         fileInput.value = "";
         setError("");
+        clearActiveJob();
         updateGenerate();
         show("form");
       }
@@ -702,12 +1507,32 @@
         }
         setError("");
         var isAuto = selected && selected.dataset.auto === "1";
-        processingTitle.textContent = isAuto ? "Auto — trying all strategies…" : "Running " + selected.dataset.name + "…";
-        processingHint.textContent = isAuto
-          ? "Testing every strategy (up to ~45 compressions, showing best 30). Usually 1–3 minutes on mobile."
-          : "Usually takes 10–30 seconds. Progress updates below.";
+        var isLingerie = selected && selected.dataset.lingerie === "1";
+        var isFlatlay = selected && selected.dataset.flatlay === "1";
+        var isModel = selected && selected.dataset.model === "1";
+        var isFullLength = selected && selected.dataset.fulllength === "1";
+        lastUploadDataUrl = previewUrl;
+        var modeName = selected.dataset.name;
+        var serverMode = !!window.__MEESHO_USE_SERVER__;
+        updateProcessingBadge(serverMode);
+        processingTitle.textContent = isAuto
+          ? "Auto — trying all strategies…"
+          : isLingerie
+            ? "Collage — studio + framed scenarios…"
+            : isFlatlay
+              ? "Flat-Lay — portrait + framed scenarios…"
+              : isModel
+                ? "Model Photo — framed 1024 scenarios…"
+                : isFullLength
+                  ? "Full-Length — fit + cap scenarios…"
+                  : "Running " + modeName + "…";
+        processingHint.textContent = serverMode
+          ? "Server is working — switch apps or lock your phone. We'll notify you when done."
+          : "Processing in this browser — switch apps OK, but don't force-close the tab. We'll notify you when done.";
         resetProcessingProgress();
         show("processing");
+        acquireWakeLock();
+        requestBgNotifyPermission();
 
         var form = new FormData();
         form.append("tagId", selected.dataset.id);
@@ -715,27 +1540,81 @@
         var frame = getFrameSettingsFromUi();
         form.append("frameBorderColor", frame.borderColor);
         form.append("frameStickerTemplate", frame.stickerTemplate);
-        form.append("image", imageFile);
         persistFrameDefaults();
+        form.append("image", imageFile);
 
         setProcessingProgress(1, "Uploading image…");
         fetch("/api/meesho/getLowestShippingCharge", { method: "POST", body: form, credentials: "include" })
           .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
           .then(function (_ref) {
             if (!_ref.ok || !_ref.d.requestId) throw new Error((_ref.d && _ref.d.message) || "Upload failed");
-            setProcessingProgress(3, "Upload complete — optimizing…");
-            return poll(_ref.d.requestId, isAuto);
+            var job = {
+              requestId: _ref.d.requestId,
+              modeName: modeName,
+              isAuto: isAuto,
+              isLingerie: isLingerie,
+              startedAt: Date.now(),
+            };
+            saveActiveJob(job);
+            updateProcessingResume(job.requestId);
+            trackBackgroundJob(job);
+            setProcessingProgress(3, "Upload complete — optimizing in background…");
+            return poll(job.requestId, isAuto, isLingerie);
           })
           .then(function (results) {
-            showResults(results, selected.dataset.name);
+            clearActiveJob();
+            showResults(results, modeName, isLingerie);
           })
           .catch(function (err) {
+            releaseWakeLock();
+            if (pollAbort) return;
             show("form");
             setError(err.message || "Something went wrong.");
           });
       });
 
+      window.addEventListener("beforeunload", function (e) {
+        if (loadActiveJob() && !window.__MEESHO_USE_SERVER__) {
+          e.preventDefault();
+          e.returnValue = "";
+        }
+      });
+
+      document.addEventListener("visibilitychange", function () {
+        if (!loadActiveJob()) return;
+        if (!document.hidden) acquireWakeLock();
+      });
+
+      if (navigator.serviceWorker) {
+        navigator.serviceWorker.addEventListener("message", handleServiceWorkerMessage);
+      }
+
       document.getElementById("btn-new").addEventListener("click", resetForm);
+
+      reframeClose.addEventListener("click", closeReframeEditor);
+      reframeBackdrop.addEventListener("click", function (e) {
+        if (e.target === reframeBackdrop) closeReframeEditor();
+      });
+      reframeModeFramed.addEventListener("click", function () {
+        reframeDisplayMode = "framed";
+        syncReframeModeUi();
+      });
+      reframeModeFrameOnly.addEventListener("click", function () {
+        reframeDisplayMode = "frame_only";
+        syncReframeModeUi();
+      });
+      reframeModeStudio.addEventListener("click", function () {
+        reframeDisplayMode = "studio";
+        syncReframeModeUi();
+      });
+      reframeBorderColor.addEventListener("input", function () {
+        syncReframeBorderUi(reframeBorderColor.value);
+      });
+      reframeBorderHex.addEventListener("change", function () {
+        syncReframeBorderUi(reframeBorderHex.value);
+      });
+      reframeStickerTemplate.addEventListener("change", updateReframeTemplateDesc);
+      reframeApply.addEventListener("click", applyReframeEdit);
 
       document.getElementById("theme-btn").addEventListener("click", function () {
         var dark = document.documentElement.classList.toggle("dark");
@@ -743,7 +1622,13 @@
       });
 
       selected = document.querySelector(".mode.selected") || document.querySelector(".mode.auto");
-      updateGenerate();
+      registerServiceWorker();
+      var apiReadyPromise = window.__MEESHO_API_READY__ || Promise.resolve(false);
+      apiReadyPromise.then(function () {
+        syncModeUI();
+        updateGenerate();
+        resumeActiveJobIfAny();
+      });
     })();
   </script>
 </body>

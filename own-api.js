@@ -67,6 +67,430 @@
     { slabKb: 68, label: "Balanced" },
     { slabKb: 71, label: "₹71 backup" },
   ];
+  /** Back — 52 KB hits ₹146 on Meesho; 54–58 KB band confirmed ~₹41. Never target 52. */
+  const LINGERIE_BACK_KB_TIERS = [
+    { targetKb: 55, label: "55KB · ~₹41", recommended: true, lowest: true, framedTargetKb: 50 },
+    { targetKb: 54, label: "54KB · ~₹41", framedTargetKb: 49 },
+    { targetKb: 56, label: "56KB", framedTargetKb: 51 },
+    { targetKb: 57, label: "57KB", framedTargetKb: 52 },
+    { targetKb: 58, label: "58KB", framedTargetKb: 53 },
+  ];
+  const TIERS_LINGERIE_BACK = LINGERIE_BACK_KB_TIERS;
+  /**
+   * Back layouts — multiple canvas sizes (like front) to land in 54–58 KB / ~₹41 band.
+   * Smaller or looser fills help when 1200·86% overshoots to ~59 KB after split.
+   */
+  const LINGERIE_BACK_LAYOUTS = [
+    {
+      layout: "b_1200_std",
+      priority: 20,
+      side: 1200,
+      coverage: 0.86,
+      panelTag: "back 1200",
+      tiers: LINGERIE_BACK_KB_TIERS,
+    },
+    {
+      layout: "b_1200_compact",
+      priority: 21,
+      side: 1200,
+      coverage: 0.78,
+      panelTag: "back 1200 compact",
+      tiers: LINGERIE_BACK_KB_TIERS,
+    },
+    {
+      layout: "b_1000_mid",
+      priority: 22,
+      side: 1000,
+      coverage: 0.84,
+      panelTag: "back 1000",
+      tiers: LINGERIE_BACK_KB_TIERS,
+    },
+    {
+      layout: "b_1000_tight",
+      priority: 23,
+      side: 1000,
+      coverage: 0.76,
+      panelTag: "back 1000 tight",
+      tiers: LINGERIE_BACK_KB_TIERS,
+    },
+    {
+      layout: "b_900_std",
+      priority: 24,
+      side: 900,
+      coverage: 0.88,
+      panelTag: "back 900",
+      tiers: LINGERIE_BACK_KB_TIERS,
+    },
+  ];
+  const LINGERIE_BACK_FRAMED_MAX_SIDE = 1024;
+  /**
+   * Front layouts — multiple KB tiers per canvas (like back panel 54–58 band).
+   * No 52 KB (₹146). 900·44KB → ~₹66 · 1200·48KB → ~₹71.
+   */
+  const LINGERIE_FRONT_LAYOUTS = [
+    {
+      layout: "f_900_std",
+      priority: 0,
+      side: 900,
+      coverage: 0.68,
+      panelTag: "front 900",
+      tiers: [
+        { targetKb: 44, label: "44KB · ~₹66", recommended: true, lowest: true },
+        { targetKb: 42, label: "42KB" },
+        { targetKb: 46, label: "46KB" },
+        { targetKb: 40, label: "40KB" },
+      ],
+    },
+    {
+      layout: "f_1200_wide",
+      priority: 10,
+      side: 1200,
+      coverage: 0.56,
+      panelTag: "front 1200",
+      tiers: [
+        { targetKb: 48, label: "48KB · ~₹71", recommended: true, lowest: true },
+        { targetKb: 44, label: "44KB" },
+        { targetKb: 46, label: "46KB" },
+        { targetKb: 55, label: "55KB" },
+      ],
+    },
+    {
+      layout: "f_1000_mid",
+      priority: 20,
+      side: 1000,
+      coverage: 0.62,
+      panelTag: "front 1000",
+      tiers: [
+        { targetKb: 44, label: "44KB", recommended: true, lowest: true },
+        { targetKb: 48, label: "48KB" },
+        { targetKb: 42, label: "42KB" },
+        { targetKb: 55, label: "55KB" },
+      ],
+    },
+    {
+      layout: "f_900_compact",
+      priority: 30,
+      side: 900,
+      coverage: 0.56,
+      panelTag: "front 900 compact",
+      tiers: [
+        { targetKb: 48, label: "48KB", recommended: true, lowest: true },
+        { targetKb: 44, label: "44KB" },
+        { targetKb: 46, label: "46KB" },
+        { targetKb: 40, label: "40KB" },
+      ],
+    },
+    {
+      layout: "f_1200_std",
+      priority: 40,
+      side: 1200,
+      coverage: 0.68,
+      panelTag: "front 1200 tight",
+      tiers: [
+        { targetKb: 44, label: "44KB", recommended: true, lowest: true },
+        { targetKb: 48, label: "48KB" },
+        { targetKb: 46, label: "46KB" },
+        { targetKb: 55, label: "55KB" },
+      ],
+    },
+  ];
+  /**
+   * Flat-lay apparel (tops, crop tops, tees) — multi-scenario grid targeting ₹39–₹51 band.
+   * Model photos often land at 703×1024 framed · ~48–51 KB; flat-lays miss that without portrait + framed paths.
+   */
+  const FLATLAY_KB_TIERS_STUDIO = [
+    { targetKb: 39, label: "39KB · ~₹39", lowest: true },
+    { targetKb: 41, label: "41KB · ~₹41" },
+    { targetKb: 49, label: "49KB · ~₹49", recommended: true },
+    { targetKb: 51, label: "51KB · ~₹51" },
+  ];
+  const FLATLAY_KB_TIERS_FRAMED = [
+    { slabKb: 48, label: "48KB · ~₹48", lowest: true },
+    { slabKb: 49, label: "49KB · ~₹49" },
+    { slabKb: 51, label: "51KB · ~₹51", recommended: true },
+    { slabKb: 39, label: "39KB try" },
+    { slabKb: 41, label: "41KB try" },
+  ];
+  const FLATLAY_PORTRAIT_W = 703;
+  const FLATLAY_PORTRAIT_H = 1024;
+  const FLATLAY_MAX_VARIANTS = 56;
+  const FLATLAY_PROCESS_TIMEOUT_MS = 360000;
+  /** Model / on-person photos — native aspect + framed 1024 (no forced square→portrait). */
+  const MODEL_PHOTO_MAX_VARIANTS = 36;
+  const MODEL_PHOTO_PROCESS_TIMEOUT_MS = 300000;
+  const MODEL_PHOTO_LAYOUTS = [
+    {
+      layout: "m_f1024_ns",
+      type: "native_framed",
+      framedMaxSide: 1024,
+      noStickers: true,
+      priority: 0,
+      panelTag: "framed 1024 · no stickers",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "m_f1024",
+      type: "native_framed",
+      framedMaxSide: 1024,
+      priority: 5,
+      panelTag: "framed 1024 · promo",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "m_f960_ns",
+      type: "native_framed",
+      framedMaxSide: 960,
+      noStickers: true,
+      priority: 10,
+      panelTag: "framed 960 · no stickers",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "m_p703_ns",
+      type: "portrait_framed",
+      portraitW: FLATLAY_PORTRAIT_W,
+      portraitH: FLATLAY_PORTRAIT_H,
+      coverage: 0.88,
+      framedMaxSide: 1024,
+      noStickers: true,
+      priority: 12,
+      panelTag: "portrait 703×1024 framed",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "m_native_studio",
+      type: "native_studio",
+      priority: 18,
+      panelTag: "studio trimmed",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "m_p703_studio",
+      type: "portrait_studio",
+      portraitW: FLATLAY_PORTRAIT_W,
+      portraitH: FLATLAY_PORTRAIT_H,
+      coverage: 0.86,
+      priority: 22,
+      panelTag: "portrait 703×1024 studio",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+  ];
+  /** Full-length / enlarged (dress, kaftan, saree) — fit tall body into capped 703×1024 / 580×900 canvases. */
+  const FULL_LENGTH_MAX_VARIANTS = 52;
+  const FULL_LENGTH_PROCESS_TIMEOUT_MS = 360000;
+  const FULL_LENGTH_LAYOUTS = [
+    {
+      layout: "fl_fp703_ns",
+      type: "portrait_framed",
+      portraitW: FLATLAY_PORTRAIT_W,
+      portraitH: FLATLAY_PORTRAIT_H,
+      coverage: 0.72,
+      framedMaxSide: 1024,
+      noStickers: true,
+      priority: 0,
+      panelTag: "fit 703×1024 framed",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_p703",
+      type: "portrait_studio",
+      portraitW: FLATLAY_PORTRAIT_W,
+      portraitH: FLATLAY_PORTRAIT_H,
+      coverage: 0.72,
+      priority: 5,
+      panelTag: "fit 703×1024 studio",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "fl_fp703",
+      type: "portrait_framed",
+      portraitW: FLATLAY_PORTRAIT_W,
+      portraitH: FLATLAY_PORTRAIT_H,
+      coverage: 0.7,
+      framedMaxSide: 1024,
+      priority: 8,
+      panelTag: "fit 703×1024 + stickers",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_p580",
+      type: "portrait_studio",
+      portraitW: 580,
+      portraitH: 900,
+      coverage: 0.74,
+      priority: 12,
+      panelTag: "fit 580×900 studio",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "fl_fp580_ns",
+      type: "portrait_framed",
+      portraitW: 580,
+      portraitH: 900,
+      coverage: 0.72,
+      framedMaxSide: 960,
+      noStickers: true,
+      priority: 15,
+      panelTag: "fit 580×900 framed",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_cap1024",
+      type: "native_capped_studio",
+      capMaxSide: 1024,
+      priority: 18,
+      panelTag: "capped 1024 studio",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "fl_cap1024_f",
+      type: "native_capped_framed",
+      capMaxSide: 1024,
+      framedMaxSide: 1024,
+      noStickers: true,
+      priority: 20,
+      panelTag: "capped 1024 framed",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_cap960_f",
+      type: "native_capped_framed",
+      capMaxSide: 960,
+      framedMaxSide: 960,
+      noStickers: true,
+      priority: 25,
+      panelTag: "capped 960 framed",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fl_p620",
+      type: "portrait_studio",
+      portraitW: 620,
+      portraitH: 900,
+      coverage: 0.68,
+      priority: 28,
+      panelTag: "fit 620×900 tight",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "fl_p703_loose",
+      type: "portrait_studio",
+      portraitW: FLATLAY_PORTRAIT_W,
+      portraitH: FLATLAY_PORTRAIT_H,
+      coverage: 0.78,
+      priority: 32,
+      panelTag: "fit 703 loose studio",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+  ];
+  const FLATLAY_LAYOUTS = [
+    {
+      layout: "fp_703_ns",
+      type: "portrait_framed",
+      portraitW: FLATLAY_PORTRAIT_W,
+      portraitH: FLATLAY_PORTRAIT_H,
+      coverage: 0.9,
+      framedMaxSide: 1024,
+      noStickers: true,
+      priority: 0,
+      panelTag: "portrait 703×1024 framed",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "fp_703",
+      type: "portrait_framed",
+      portraitW: FLATLAY_PORTRAIT_W,
+      portraitH: FLATLAY_PORTRAIT_H,
+      coverage: 0.88,
+      framedMaxSide: 1024,
+      priority: 8,
+      panelTag: "portrait 703×1024 + stickers",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "p_703_std",
+      type: "portrait_studio",
+      portraitW: FLATLAY_PORTRAIT_W,
+      portraitH: FLATLAY_PORTRAIT_H,
+      coverage: 0.9,
+      priority: 5,
+      panelTag: "portrait 703×1024 studio",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "native_f1024_ns",
+      type: "native_framed",
+      framedMaxSide: 1024,
+      noStickers: true,
+      priority: 12,
+      panelTag: "native · framed 1024",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "sq_900",
+      type: "square_studio",
+      side: 900,
+      coverage: 0.8,
+      priority: 20,
+      panelTag: "square 900",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "sq_1000",
+      type: "square_studio",
+      side: 1000,
+      coverage: 0.78,
+      priority: 25,
+      panelTag: "square 1000",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "sq_1200",
+      type: "square_studio",
+      side: 1200,
+      coverage: 0.72,
+      priority: 30,
+      panelTag: "square 1200",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "fsq_900_ns",
+      type: "square_framed",
+      side: 900,
+      coverage: 0.8,
+      framedMaxSide: 1024,
+      noStickers: true,
+      priority: 18,
+      panelTag: "square 900 · framed 1024",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+    {
+      layout: "p_620_900",
+      type: "portrait_studio",
+      portraitW: 620,
+      portraitH: 900,
+      coverage: 0.86,
+      priority: 35,
+      panelTag: "portrait 620×900",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "native_studio",
+      type: "native_studio",
+      priority: 40,
+      panelTag: "native trimmed studio",
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+    },
+    {
+      layout: "native_f960_ns",
+      type: "native_framed",
+      framedMaxSide: 960,
+      noStickers: true,
+      priority: 45,
+      panelTag: "native · framed 960",
+      tiers: FLATLAY_KB_TIERS_FRAMED,
+    },
+  ];
   /** Large framed files — same 1280px cap; Meesho may tier on dimensions not KB alone. */
   const TIERS_FRAMED_PRO = [
     { slabKb: 177, label: "Large file ~177 KB", lowest: true },
@@ -83,13 +507,18 @@
   const MOZJPEG_TIMEOUT_MS = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 90000 : 45000;
   const AUTO_MIN_VARIANTS = 10;
   const AUTO_MAX_VARIANTS = 30;
+  const LINGERIE_MAX_VARIANTS = 72;
+  const LINGERIE_PROCESS_TIMEOUT_MS = 360000;
   const AUTO_PROCESS_TIMEOUT_MS = 540000;
   const PROCESS_TIMEOUT_MS = 180000;
   const STALE_BUFFER_MS = 30000;
   const PROGRESS_PERSIST_MS = 400;
   const PROCESSING = new Set();
+  let yieldCounter = 0;
   const MOZJPEG_URL = () => new URL("/vendor/mozjpeg.mjs", location.origin).href;
   const FRAME_DEFAULT_ORANGE = "#FF7900";
+  const FRAME_DEFAULT_PURPLE = "#7C3AED";
+  const FRAME_DEFAULT_STICKER = "limited_time";
   const FRAME_LS_BORDER = "meesho_frame_border_color";
   const FRAME_LS_TEMPLATE = "meesho_frame_sticker_template";
   const FRAME_LS_PRESET = "meesho_frame_border_preset";
@@ -128,12 +557,28 @@
     "framed_mid",
     "framed_compact",
     "framed_mini",
+    "flatlay_framed",
+    "model_framed",
+    "full_length_framed",
     "supplierden",
     "supplierden_heavy",
     "supplierden_match_50",
   ]);
   /** Meesho may tier on max framed side — pro sellers often cap near 1280px. */
   const MEESHO_FRAMED_MAX_SIDE = 1280;
+  /** 1:1 square studio — wide front+back collages inflate Meesho volumetric tier. */
+  const STUDIO_SQUARE_SIDE = 1200;
+  /** Product fill on square canvas — 82% keeps bra large (68% was too small). */
+  const STUDIO_SQUARE_COVERAGE = 0.82;
+  const LINGERIE_BACK_COVERAGE = 0.86;
+  /** Square or 2:1 front+back bra collages — split at center. */
+  const SPLIT_COLLAGE_MIN_MAX_SIDE = 560;
+  const SPLIT_COLLAGE_MIN_MIN_SIDE = 300;
+  const SPLIT_COLLAGE_COLLAGE_MODE_MIN_MAX = 280;
+  const SPLIT_COLLAGE_COLLAGE_MODE_MIN_MIN = 150;
+  const SPLIT_COLLAGE_ASPECT_MIN = 0.85;
+  const SPLIT_COLLAGE_ASPECT_MAX = 2.5;
+  const SPLIT_COLLAGE_WIDE_ASPECT = 1.18;
   /** Draw stickers at 2× then downscale — sharper text after JPEG without changing frame size. */
   const OVERLAY_SUPERSAMPLE = 2;
 
@@ -175,6 +620,39 @@
   const REQ_INDEX = "meesho:req-index";
   const REQ_LIMIT = 20;
   const origFetch = window.fetch.bind(window);
+  let useServerProcessing = false;
+
+  function isProcessingRoute(path) {
+    return (
+      path === "/api/meesho/getLowestShippingCharge" ||
+      /^\/api\/meesho\/request(?:-status)?\/[^/]+$/.test(path)
+    );
+  }
+
+  async function initApiMode() {
+    if (window.__MEESHO_FORCE_CLIENT__) return;
+    if (window.__MEESHO_PROCESSOR_ORIGIN__) {
+      useServerProcessing = true;
+      return;
+    }
+    try {
+      const res = await origFetch("/api/health", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.processing === "server") useServerProcessing = true;
+    } catch {
+      /* client fallback */
+    }
+  }
+
+  async function optimizeForServer(imageDataUrl, tagName, frameStyleInput, onProgress) {
+    await loadMozjpeg();
+    const frameStyle = parseFrameStyle(frameStyleInput || {});
+    const blob = await fetch(imageDataUrl).then((r) => r.blob());
+    const file = new File([blob], "upload.jpg", { type: blob.type || "image/jpeg" });
+    const variants = await optimizeToVariants(file, tagName, frameStyle, onProgress || (() => {}));
+    return variantsToResults(variants, tagName);
+  }
 
   function normalizeBorderColor(input) {
     const raw = String(input || "").trim();
@@ -206,19 +684,19 @@
   }
 
   function normalizeStickerTemplate(input) {
-    let id = String(input || "classic_promo").trim().toLowerCase();
+    let id = String(input || FRAME_DEFAULT_STICKER).trim().toLowerCase();
     if (STICKER_TEMPLATE_ALIASES[id]) id = STICKER_TEMPLATE_ALIASES[id];
-    return STICKER_TEMPLATE_IDS.has(id) ? id : "classic_promo";
+    return STICKER_TEMPLATE_IDS.has(id) ? id : FRAME_DEFAULT_STICKER;
   }
 
   function normalizeBorderPreset(input) {
-    let id = String(input || "classic_orange").trim().toLowerCase();
+    let id = String(input || "purple").trim().toLowerCase();
     if (BORDER_PRESET_ALIASES[id]) id = BORDER_PRESET_ALIASES[id];
     return id;
   }
 
   function defaultFrameStyle() {
-    return { borderColor: FRAME_DEFAULT_ORANGE, stickerTemplate: "classic_promo" };
+    return { borderColor: FRAME_DEFAULT_PURPLE, stickerTemplate: FRAME_DEFAULT_STICKER };
   }
 
   function parseFrameStyle(fields) {
@@ -257,16 +735,88 @@
     return Math.max(1, Math.ceil(bytes / 1024));
   }
 
-  /** Meesho shipping heuristic — framed 1280px cap often tiers on dimensions, not KB alone. */
+  function isLingerieBackProfileId(pid) {
+    const id = String(pid || "");
+    return id.includes("lingerie_back") || id.includes("panel_right") || id.includes("lingerie_b_");
+  }
+
+  function isLingerieBackLayout(layout, profileId) {
+    const lid = String(layout || "");
+    return lid === "panel_right" || lid.startsWith("b_") || isLingerieBackProfileId(profileId);
+  }
+
+  /** Meesho shipping heuristic — framed cap tiers on dimensions; full collages inflate ₹. */
   function estimateMeeshoInr(variant) {
     const fileKb = kb(variant.bytes);
-    const maxSide = Math.max(variant.width || 0, variant.height || 0);
+    const w = variant.width || 0;
+    const h = variant.height || 0;
+    const maxSide = Math.max(w, h);
     const path = variant.processingPath || "";
+    const pid = String(variant.profileId || "");
+    const backPanel = isLingerieBackProfileId(pid);
     if (path === "supplierden_match_50" && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
       return Math.min(fileKb, 50);
     }
+    if (path === "framed_collage") {
+      if (backPanel) {
+        if (fileKb >= 53 && fileKb <= 58) return 41;
+        if (fileKb === 52) return 146;
+      }
+      if (pid.includes("lingerie_f_")) {
+        if (fileKb === 44 && maxSide <= 1320) return 66;
+        if (fileKb === 48 && maxSide >= 1280) return 71;
+        if (fileKb === 52) return 146;
+      }
+      return Math.min(fileKb, 93);
+    }
     if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
       return Math.min(fileKb, 93);
+    }
+    if (path === "studio_panel") {
+      if (backPanel) {
+        if (fileKb >= 53 && fileKb <= 58) return 41;
+        if (fileKb === 52) return 146;
+      }
+      if (pid.includes("lingerie_f_")) {
+        if (fileKb === 44 && maxSide <= 920) return 66;
+        if (fileKb === 48 && maxSide >= 1180) return 71;
+        if (fileKb === 52) return 146;
+        if (fileKb >= 54 && fileKb <= 58) return 41;
+      }
+      if (fileKb <= 65) return fileKb;
+    }
+    if (path === "studio_panel_focus") {
+      return Math.max(fileKb, 84);
+    }
+    if (path === "studio_panel_balanced" || path === "studio_panel_soft" || path === "studio_panel_face") {
+      return 146;
+    }
+    if (path === "studio_square" || (w > 0 && h > 0 && Math.abs(w - h) <= 4)) {
+      if (variant.profileId && String(variant.profileId).includes("full")) {
+        return Math.max(fileKb, 78);
+      }
+      if (pid.includes("flatlay_")) {
+        if (fileKb >= 37 && fileKb <= 44) return fileKb <= 40 ? 39 : 41;
+        if (fileKb <= 65) return fileKb;
+      }
+      return fileKb;
+    }
+    if (path === "flatlay_portrait" || path === "flatlay_square") {
+      if (fileKb >= 37 && fileKb <= 44) return fileKb <= 40 ? 39 : 41;
+      if (fileKb <= 65) return fileKb;
+    }
+    if (path === "model_portrait" || path === "model_framed") {
+      if (fileKb <= 65) return fileKb;
+    }
+    if (path === "full_length_portrait" || path === "full_length_framed") {
+      if (fileKb >= 37 && fileKb <= 44) return fileKb <= 40 ? 39 : 41;
+      if (maxSide > 0 && maxSide <= 1024 && fileKb <= 65) return fileKb;
+      if (fileKb <= 65) return fileKb;
+    }
+    const aspect = w / Math.max(1, h);
+    if (aspect >= 1.42 && path.startsWith("studio")) {
+      const volPenalty = Math.round(Math.min(48, (aspect - 1) * 32));
+      return Math.max(fileKb, fileKb + volPenalty);
     }
     return fileKb;
   }
@@ -303,6 +853,54 @@
       tiers: TIERS_STUDIO_ANY,
       path: "studio_any",
       modeName: "Any Photo → Studio ₹20–40",
+    };
+  }
+
+  function profileLingerie() {
+    return {
+      id: "lingerie_studio",
+      studio: true,
+      tiers: TIERS_LINGERIE_BACK,
+      path: "studio_panel",
+      modeName: "Lingerie Studio",
+      absMinQ: 26,
+      lingerie: true,
+    };
+  }
+
+  function profileFlatlayApparel() {
+    return {
+      id: "flatlay_studio",
+      studio: true,
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+      path: "flatlay_portrait",
+      modeName: "Flat-Lay Apparel",
+      absMinQ: 22,
+      flatlayApparel: true,
+    };
+  }
+
+  function profileModelPhoto() {
+    return {
+      id: "model_studio",
+      studio: true,
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+      path: "model_portrait",
+      modeName: "Model Photo",
+      absMinQ: 22,
+      modelPhoto: true,
+    };
+  }
+
+  function profileFullLength() {
+    return {
+      id: "full_length_studio",
+      studio: true,
+      tiers: FLATLAY_KB_TIERS_STUDIO,
+      path: "full_length_portrait",
+      modeName: "Full-Length",
+      absMinQ: 22,
+      fullLength: true,
     };
   }
 
@@ -414,8 +1012,88 @@
     ];
   }
 
-  function autoTiersForProfile(_profile) {
-    return _profile.tiers;
+  function lingerieFrontTiers(layoutSpec) {
+    return layoutSpec.tiers.map((tier) => ({
+      targetKb: tier.targetKb,
+      framedTargetKb: tier.framedTargetKb,
+      label: `${layoutSpec.panelTag} · ${tier.label}`,
+      lowest: !!tier.lowest,
+      recommended: !!tier.recommended,
+    }));
+  }
+
+  function lingerieBackTiers(layoutSpec) {
+    return layoutSpec.tiers.map((tier) => ({
+      targetKb: tier.targetKb,
+      framedTargetKb: tier.framedTargetKb,
+      label: `${layoutSpec.panelTag} · ${tier.label}`,
+      lowest: !!tier.lowest,
+      recommended: !!tier.recommended,
+    }));
+  }
+
+  function lingerieBackAutoTier(layoutSpec) {
+    const pick = layoutSpec.tiers.find((t) => t.lowest) || layoutSpec.tiers[0];
+    return [
+      {
+        targetKb: pick.targetKb,
+        framedTargetKb: pick.framedTargetKb,
+        label: `${layoutSpec.panelTag} · ${pick.label}`,
+        lowest: true,
+        recommended: true,
+      },
+    ];
+  }
+
+  function lingerieFrontAutoTier(layoutSpec) {
+    const pick = layoutSpec.tiers.find((t) => t.lowest) || layoutSpec.tiers[0];
+    return [
+      {
+        targetKb: pick.targetKb,
+        label: `${layoutSpec.panelTag} · ${pick.label}`,
+        lowest: true,
+        recommended: true,
+      },
+    ];
+  }
+
+  /** Collage scenarios for Auto — best front tier per layout + best back tier when split detected. */
+  function autoCollageProfilesForImage(img) {
+    if (!isLingerieSplitCollage(img)) return [];
+    const base = profileLingerie();
+    const frontProfiles = LINGERIE_FRONT_LAYOUTS.map((layoutSpec) =>
+      withLingerieLayout(
+        {
+          ...base,
+          id: `lingerie_${layoutSpec.layout}`,
+          tiers: lingerieFrontAutoTier(layoutSpec),
+        },
+        layoutSpec.layout,
+        layoutSpec.priority,
+        `· ${layoutSpec.panelTag}`
+      )
+    );
+    const backProfiles = LINGERIE_BACK_LAYOUTS.map((layoutSpec) =>
+      withLingerieLayout(
+        {
+          ...base,
+          id: `lingerie_${layoutSpec.layout}`,
+          tiers: lingerieBackAutoTier(layoutSpec),
+        },
+        layoutSpec.layout,
+        layoutSpec.priority,
+        `· ${layoutSpec.panelTag}`
+      )
+    );
+    return [...frontProfiles, ...backProfiles].map((p) => ({
+      ...p,
+      modeName: `Collage ${p.modeName}`,
+    }));
+  }
+
+  /** Auto — test every tier per strategy (~45 compressions, top 30 ranked). */
+  function autoTiersForProfile(profile) {
+    return profile.tiers || [];
   }
 
   function mergeFrameStyle(base, override) {
@@ -427,14 +1105,7 @@
     const seen = new Set();
     const out = [];
     for (const v of variants) {
-      const key = [
-        v.profileId,
-        v.processingPath,
-        v.width,
-        v.height,
-        kb(v.bytes),
-        v.label,
-      ].join("|");
+      const key = [v.profileId, v.processingPath, v.width, v.height, kb(v.bytes), v.label].join("|");
       if (seen.has(key)) continue;
       seen.add(key);
       out.push(v);
@@ -442,13 +1113,766 @@
     return out;
   }
 
-  function finalizeAutoVariants(variants) {
-    const sorted = dedupeAutoVariants(variants).sort(
-      (a, b) => estimateMeeshoInr(a) - estimateMeeshoInr(b) || a.bytes - b.bytes
+  function lingerieProfiles() {
+    return [profileLingerie()];
+  }
+
+  function isWideCollage(img) {
+    return img.width / Math.max(1, img.height) >= 1.42;
+  }
+
+  function collageSampleCanvas(img, sampleW = 320) {
+    const sampleH = Math.max(100, Math.round((sampleW * img.height) / Math.max(1, img.width)));
+    const c = document.createElement("canvas");
+    c.width = sampleW;
+    c.height = sampleH;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, sampleW, sampleH);
+    ctx.drawImage(img, 0, 0, sampleW, sampleH);
+    return { canvas: c, sampleW, sampleH, data: ctx.getImageData(0, 0, sampleW, sampleH).data };
+  }
+
+  /** Cream/off-white studio backgrounds — compare pixels to edge estimate, not pure white. */
+  function estimateCollageBackgroundRef(data, sampleW, sampleH) {
+    let rSum = 0;
+    let gSum = 0;
+    let bSum = 0;
+    let n = 0;
+    const edgeBand = Math.max(2, Math.floor(sampleH * 0.08));
+    function sampleEdge(y0, y1, x0, x1) {
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const i = (y * sampleW + x) * 4;
+          rSum += data[i];
+          gSum += data[i + 1];
+          bSum += data[i + 2];
+          n++;
+        }
+      }
+    }
+    sampleEdge(0, edgeBand, 0, sampleW);
+    sampleEdge(sampleH - edgeBand, sampleH, 0, sampleW);
+    sampleEdge(0, sampleH, 0, Math.max(3, Math.floor(sampleW * 0.06)));
+    sampleEdge(0, sampleH, sampleW - Math.max(3, Math.floor(sampleW * 0.06)), sampleW);
+    if (!n) return { r: 250, g: 250, b: 248 };
+    return { r: rSum / n, g: gSum / n, b: bSum / n };
+  }
+
+  function isCollageContentPixel(data, i, bgRef) {
+    if (!nearWhiteAt(data, i)) return true;
+    const dr = Math.abs(data[i] - bgRef.r);
+    const dg = Math.abs(data[i + 1] - bgRef.g);
+    const db = Math.abs(data[i + 2] - bgRef.b);
+    return dr + dg + db > 28;
+  }
+
+  /** Per-column product density (0–1) on a downsampled canvas. */
+  function collageColumnDensity(img, options = {}) {
+    const { sampleW, sampleH, data } = collageSampleCanvas(img);
+    const bgRef = estimateCollageBackgroundRef(data, sampleW, sampleH);
+    const col = new Float32Array(sampleW);
+    for (let x = 0; x < sampleW; x++) {
+      let content = 0;
+      for (let y = 0; y < sampleH; y++) {
+        const i = (y * sampleW + x) * 4;
+        if (isCollageContentPixel(data, i, bgRef)) content++;
+      }
+      col[x] = content / sampleH;
+    }
+    return col;
+  }
+
+  function averageColumnRange(col, x0, x1) {
+    let sum = 0;
+    let n = 0;
+    for (let i = x0; i < x1; i++) {
+      sum += col[i];
+      n++;
+    }
+    return n ? sum / n : 0;
+  }
+
+  /** Two product peaks (left + right) with a lighter center seam — classic front|back collage. */
+  function detectTwinPeakSplit(col, options = {}) {
+    const minPeak = options.relaxed ? 0.04 : 0.05;
+    const centerRatio = options.relaxed ? 0.86 : 0.8;
+    const W = col.length;
+    const l0 = Math.floor(W * 0.04);
+    const l1 = Math.floor(W * 0.47);
+    const c0 = Math.floor(W * 0.4);
+    const c1 = Math.ceil(W * 0.6);
+    const r0 = Math.ceil(W * 0.53);
+    const r1 = Math.floor(W * 0.96);
+    let leftPeak = 0;
+    let rightPeak = 0;
+    let centerMin = 1;
+    for (let i = l0; i < l1; i++) if (col[i] > leftPeak) leftPeak = col[i];
+    for (let i = r0; i < r1; i++) if (col[i] > rightPeak) rightPeak = col[i];
+    for (let i = c0; i < c1; i++) if (col[i] < centerMin) centerMin = col[i];
+    if (leftPeak < minPeak || rightPeak < minPeak) return false;
+    return centerMin <= leftPeak * centerRatio && centerMin <= rightPeak * centerRatio;
+  }
+
+  /** Both halves carry product — used when user explicitly chose Collage mode. */
+  function detectBalancedHalves(col, minAvg = 0.03) {
+    const W = col.length;
+    const mid = Math.floor(W / 2);
+    const leftAvg = averageColumnRange(col, 0, mid);
+    const rightAvg = averageColumnRange(col, mid, W);
+    return leftAvg >= minAvg && rightAvg >= minAvg;
+  }
+
+  /** Single centered product on square — avoid false split in Collage mode. */
+  function isSingleCenteredProduct(col) {
+    const W = col.length;
+    let maxVal = 0;
+    let maxIdx = 0;
+    let total = 0;
+    let weighted = 0;
+    for (let i = 0; i < W; i++) {
+      total += col[i];
+      weighted += col[i] * i;
+      if (col[i] > maxVal) {
+        maxVal = col[i];
+        maxIdx = i;
+      }
+    }
+    if (maxVal < 0.05) return false;
+    const com = total > 0 ? weighted / total : W / 2;
+    const centerHeavy = maxIdx >= W * 0.34 && maxIdx <= W * 0.66;
+    const comCentered = com >= W * 0.38 && com <= W * 0.62;
+    const leftAvg = averageColumnRange(col, 0, Math.floor(W * 0.34));
+    const rightAvg = averageColumnRange(col, Math.ceil(W * 0.66), W);
+    const centerAvg = averageColumnRange(col, Math.floor(W * 0.34), Math.ceil(W * 0.66));
+    const sideAvg = (leftAvg + rightAvg) / 2;
+    return (centerHeavy || comCentered) && centerAvg >= sideAvg * 0.92;
+  }
+
+  /** Left + right panels both carry product; center seam may be thin or flush cream. */
+  function detectSideBySidePanels(col, options = {}) {
+    const W = col.length;
+    const leftAvg = averageColumnRange(col, Math.floor(W * 0.02), Math.floor(W * 0.48));
+    const rightAvg = averageColumnRange(col, Math.ceil(W * 0.52), Math.floor(W * 0.98));
+    const centerAvg = averageColumnRange(col, Math.floor(W * 0.44), Math.ceil(W * 0.56));
+    const minSide = options.relaxed ? 0.028 : 0.04;
+    if (leftAvg < minSide || rightAvg < minSide) return false;
+    if (detectTwinPeakSplit(col, options)) return true;
+    const sideAvg = (leftAvg + rightAvg) / 2;
+    if (centerAvg <= sideAvg * 0.9) return true;
+    if (options.relaxed && leftAvg >= 0.03 && rightAvg >= 0.03) return true;
+    return false;
+  }
+
+  /** Detect left/right product panels with a light center gutter (front+back collages). */
+  function hasSplitCollageContent(img, options = {}) {
+    const col = collageColumnDensity(img);
+    if (detectTwinPeakSplit(col, options)) return true;
+    if (detectSideBySidePanels(col, options)) return true;
+
+    const { sampleW, sampleH, data } = collageSampleCanvas(img);
+    const bgRef = estimateCollageBackgroundRef(data, sampleW, sampleH);
+    const minRatio = options.relaxed ? 0.035 : 0.05;
+
+    function contentRatio(x0, x1) {
+      let content = 0;
+      let total = 0;
+      for (let y = 0; y < sampleH; y++) {
+        for (let x = x0; x < x1; x++) {
+          const i = (y * sampleW + x) * 4;
+          total++;
+          if (isCollageContentPixel(data, i, bgRef)) content++;
+        }
+      }
+      return total ? content / total : 0;
+    }
+
+    const leftRatio = contentRatio(Math.floor(sampleW * 0.02), Math.floor(sampleW * 0.48));
+    const rightRatio = contentRatio(Math.ceil(sampleW * 0.52), Math.floor(sampleW * 0.98));
+    return leftRatio >= minRatio && rightRatio >= minRatio;
+  }
+
+  /** Square 1:1 or wide ~2:1 front+back collages — split at center. */
+  function isLingerieSplitCollage(img, options = {}) {
+    const w = img.width;
+    const h = img.height;
+    const aspect = w / Math.max(1, h);
+    const maxSide = Math.max(w, h);
+    const minSide = Math.min(w, h);
+    const minMax = options.collageMode ? SPLIT_COLLAGE_COLLAGE_MODE_MIN_MAX : SPLIT_COLLAGE_MIN_MAX_SIDE;
+    const minMin = options.collageMode ? SPLIT_COLLAGE_COLLAGE_MODE_MIN_MIN : SPLIT_COLLAGE_MIN_MIN_SIDE;
+    if (maxSide < minMax || minSide < minMin) return false;
+    if (aspect < SPLIT_COLLAGE_ASPECT_MIN || aspect > SPLIT_COLLAGE_ASPECT_MAX) return false;
+
+    const detectOpts = { relaxed: !!options.collageMode };
+    const col = collageColumnDensity(img);
+
+    if (detectTwinPeakSplit(col, detectOpts)) return true;
+    if (hasSplitCollageContent(img, detectOpts)) return true;
+    if (detectBalancedHalves(col, options.collageMode ? 0.025 : 0.04)) return true;
+
+    if (options.collageMode) {
+      if (aspect >= SPLIT_COLLAGE_WIDE_ASPECT && !isSingleCenteredProduct(col)) return true;
+      if (detectSideBySidePanels(col, detectOpts) && !isSingleCenteredProduct(col)) return true;
+    }
+    return false;
+  }
+
+  function withLingerieLayout(profile, layout, priority, suffix = "") {
+    const tag = suffix ? ` ${suffix}` : "";
+    const path =
+      profile.path ||
+      (layout === "panel_right" ||
+      String(layout).startsWith("panel_") ||
+      String(layout).startsWith("b_")
+        ? "studio_panel"
+        : "studio_square");
+    return {
+      ...profile,
+      id: `${profile.id}_${layout}`,
+      modeName: `${profile.modeName}${tag}`.trim(),
+      path,
+      studioLayout: layout,
+      lingeriePriority: priority,
+    };
+  }
+
+  /**
+   * Front — multiple KB tiers per canvas. Back — multiple layouts × 54–58 KB band.
+   */
+  function lingerieProfilesForImage(img, options = {}) {
+    const split = isLingerieSplitCollage(img, options);
+    const base = profileLingerie();
+    if (split) {
+      const frontProfiles = LINGERIE_FRONT_LAYOUTS.map((layoutSpec) =>
+        withLingerieLayout(
+          {
+            ...base,
+            id: `lingerie_${layoutSpec.layout}`,
+            tiers: lingerieFrontTiers(layoutSpec),
+          },
+          layoutSpec.layout,
+          layoutSpec.priority,
+          `· ${layoutSpec.panelTag}`
+        )
+      );
+      const backProfiles = LINGERIE_BACK_LAYOUTS.map((layoutSpec) =>
+        withLingerieLayout(
+          {
+            ...base,
+            id: `lingerie_${layoutSpec.layout}`,
+            tiers: lingerieBackTiers(layoutSpec),
+          },
+          layoutSpec.layout,
+          layoutSpec.priority,
+          `· ${layoutSpec.panelTag}`
+        )
+      );
+      return [...frontProfiles, ...backProfiles];
+    }
+    return [withLingerieLayout(base, "square", 0, "· 1:1 square")];
+  }
+
+  /** Framed collage mirrors studio scenarios — same KB/layout, border + stickers from UI. */
+  function lingerieFramedProfilesForImage(img, options = {}) {
+    return lingerieProfilesForImage(img, options).map((profile) => {
+      const back = isLingerieBackLayout(profile.studioLayout, profile.id);
+      return {
+        ...profile,
+        id: `${profile.id}_framed`,
+        studio: false,
+        collageFramed: true,
+        path: "framed_collage",
+        modeName: `${profile.modeName} · framed`,
+        lingeriePriority: (profile.lingeriePriority ?? 50) + 40,
+        framedMaxSide: back ? LINGERIE_BACK_FRAMED_MAX_SIDE : MEESHO_FRAMED_MAX_SIDE,
+        tiers: profile.tiers.map((tier) => ({
+          ...tier,
+          targetKb: back ? tier.framedTargetKb ?? Math.max(48, tier.targetKb - 5) : tier.targetKb,
+          label: `${tier.label} · framed`,
+        })),
+      };
+    });
+  }
+
+  function prepareLingerieFramedLayoutCanvas(img, layout, frameStyle, framedMaxSide) {
+    const studioCanvas = prepareLingerieLayoutCanvas(img, layout);
+    return prepareFramedCanvas(
+      studioCanvas,
+      framedMaxSide ?? MEESHO_FRAMED_MAX_SIDE,
+      frameStyle
     );
-    const capped = sorted.slice(0, AUTO_MAX_VARIANTS);
-    const minCount = Math.min(AUTO_MIN_VARIANTS, sorted.length);
-    const results = capped.length >= minCount ? capped : sorted.slice(0, Math.max(minCount, capped.length));
+  }
+
+  function imageToWhiteCanvas(img) {
+    let w = img.width;
+    let h = img.height;
+    const max = Math.max(w, h);
+    if (max > MAX_SIDE) {
+      const scale = MAX_SIDE / max;
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+    }
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, w, h);
+    return c;
+  }
+
+  function prepareFlatlayPortraitCanvas(img, spec) {
+    const pw = spec.portraitW ?? FLATLAY_PORTRAIT_W;
+    const ph = spec.portraitH ?? FLATLAY_PORTRAIT_H;
+    const coverage = spec.coverage ?? 0.88;
+    const trimmed = trimContentMargins(imageToWhiteCanvas(img), 0.02);
+    const c = document.createElement("canvas");
+    c.width = pw;
+    c.height = ph;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, pw, ph);
+    const fitScale = Math.min((pw * coverage) / trimmed.width, (ph * coverage) / trimmed.height);
+    const dw = Math.round(trimmed.width * fitScale);
+    const dh = Math.round(trimmed.height * fitScale);
+    const dx = Math.round((pw - dw) / 2);
+    const dy = Math.round((ph - dh) / 2);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(trimmed, 0, 0, trimmed.width, trimmed.height, dx, dy, dw, dh);
+    return c;
+  }
+
+  function prepareFlatlayNativeStudio(img) {
+    return trimContentMargins(imageToWhiteCanvas(img), 0.02);
+  }
+
+  function prepareNativeCappedStudio(img, maxSide = 1024) {
+    const trimmed = prepareFlatlayNativeStudio(img);
+    const max = Math.max(trimmed.width, trimmed.height);
+    if (max <= maxSide) return trimmed;
+    const scale = maxSide / max;
+    const w = Math.round(trimmed.width * scale);
+    const h = Math.round(trimmed.height * scale);
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(trimmed, 0, 0, trimmed.width, trimmed.height, 0, 0, w, h);
+    return c;
+  }
+
+  function flatlayFramedStyle(layoutSpec, frameStyle) {
+    if (layoutSpec.noStickers) {
+      return mergeFrameStyle(frameStyle, { stickerTemplate: "none" });
+    }
+    return frameStyle;
+  }
+
+  function prepareFlatlayLayoutCanvas(img, layoutSpec, frameStyle) {
+    const type = layoutSpec.type;
+    if (type === "portrait_studio") {
+      return prepareFlatlayPortraitCanvas(img, layoutSpec);
+    }
+    if (type === "square_studio") {
+      const trimmed = trimContentMargins(imageToWhiteCanvas(img), 0.02);
+      return prepareLingerieSquareCanvas(trimmed, {
+        side: layoutSpec.side,
+        coverage: layoutSpec.coverage,
+      });
+    }
+    if (type === "portrait_framed") {
+      const studio = prepareFlatlayPortraitCanvas(img, layoutSpec);
+      return prepareFramedCanvas(
+        studio,
+        layoutSpec.framedMaxSide ?? 1024,
+        flatlayFramedStyle(layoutSpec, frameStyle)
+      );
+    }
+    if (type === "square_framed") {
+      const trimmed = trimContentMargins(imageToWhiteCanvas(img), 0.02);
+      const sq = prepareLingerieSquareCanvas(trimmed, {
+        side: layoutSpec.side,
+        coverage: layoutSpec.coverage,
+      });
+      return prepareFramedCanvas(
+        sq,
+        layoutSpec.framedMaxSide ?? 1024,
+        flatlayFramedStyle(layoutSpec, frameStyle)
+      );
+    }
+    if (type === "native_studio") {
+      return prepareFlatlayNativeStudio(img);
+    }
+    if (type === "native_capped_studio") {
+      return prepareNativeCappedStudio(img, layoutSpec.capMaxSide ?? 1024);
+    }
+    if (type === "native_capped_framed") {
+      const studio = prepareNativeCappedStudio(img, layoutSpec.capMaxSide ?? 1024);
+      return prepareFramedCanvas(
+        studio,
+        layoutSpec.framedMaxSide ?? 1024,
+        flatlayFramedStyle(layoutSpec, frameStyle)
+      );
+    }
+    if (type === "native_framed") {
+      const studio = prepareFlatlayNativeStudio(img);
+      return prepareFramedCanvas(
+        studio,
+        layoutSpec.framedMaxSide ?? 1024,
+        flatlayFramedStyle(layoutSpec, frameStyle)
+      );
+    }
+    return prepareCanvas(img, true);
+  }
+
+  function apparelProfileKey(profile) {
+    if (profile.fullLength) return "full_length";
+    if (profile.modelPhoto) return "model";
+    return "flatlay";
+  }
+
+  function apparelPathForLayout(profile, layoutSpec, isFramed) {
+    const key = apparelProfileKey(profile);
+    if (isFramed) {
+      if (key === "full_length") return "full_length_framed";
+      if (key === "model") return "model_framed";
+      return "flatlay_framed";
+    }
+    if (layoutSpec.type === "square_studio") return "flatlay_square";
+    if (key === "full_length") return "full_length_portrait";
+    if (key === "model") return "model_portrait";
+    return "flatlay_portrait";
+  }
+
+  function withFlatlayLayout(profile, layoutSpec) {
+    const isFramed = String(layoutSpec.type || "").includes("framed");
+    const key = apparelProfileKey(profile);
+    const labels = { full_length: "Full-length", model: "Model", flatlay: "Flat-lay" };
+    return {
+      ...profile,
+      id: `${key}_${layoutSpec.layout}`,
+      modeName: `${labels[key]} · ${layoutSpec.panelTag || layoutSpec.layout}`,
+      studio: !isFramed,
+      collageFramed: false,
+      path: apparelPathForLayout(profile, layoutSpec, isFramed),
+      studioLayout: layoutSpec.layout,
+      flatlaySpec: layoutSpec,
+      flatlayPriority: layoutSpec.priority ?? 50,
+      framedMaxSide: layoutSpec.framedMaxSide,
+      tiers: layoutSpec.tiers,
+    };
+  }
+
+  function flatlayProfilesForImage() {
+    const base = profileFlatlayApparel();
+    return FLATLAY_LAYOUTS.map((layoutSpec) => withFlatlayLayout(base, layoutSpec)).sort(
+      (a, b) => (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99)
+    );
+  }
+
+  function modelProfilesForImage() {
+    const base = profileModelPhoto();
+    return MODEL_PHOTO_LAYOUTS.map((layoutSpec) => withFlatlayLayout(base, layoutSpec)).sort(
+      (a, b) => (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99)
+    );
+  }
+
+  function fullLengthProfilesForImage() {
+    const base = profileFullLength();
+    return FULL_LENGTH_LAYOUTS.map((layoutSpec) => withFlatlayLayout(base, layoutSpec)).sort(
+      (a, b) => (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99)
+    );
+  }
+
+  async function optimizeApparelLayoutsAll(img, profiles, maxVariants, frameStyle, onProgress, labelPrefix) {
+    const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
+    const allVariants = [];
+    let done = 0;
+    for (const profile of profiles) {
+      const canvas = prepareFlatlayLayoutCanvas(img, profile.flatlaySpec, frameStyle);
+      const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
+      for (const tier of profile.tiers) {
+        if (onProgress) {
+          onProgress(
+            10 + (done / totalSteps) * 85,
+            `${labelPrefix} · ${profile.modeName} · ${tier.label}`
+          );
+        }
+        allVariants.push(
+          await buildVariantForTier(canvas, whiteRatio, profile, tier, {
+            showMode: true,
+            reframeMeta: buildReframeMeta(profile, tier, {
+              frameStyle: profile.studio ? null : flatlayFramedStyle(profile.flatlaySpec, frameStyle),
+              studioLayout: profile.studioLayout,
+              whiteRatio,
+            }),
+          })
+        );
+        done += 1;
+        await yieldToMain();
+      }
+    }
+    return finalizeAutoVariants(allVariants, {
+      maxVariants,
+      minVariants: 1,
+    });
+  }
+
+  async function optimizeFlatlayApparelAll(img, frameStyle, onProgress) {
+    return optimizeApparelLayoutsAll(
+      img,
+      flatlayProfilesForImage(),
+      FLATLAY_MAX_VARIANTS,
+      frameStyle,
+      onProgress,
+      "Flat-lay"
+    );
+  }
+
+  async function optimizeModelPhotoAll(img, frameStyle, onProgress) {
+    return optimizeApparelLayoutsAll(
+      img,
+      modelProfilesForImage(),
+      MODEL_PHOTO_MAX_VARIANTS,
+      frameStyle,
+      onProgress,
+      "Model"
+    );
+  }
+
+  async function optimizeFullLengthAll(img, frameStyle, onProgress) {
+    return optimizeApparelLayoutsAll(
+      img,
+      fullLengthProfilesForImage(),
+      FULL_LENGTH_MAX_VARIANTS,
+      frameStyle,
+      onProgress,
+      "Full-length"
+    );
+  }
+
+  function contentBoundsFromCanvas(canvas) {
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const { width, height } = canvas;
+    const { data } = ctx.getImageData(0, 0, width, height);
+    let minX = width;
+    let minY = height;
+    let maxX = 0;
+    let maxY = 0;
+    let found = false;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        if (nearWhiteAt(data, i)) continue;
+        found = true;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+    if (!found) return null;
+    return { minX, minY, maxX, maxY, width: maxX - minX + 1, height: maxY - minY + 1 };
+  }
+
+  function cropCanvasRect(canvas, minX, minY, maxX, maxY) {
+    const cw = maxX - minX + 1;
+    const ch = maxY - minY + 1;
+    if (cw < 8 || ch < 8) return canvas;
+    const c = document.createElement("canvas");
+    c.width = cw;
+    c.height = ch;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, cw, ch);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(canvas, minX, minY, cw, ch, 0, 0, cw, ch);
+    return c;
+  }
+
+  /** Trim cream margins — padding only, keeps full face/body. */
+  function trimContentMargins(canvas, padRatio = 0.03) {
+    const bounds = contentBoundsFromCanvas(canvas);
+    if (!bounds) return canvas;
+    const { width, height } = canvas;
+    const padX = Math.round(width * padRatio);
+    const padY = Math.round(height * padRatio);
+    const minX = Math.max(0, bounds.minX - padX);
+    const minY = Math.max(0, bounds.minY - padY);
+    const maxX = Math.min(width - 1, bounds.maxX + padX);
+    const maxY = Math.min(height - 1, bounds.maxY + padY);
+    return cropCanvasRect(canvas, minX, minY, maxX, maxY);
+  }
+
+  /** Lingerie canvas — white studio, no background flatten (prevents patch artifacts). */
+  function prepareLingerieSquareCanvas(source, options = {}) {
+    const side = options.side ?? STUDIO_SQUARE_SIDE;
+    const coverage = options.coverage ?? STUDIO_SQUARE_COVERAGE;
+    const c = document.createElement("canvas");
+    c.width = side;
+    c.height = side;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, side, side);
+    const fitScale = (side * coverage) / Math.max(source.width, source.height);
+    const dw = Math.round(source.width * fitScale);
+    const dh = Math.round(source.height * fitScale);
+    const dx = Math.round((side - dw) / 2);
+    const dy = Math.round((side - dh) / 2);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(source, 0, 0, source.width, source.height, dx, dy, dw, dh);
+    return c;
+  }
+
+  function prepareLingeriePanelCanvas(img, panel, options = {}) {
+    const mid = Math.floor(img.width / 2);
+    const sx = panel === "left" ? 0 : mid;
+    const sw = panel === "left" ? mid : img.width - mid;
+    const panelCanvas = document.createElement("canvas");
+    panelCanvas.width = sw;
+    panelCanvas.height = img.height;
+    const pctx = panelCanvas.getContext("2d");
+    pctx.fillStyle = "#ffffff";
+    pctx.fillRect(0, 0, sw, img.height);
+    pctx.imageSmoothingEnabled = true;
+    pctx.imageSmoothingQuality = "high";
+    pctx.drawImage(img, sx, 0, sw, img.height, 0, 0, sw, img.height);
+    let trimmed = trimContentMargins(panelCanvas, options.padRatio ?? 0.03);
+    const side = options.side ?? STUDIO_SQUARE_SIDE;
+    const coverage =
+      options.coverage ?? (panel === "right" ? LINGERIE_BACK_COVERAGE : 0.68);
+    return prepareLingerieSquareCanvas(trimmed, { coverage, side });
+  }
+
+  function lingerieLayoutOptions(layout) {
+    if (layout === "panel_right") {
+      return { side: STUDIO_SQUARE_SIDE, coverage: LINGERIE_BACK_COVERAGE };
+    }
+    const backSpec = LINGERIE_BACK_LAYOUTS.find((s) => s.layout === layout);
+    if (backSpec) return { side: backSpec.side, coverage: backSpec.coverage };
+    const frontSpec = LINGERIE_FRONT_LAYOUTS.find((s) => s.layout === layout);
+    if (frontSpec) return { side: frontSpec.side, coverage: frontSpec.coverage };
+    return { side: STUDIO_SQUARE_SIDE, coverage: LINGERIE_BACK_COVERAGE };
+  }
+
+  function prepareLingerieLayoutCanvas(img, layout) {
+    if (layout === "panel_right" || String(layout).startsWith("b_")) {
+      return prepareLingeriePanelCanvas(img, "right", lingerieLayoutOptions(layout));
+    }
+    if (layout === "square") return prepareLingerieSquareCanvas(img);
+    if (String(layout).startsWith("f_")) {
+      return prepareLingeriePanelCanvas(img, "left", lingerieLayoutOptions(layout));
+    }
+    let w = img.width;
+    let h = img.height;
+    const max = Math.max(w, h);
+    if (max > MAX_SIDE) {
+      const scale = MAX_SIDE / max;
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+    }
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, w, h);
+    return c;
+  }
+
+  /** Build collage panel variants (shared by Collage mode + Auto). Auto passes studio profiles only. */
+  async function appendCollageProfileVariants(
+    img,
+    profiles,
+    allVariants,
+    onProgress,
+    done,
+    totalSteps,
+    frameStyle = null
+  ) {
+    for (const profile of profiles) {
+      const canvas = profile.collageFramed
+        ? prepareLingerieFramedLayoutCanvas(
+            img,
+            profile.studioLayout,
+            frameStyle,
+            profile.framedMaxSide
+          )
+        : prepareLingerieLayoutCanvas(img, profile.studioLayout);
+      const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
+      for (const tier of profile.tiers) {
+        if (onProgress) {
+          onProgress(
+            10 + (done / totalSteps) * 85,
+            `Collage · ${profile.modeName} · ${tier.label}`
+          );
+        }
+        allVariants.push(
+          await buildVariantForTier(canvas, whiteRatio, profile, tier, {
+            showMode: true,
+            reframeMeta: buildReframeMeta(profile, tier, {
+              frameStyle: profile.collageFramed ? frameStyle : null,
+              studioLayout: profile.studioLayout,
+              whiteRatio,
+            }),
+          })
+        );
+        done += 1;
+        await yieldToMain();
+      }
+      releaseCanvas(canvas);
+    }
+    return done;
+  }
+
+  /** Collage — studio scenarios + framed copies (border + sticker from UI). Auto collage unchanged. */
+  async function optimizeLingerieAll(img, frameStyle, onProgress) {
+    const collageOpts = { collageMode: true };
+    const studioProfiles = lingerieProfilesForImage(img, collageOpts);
+    const framedProfiles = lingerieFramedProfilesForImage(img, collageOpts);
+    const profiles = [...studioProfiles, ...framedProfiles];
+    const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
+    const allVariants = [];
+    await appendCollageProfileVariants(
+      img,
+      profiles,
+      allVariants,
+      onProgress,
+      0,
+      totalSteps,
+      frameStyle
+    );
+    return finalizeAutoVariants(allVariants, { maxVariants: LINGERIE_MAX_VARIANTS, minVariants: 1 });
+  }
+
+  function finalizeAutoVariants(variants, options = {}) {
+    const maxVariants = options.maxVariants ?? AUTO_MAX_VARIANTS;
+    const minVariants = options.minVariants ?? AUTO_MIN_VARIANTS;
+    const sorted = dedupeAutoVariants(variants).sort(
+      (a, b) =>
+        estimateMeeshoInr(a) - estimateMeeshoInr(b) ||
+        (a.lingeriePriority ?? a.flatlayPriority ?? a.autoPriority ?? 99) -
+          (b.lingeriePriority ?? b.flatlayPriority ?? b.autoPriority ?? 99) ||
+        a.bytes - b.bytes
+    );
+    const capped = sorted.slice(0, maxVariants);
+    const minCount = Math.min(minVariants, sorted.length);
+    const results =
+      capped.length >= minCount ? capped : sorted.slice(0, Math.max(minCount, capped.length));
     results.forEach((v, i) => {
       v.autoRank = i + 1;
       v.autoBest = i === 0;
@@ -467,6 +1891,7 @@
   }
 
   function isOwnRoute(path) {
+    if (useServerProcessing && (isProcessingRoute(path) || path === "/api/health")) return false;
     return (
       path === "/api/health" ||
       path === "/auth/me" ||
@@ -498,22 +1923,160 @@
     return String(tagName || "").toLowerCase().includes("auto");
   }
 
-  function staleProcessingMs(tagName) {
-    return (isAutoTagName(tagName) ? AUTO_PROCESS_TIMEOUT_MS : PROCESS_TIMEOUT_MS) + STALE_BUFFER_MS;
+  function isLingerieTagName(tagName) {
+    const tag = String(tagName || "").toLowerCase();
+    return tag.includes("collage") || tag.includes("multi-scenario");
   }
 
-  function yieldToMain() {
-    return new Promise((resolve) => setTimeout(resolve, 0));
+  function isFlatlayTagName(tagName) {
+    const tag = String(tagName || "").toLowerCase();
+    return (
+      tag.includes("flat-lay") ||
+      tag.includes("flatlay") ||
+      tag.includes("apparel lowest") ||
+      tag.includes("crop top flat")
+    );
+  }
+
+  function isModelPhotoTagName(tagName) {
+    const tag = String(tagName || "").toLowerCase();
+    return (
+      tag.includes("model photo") ||
+      tag.includes("model lowest") ||
+      tag.includes("on-person") ||
+      tag.includes("model apparel")
+    );
+  }
+
+  function isFullLengthTagName(tagName) {
+    const tag = String(tagName || "").toLowerCase();
+    return (
+      tag.includes("full-length") ||
+      tag.includes("full length") ||
+      tag.includes("enlarged") ||
+      tag.includes("full-length lowest") ||
+      tag.includes("kaftan") ||
+      tag.includes("dress full") ||
+      tag.includes("saree full")
+    );
+  }
+
+  function staleProcessingMs(tagName) {
+    if (isAutoTagName(tagName)) return AUTO_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
+    if (isLingerieTagName(tagName)) return LINGERIE_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
+    if (isFlatlayTagName(tagName)) return FLATLAY_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
+    if (isModelPhotoTagName(tagName)) return MODEL_PHOTO_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
+    if (isFullLengthTagName(tagName)) return FULL_LENGTH_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
+    return PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
+  }
+
+  function yieldToMain(forceGcPause = false) {
+    yieldCounter += 1;
+    const delay = forceGcPause || yieldCounter % 5 === 0 ? 16 : 0;
+    return new Promise((resolve) => setTimeout(resolve, delay));
+  }
+
+  function releaseCanvas(canvas) {
+    if (!canvas) return;
+    try {
+      const ctx = canvas.getContext("2d");
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      canvas.width = 0;
+      canvas.height = 0;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function releaseVariantBlob(variant) {
+    if (!variant) return;
+    variant.blob = null;
+  }
+
+  function releaseVariantMemory(variants) {
+    if (!Array.isArray(variants)) return;
+    for (const variant of variants) releaseVariantBlob(variant);
+  }
+
+  const JOB_IMAGE_DB = "meesho-job-images";
+  const JOB_IMAGE_STORE = "sources";
+
+  function openJobImageDb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(JOB_IMAGE_DB, 1);
+      req.onerror = () => reject(req.error);
+      req.onupgradeneeded = () => {
+        req.result.createObjectStore(JOB_IMAGE_STORE);
+      };
+      req.onsuccess = () => resolve(req.result);
+    });
+  }
+
+  async function saveJobImage(id, file) {
+    try {
+      const db = await openJobImageDb();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(JOB_IMAGE_STORE, "readwrite");
+        tx.objectStore(JOB_IMAGE_STORE).put(file, id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch (e) {
+      console.warn("[own-api] job image save failed:", e);
+    }
+  }
+
+  async function loadJobImage(id) {
+    try {
+      const db = await openJobImageDb();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(JOB_IMAGE_STORE, "readonly");
+        const get = tx.objectStore(JOB_IMAGE_STORE).get(id);
+        get.onsuccess = () => resolve(get.result || null);
+        get.onerror = () => reject(get.error);
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  async function deleteJobImage(id) {
+    try {
+      const db = await openJobImageDb();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(JOB_IMAGE_STORE, "readwrite");
+        tx.objectStore(JOB_IMAGE_STORE).delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function resumeJobIfNeeded(id) {
+    const req = loadRequest(id);
+    if (!req || req.status !== "processing" || PROCESSING.has(id)) return;
+    const image = await loadJobImage(id);
+    if (!image) return;
+    void processImage(id, image, req.tagName, req.frameStyle || parseFrameStyle({}));
+  }
+
+  async function resumeInterruptedJobs() {
+    for (const id of readIndex()) {
+      await resumeJobIfNeeded(id);
+    }
   }
 
   function persistRequest(id, req) {
     const payload = {
       createdAt: req.createdAt,
       tagName: req.tagName,
+      frameStyle: req.frameStyle || null,
       status: req.status,
       progress: typeof req.progress === "number" ? req.progress : 0,
       progressLabel: req.progressLabel || "",
-      results: req.results || [],
+      results: (req.results || []).map(stripReframeMeta),
       error: req.error || null,
     };
     try {
@@ -730,7 +2293,8 @@
   }
 
   /** Flood-fill edge-connected near-white background to pure #FFF — product pixels untouched. */
-  function flattenBackgroundWhite(canvas) {
+  function flattenBackgroundWhite(canvas, options = {}) {
+    const gentle = !!options.gentle;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     const { width, height } = canvas;
     const img = ctx.getImageData(0, 0, width, height);
@@ -770,16 +2334,18 @@
       if (y < height - 1) push(idx + width);
     }
 
-    for (let idx = 0; idx < total; idx++) {
-      const o = idx * 4;
-      if (seen[idx]) continue;
-      const r = d[o];
-      const g = d[o + 1];
-      const b = d[o + 2];
-      if (r >= 248 && g >= 248 && b >= 248 && Math.max(r, g, b) - Math.min(r, g, b) < 10) {
-        d[o] = 255;
-        d[o + 1] = 255;
-        d[o + 2] = 255;
+    if (!gentle) {
+      for (let idx = 0; idx < total; idx++) {
+        const o = idx * 4;
+        if (seen[idx]) continue;
+        const r = d[o];
+        const g = d[o + 1];
+        const b = d[o + 2];
+        if (r >= 248 && g >= 248 && b >= 248 && Math.max(r, g, b) - Math.min(r, g, b) < 10) {
+          d[o] = 255;
+          d[o + 1] = 255;
+          d[o + 2] = 255;
+        }
       }
     }
 
@@ -840,6 +2406,42 @@
 
     if (tag.includes("auto lowest") || tag.includes("auto detect") || tag.includes("auto shipping")) {
       return { id: "auto_all", auto: true, modeName: "Auto Lowest Shipping" };
+    }
+    if (
+      tag.includes("flat-lay") ||
+      tag.includes("flatlay") ||
+      tag.includes("apparel lowest") ||
+      tag.includes("crop top flat")
+    ) {
+      return { id: "flatlay_all", flatlayApparel: true, modeName: "Flat-Lay Apparel Lowest ₹" };
+    }
+    if (
+      tag.includes("model photo") ||
+      tag.includes("model lowest") ||
+      tag.includes("on-person") ||
+      tag.includes("model apparel")
+    ) {
+      return { id: "model_all", modelPhoto: true, modeName: "Model Photo Lowest ₹" };
+    }
+    if (
+      tag.includes("full-length") ||
+      tag.includes("full length") ||
+      tag.includes("enlarged") ||
+      tag.includes("full-length lowest") ||
+      tag.includes("kaftan") ||
+      tag.includes("dress full") ||
+      tag.includes("saree full")
+    ) {
+      return { id: "full_length_all", fullLength: true, modeName: "Full-Length Lowest ₹" };
+    }
+    if (
+      tag.includes("bra collage") ||
+      tag.includes("multi-scenario") ||
+      tag.includes("lingerie lowest") ||
+      tag.includes("lingerie bra") ||
+      (tag.includes("lingerie") && !tag.includes("framed"))
+    ) {
+      return { id: "lingerie_all", lingerie: true, modeName: "Collage · Multi-Scenario" };
     }
     if (tag.includes("studio ultra")) {
       return profileStudioUltra();
@@ -1404,6 +3006,67 @@
     drawClassicPromoOverlays(ctx, border, photoW, photoH);
   }
 
+  /** 1:1 square white studio — Meesho charges less than wide front+back collages. */
+  function prepareStudioSquareCanvas(source, options = {}) {
+    const side = options.side ?? STUDIO_SQUARE_SIDE;
+    const coverage = options.coverage ?? STUDIO_SQUARE_COVERAGE;
+    const c = document.createElement("canvas");
+    c.width = side;
+    c.height = side;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, side, side);
+    const fitScale = (side * coverage) / Math.max(source.width, source.height);
+    const dw = Math.round(source.width * fitScale);
+    const dh = Math.round(source.height * fitScale);
+    const dx = Math.round((side - dw) / 2);
+    const dy = Math.round((side - dh) / 2);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(source, 0, 0, source.width, source.height, dx, dy, dw, dh);
+    flattenBackgroundWhite(c, { gentle: true });
+    return c;
+  }
+
+  function prepareStudioPanelCanvas(img, panel) {
+    if (!isWideCollage(img)) return prepareStudioSquareCanvas(img);
+    const mid = Math.floor(img.width / 2);
+    const sx = panel === "left" ? 0 : mid;
+    const sw = panel === "left" ? mid : img.width - mid;
+    const panelCanvas = document.createElement("canvas");
+    panelCanvas.width = sw;
+    panelCanvas.height = img.height;
+    const pctx = panelCanvas.getContext("2d");
+    pctx.fillStyle = "#ffffff";
+    pctx.fillRect(0, 0, sw, img.height);
+    pctx.imageSmoothingEnabled = true;
+    pctx.imageSmoothingQuality = "high";
+    pctx.drawImage(img, sx, 0, sw, img.height, 0, 0, sw, img.height);
+    return prepareStudioSquareCanvas(panelCanvas);
+  }
+
+  function prepareStudioCanvasFull(img, options = {}) {
+    let w = img.width;
+    let h = img.height;
+    const max = Math.max(w, h);
+    if (max > MAX_SIDE) {
+      const scale = MAX_SIDE / max;
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+    }
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, w, h);
+    flattenBackgroundWhite(c, { gentle: options.gentle !== false });
+    return c;
+  }
+
   /** Promo frame + stickers — photo scaled to Meesho framed cap. */
   function prepareFramedCanvas(img, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, frameStyle) {
     const style = { ...defaultFrameStyle(), ...(frameStyle || {}) };
@@ -1514,9 +3177,10 @@
 
   async function buildVariantForTier(canvas, whiteRatio, profile, tier, options = {}) {
     const minQ = adaptiveMinQ(whiteRatio);
-    const blob = profile.studio
-      ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true, profile.absMinQ)
-      : await compressBusyToSlab(canvas, tier.slabKb);
+    const blob =
+      profile.studio || profile.collageFramed
+        ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true, profile.absMinQ)
+        : await compressBusyToSlab(canvas, tier.slabKb);
     const label = options.showMode
       ? `[${profile.modeName || profile.id}] ${tier.label} · ${canvas.width}×${canvas.height}`
       : `${tier.label} · ${canvas.width}×${canvas.height}`;
@@ -1531,10 +3195,162 @@
       modeName: profile.modeName || profile.id,
       width: canvas.width,
       height: canvas.height,
+      lingeriePriority: profile.lingeriePriority,
+      reframeMeta: options.reframeMeta || null,
     };
   }
 
-  async function buildVariants(canvas, whiteRatio, profile, onProgress, progressBase, progressSpan) {
+  function buildReframeMeta(profile, tier, options = {}) {
+    const layout = options.studioLayout ?? profile.studioLayout ?? null;
+    let kind = "studio";
+    if (layout && profile.collageFramed) kind = "collage_framed";
+    else if (layout && profile.studio) kind = "collage_studio";
+    else if (options.framedFromStudio) kind = "studio_framed_extra";
+    else if (!profile.studio) kind = "framed_slab";
+
+    const style = options.frameStyle;
+    return {
+      kind,
+      profileId: profile.id,
+      processingPath: profile.path,
+      studioLayout: layout,
+      studioBase: profile.studio,
+      framedMaxSide: profile.framedMaxSide ?? MEESHO_FRAMED_MAX_SIDE,
+      tier: {
+        targetKb: tier.targetKb ?? null,
+        slabKb: tier.slabKb ?? null,
+        preserveKb: tier.targetKb ?? tier.slabKb ?? null,
+      },
+      whiteRatio: options.whiteRatio ?? null,
+      absMinQ: profile.absMinQ ?? null,
+      frameStyle: style
+        ? {
+            borderColor: style.borderColor,
+            stickerTemplate: style.stickerTemplate,
+          }
+        : null,
+    };
+  }
+
+  function findApparelLayoutSpec(layout, profileId) {
+    const pid = String(profileId || "");
+    if (pid.startsWith("full_length_")) return FULL_LENGTH_LAYOUTS.find((s) => s.layout === layout);
+    if (pid.startsWith("model_")) return MODEL_PHOTO_LAYOUTS.find((s) => s.layout === layout);
+    if (pid.startsWith("flatlay_")) return FLATLAY_LAYOUTS.find((s) => s.layout === layout);
+    return null;
+  }
+
+  function resolveReframeBaseCanvas(sourceImg, meta) {
+    if (meta.studioLayout) {
+      const spec = findApparelLayoutSpec(meta.studioLayout, meta.profileId);
+      if (spec) {
+        const style = meta.frameStyle
+          ? {
+              borderColor: meta.frameStyle.borderColor,
+              stickerTemplate: meta.frameStyle.stickerTemplate,
+            }
+          : null;
+        return prepareFlatlayLayoutCanvas(sourceImg, spec, style);
+      }
+      return prepareLingerieLayoutCanvas(sourceImg, meta.studioLayout);
+    }
+    const useStudio = meta.studioBase !== false && meta.kind !== "framed_slab";
+    return prepareCanvas(
+      sourceImg,
+      useStudio,
+      meta.framedMaxSide ?? MEESHO_FRAMED_MAX_SIDE,
+      null
+    );
+  }
+
+  /** Re-render one result — keeps original KB slab/target so ₹ does not jump on border/sticker edits. */
+  async function renderCustomVariant(sourceImg, meta, displayMode, frameStyle) {
+    await loadMozjpeg();
+    let canvas = resolveReframeBaseCanvas(sourceImg, meta);
+    let whiteRatio =
+      meta.whiteRatio ?? Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
+
+    const preserveKb = meta.tier?.preserveKb ?? meta.tier?.targetKb ?? meta.tier?.slabKb ?? 51;
+    const framedMode = displayMode === "framed" || displayMode === "frame_only";
+
+    let style = parseFrameStyle(frameStyle);
+    if (displayMode === "frame_only") {
+      style = mergeFrameStyle(style, { stickerTemplate: "none" });
+    }
+
+    if (framedMode) {
+      canvas = prepareFramedCanvas(canvas, meta.framedMaxSide ?? MEESHO_FRAMED_MAX_SIDE, style);
+      whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
+      const profile = {
+        id: meta.profileId,
+        path: meta.processingPath,
+        studio: false,
+        modeName: "custom framed",
+      };
+      const tier = { slabKb: preserveKb, label: "custom" };
+      return buildVariantForTier(canvas, whiteRatio, profile, tier);
+    }
+
+    const profile = {
+      id: meta.profileId,
+      path: meta.processingPath,
+      studio: true,
+      absMinQ: meta.absMinQ ?? undefined,
+      modeName: "custom studio",
+    };
+    const tier = { targetKb: preserveKb, label: "custom" };
+    return buildVariantForTier(canvas, whiteRatio, profile, tier);
+  }
+
+  /** Studio-only modes — append framed copies without jumping to ₹66+ slabs. */
+  async function appendStudioFramedExtras(img, profile, frameStyle, onProgress) {
+    if (!profile.studio) return [];
+    const studioCanvas = prepareCanvas(img, true, profile.framedMaxSide, frameStyle);
+    const studioTier = profile.tiers?.find((t) => t.lowest) || profile.tiers?.[0];
+    const slabKb = studioTier?.targetKb
+      ? Math.min(63, Math.max(39, studioTier.targetKb + (studioTier.targetKb <= 45 ? 9 : 0)))
+      : 48;
+    const framedProfile = {
+      id: `${profile.id}_framed_extra`,
+      studio: false,
+      path: "framed_compact",
+      modeName: `${profile.modeName} · framed`,
+      framedMaxSide: 1024,
+    };
+    const tier = { slabKb, label: `${slabKb}KB framed`, recommended: true };
+    const combos = [
+      { suffix: "promo", style: frameStyle },
+      { suffix: "frame only", style: mergeFrameStyle(frameStyle, { stickerTemplate: "none" }) },
+    ];
+    const out = [];
+    for (const combo of combos) {
+      if (onProgress) onProgress(92, `Framed extra · ${combo.suffix}…`);
+      const framedCanvas = prepareFramedCanvas(
+        studioCanvas,
+        1024,
+        combo.style
+      );
+      const whiteRatio = Math.max(
+        measureNearWhiteRatio(framedCanvas),
+        measureWhiteRatio(framedCanvas)
+      );
+      out.push(
+        await buildVariantForTier(framedCanvas, whiteRatio, framedProfile, tier, {
+          showMode: true,
+          reframeMeta: buildReframeMeta(framedProfile, tier, {
+            frameStyle: combo.style,
+            whiteRatio,
+            framedFromStudio: true,
+          }),
+        })
+      );
+      releaseCanvas(framedCanvas);
+      await yieldToMain();
+    }
+    return out;
+  }
+
+  async function buildVariants(canvas, whiteRatio, profile, onProgress, progressBase, progressSpan, options = {}) {
     const built = [];
     const tiers = profile.tiers;
     for (let i = 0; i < tiers.length; i++) {
@@ -1545,7 +3361,15 @@
           `Compressing ${profile.modeName || profile.id} · ${tier.label}`
         );
       }
-      built.push(await buildVariantForTier(canvas, whiteRatio, profile, tier));
+      built.push(
+        await buildVariantForTier(canvas, whiteRatio, profile, tier, {
+          reframeMeta: buildReframeMeta(profile, tier, {
+            frameStyle: options.frameStyle,
+            studioLayout: options.studioLayout,
+            whiteRatio,
+          }),
+        })
+      );
       if (onProgress) {
         onProgress(
           progressBase + ((i + 1) / tiers.length) * progressSpan,
@@ -1558,21 +3382,21 @@
   }
 
   async function optimizeAutoAll(img, frameStyle, onProgress) {
+    const collage = isLingerieSplitCollage(img);
     const profiles = autoProfilesForImage(img).sort((a, b) => (a.autoPriority ?? 99) - (b.autoPriority ?? 99));
+    const collageProfiles = collage ? autoCollageProfilesForImage(img) : [];
     const steps = profiles.map((profile) => ({
       profile,
       tiers: autoTiersForProfile(profile),
     }));
-    const totalSteps = steps.reduce((sum, step) => sum + step.tiers.length, 0);
+    const collageSteps = collageProfiles.reduce((sum, p) => sum + p.tiers.length, 0);
+    const totalSteps = steps.reduce((sum, step) => sum + step.tiers.length, 0) + collageSteps;
     const allVariants = [];
     let done = 0;
     for (const { profile, tiers } of steps) {
       const style = mergeFrameStyle(frameStyle, profile.frameStyleOverride);
       if (onProgress) {
-        onProgress(
-          10 + (done / totalSteps) * 82,
-          `Preparing ${profile.modeName || profile.id}…`
-        );
+        onProgress(10 + (done / totalSteps) * 82, `Preparing ${profile.modeName || profile.id}…`);
       }
       const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide, style);
       const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
@@ -1583,7 +3407,16 @@
             `#${done + 1}/${totalSteps} · ${profile.modeName} · ${tier.label}`
           );
         }
-        allVariants.push(await buildVariantForTier(canvas, whiteRatio, profile, tier, { showMode: true }));
+        allVariants.push(
+          await buildVariantForTier(canvas, whiteRatio, profile, tier, {
+            showMode: true,
+            reframeMeta: buildReframeMeta(profile, tier, {
+              frameStyle: profile.studio ? null : style,
+              whiteRatio,
+              framedFromStudio: false,
+            }),
+          })
+        );
         done += 1;
         if (onProgress) {
           onProgress(
@@ -1593,8 +3426,22 @@
         }
         await yieldToMain();
       }
+      releaseCanvas(canvas);
     }
-    return finalizeAutoVariants(allVariants);
+    if (collageProfiles.length) {
+      done = await appendCollageProfileVariants(
+        img,
+        collageProfiles,
+        allVariants,
+        onProgress,
+        done,
+        totalSteps
+      );
+    }
+    return finalizeAutoVariants(allVariants, {
+      maxVariants: AUTO_MAX_VARIANTS,
+      minVariants: AUTO_MIN_VARIANTS,
+    });
   }
 
   async function optimizeToVariants(source, tagName, frameStyle, onProgress) {
@@ -1607,11 +3454,37 @@
     if (profile.auto) {
       return optimizeAutoAll(img, frameStyle, onProgress);
     }
+    if (profile.lingerie) {
+      return optimizeLingerieAll(img, frameStyle, onProgress);
+    }
+    if (profile.flatlayApparel) {
+      return optimizeFlatlayApparelAll(img, frameStyle, onProgress);
+    }
+    if (profile.modelPhoto) {
+      return optimizeModelPhotoAll(img, frameStyle, onProgress);
+    }
+    if (profile.fullLength) {
+      return optimizeFullLengthAll(img, frameStyle, onProgress);
+    }
     if (onProgress) onProgress(15, `Running ${profile.modeName || profile.id}…`);
     const style = mergeFrameStyle(frameStyle, profile.frameStyleOverride);
     const canvas = prepareCanvas(img, profile.studio, profile.framedMaxSide, style);
     const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
-    return buildVariants(canvas, whiteRatio, profile, onProgress, 15, 80);
+    const studioVariants = await buildVariants(
+      canvas,
+      whiteRatio,
+      profile,
+      onProgress,
+      15,
+      75,
+      { frameStyle }
+    );
+    releaseCanvas(canvas);
+    if (profile.studio) {
+      const framedExtras = await appendStudioFramedExtras(img, profile, frameStyle, onProgress);
+      return [...studioVariants, ...framedExtras];
+    }
+    return studioVariants;
   }
 
   function blobToDataUrl(blob) {
@@ -1621,6 +3494,12 @@
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
+  }
+
+  function stripReframeMeta(result) {
+    if (!result || !result.reframeMeta) return result;
+    const { reframeMeta, ...rest } = result;
+    return rest;
   }
 
   async function variantsToResults(variants, tagName) {
@@ -1647,9 +3526,12 @@
         recommended: v.recommended,
         autoBest: !!v.autoBest,
         autoRank: v.autoRank || null,
+        reframeMeta: v.reframeMeta || null,
         [OPT_FLAG]: true,
         categoryName: tagName,
       });
+      releaseVariantBlob(v);
+      await yieldToMain(true);
     }
     return out;
   }
@@ -1672,7 +3554,21 @@
     if (!req || req.status !== "processing") return;
     PROCESSING.add(id);
     const isAuto = isAutoTagName(tagName);
-    const timeoutMs = isAuto ? AUTO_PROCESS_TIMEOUT_MS : PROCESS_TIMEOUT_MS;
+    const isLingerie = isLingerieTagName(tagName);
+    const isFlatlay = isFlatlayTagName(tagName);
+    const isModelPhoto = isModelPhotoTagName(tagName);
+    const isFullLength = isFullLengthTagName(tagName);
+    const timeoutMs = isAuto
+      ? AUTO_PROCESS_TIMEOUT_MS
+      : isLingerie
+        ? LINGERIE_PROCESS_TIMEOUT_MS
+        : isFlatlay
+          ? FLATLAY_PROCESS_TIMEOUT_MS
+          : isModelPhoto
+            ? MODEL_PHOTO_PROCESS_TIMEOUT_MS
+            : isFullLength
+              ? FULL_LENGTH_PROCESS_TIMEOUT_MS
+              : PROCESS_TIMEOUT_MS;
     const deadline = Date.now() + timeoutMs;
     const checkDeadline = () => {
       if (Date.now() > deadline) throw new Error("Image processing timeout");
@@ -1701,6 +3597,7 @@
     } finally {
       PROCESSING.delete(id);
       persistRequest(id, req);
+      void deleteJobImage(id);
     }
   }
 
@@ -1716,7 +3613,14 @@
     if (path === "/api/health" && method === "GET") {
       return {
         status: 200,
-        body: { ok: true, api: "own", service: "own-api.js", version: 50, platform: "cloudflare-static" },
+        body: {
+          ok: true,
+          api: "own",
+          service: "own-api.js",
+          processing: useServerProcessing ? "server" : "client",
+          version: 92,
+          platform: "cloudflare-static",
+        },
       };
     }
 
@@ -1770,13 +3674,16 @@
       };
       STORE.requests.set(id, req);
       persistRequest(id, req);
-      void processImage(id, image, tagName, frameStyle);
+      void saveJobImage(id, image).then(() => {
+        void processImage(id, image, tagName, frameStyle);
+      });
       return { status: 200, body: { requestId: id } };
     }
 
     const poll = path.match(/^\/api\/meesho\/request(?:-status)?\/([^/]+)$/);
     if (poll && method === "GET") {
       const id = poll[1];
+      void resumeJobIfNeeded(id);
       const req = loadRequest(id);
       if (!req) return { status: 404, body: { message: "Request not found" } };
       if (req.status === "completed") {
@@ -1853,53 +3760,91 @@
     xhr.dispatchEvent(new Event("loadend"));
   }
 
-  window.fetch = async function (input, init) {
+  function resolveApiUrl(input) {
     const url = typeof input === "string" ? input : input?.url || "";
     const path = pathOf(url);
-    if (!isOwnRoute(path)) return origFetch(input, init);
-    const method = (init?.method || "GET").toUpperCase();
-    const { status, body } = await handleRoute(method, path, init?.body);
-    return new Response(JSON.stringify(body), {
-      status,
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-    });
-  };
-
-  const NativeXHR = window.XMLHttpRequest;
-  function OwnXHR() {
-    const xhr = new NativeXHR();
-    let _method = "GET";
-    let _path = "";
-    let _intercept = false;
-
-    const origOpen = xhr.open.bind(xhr);
-    xhr.open = function (method, url, async, user, password) {
-      _method = (method || "GET").toUpperCase();
-      _path = pathOf(url);
-      _intercept = isOwnRoute(_path);
-      if (_intercept) {
-        return origOpen(method, SHIM_URL, async !== false, user, password);
-      }
-      return origOpen(method, url, async, user, password);
-    };
-
-    const origSend = xhr.send.bind(xhr);
-    xhr.send = function (body) {
-      if (!_intercept) return origSend(body);
-      handleRoute(_method, _path, body)
-        .then(({ status, body: data }) => finishXhr(xhr, status, data))
-        .catch((err) => {
-          console.error("[own-api] XHR route error:", err);
-          finishXhr(xhr, 500, { message: err.message || "Error" });
-        });
-    };
-
-    return xhr;
+    if (!useServerProcessing || (!isProcessingRoute(path) && path !== "/api/health")) return null;
+    const origin = String(window.__MEESHO_PROCESSOR_ORIGIN__ || location.origin).replace(/\/$/, "");
+    try {
+      const parsed = new URL(url, location.origin);
+      return origin + parsed.pathname + parsed.search;
+    } catch {
+      return origin + path;
+    }
   }
-  OwnXHR.prototype = NativeXHR.prototype;
-  window.XMLHttpRequest = OwnXHR;
+
+  function installNetworkShims() {
+    window.fetch = async function (input, init) {
+      const remoteUrl = resolveApiUrl(input);
+      if (remoteUrl) return origFetch(remoteUrl, init);
+      const url = typeof input === "string" ? input : input?.url || "";
+      const path = pathOf(url);
+      if (!isOwnRoute(path)) return origFetch(input, init);
+      const method = (init?.method || "GET").toUpperCase();
+      const { status, body } = await handleRoute(method, path, init?.body);
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+      });
+    };
+
+    const NativeXHR = window.XMLHttpRequest;
+    function OwnXHR() {
+      const xhr = new NativeXHR();
+      let _method = "GET";
+      let _path = "";
+      let _remoteUrl = null;
+      let _intercept = false;
+
+      const origOpen = xhr.open.bind(xhr);
+      xhr.open = function (method, url, async, user, password) {
+        _method = (method || "GET").toUpperCase();
+        _path = pathOf(url);
+        _remoteUrl = resolveApiUrl(url);
+        _intercept = !_remoteUrl && isOwnRoute(_path);
+        if (_remoteUrl) return origOpen(method, _remoteUrl, async !== false, user, password);
+        if (_intercept) return origOpen(method, SHIM_URL, async !== false, user, password);
+        return origOpen(method, url, async, user, password);
+      };
+
+      const origSend = xhr.send.bind(xhr);
+      xhr.send = function (body) {
+        if (_remoteUrl || !_intercept) return origSend(body);
+        handleRoute(_method, _path, body)
+          .then(({ status, body: data }) => finishXhr(xhr, status, data))
+          .catch((err) => {
+            console.error("[own-api] XHR route error:", err);
+            finishXhr(xhr, 500, { message: err.message || "Error" });
+          });
+      };
+
+      return xhr;
+    }
+    OwnXHR.prototype = NativeXHR.prototype;
+    window.XMLHttpRequest = OwnXHR;
+  }
+
+  window.__MEESHO_API_READY__ = initApiMode().then(async () => {
+    installNetworkShims();
+    await resumeInterruptedJobs();
+    window.__MEESHO_USE_SERVER__ = useServerProcessing;
+    console.info(
+      useServerProcessing
+        ? "[own-api] server processing — safe to switch apps; job tracked in background"
+        : "[own-api] in-browser processing — switch apps OK; keep tab open for fastest runs"
+    );
+    return useServerProcessing;
+  });
 
   window.__MEESHO_OWN_API__ = true;
+  window.MeeshoProcessor = { optimize: optimizeForServer };
+  window.MeeshoReframe = {
+    renderCustomVariant,
+    blobToDataUrl,
+    estimateMeeshoInr,
+    kb,
+    loadMozjpeg,
+  };
   window.MeeshoFrameSettings = {
     BORDER_PRESETS,
     STICKER_TEMPLATES: STICKER_TEMPLATE_META,
