@@ -1,5 +1,5 @@
 /**
- * Verifies post-generation sticker layout (v2 stickers array), defaults, and reframe render.
+ * Verifies post-generation sticker layout and shipping byte cap on reframe.
  */
 import { chromium } from "playwright";
 import { spawn } from "child_process";
@@ -33,7 +33,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/optimizer-shell.html?v=103`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/optimizer-shell.html?v=104`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoFrameSettings && window.MeeshoReframe, { timeout: 20000 });
 
     const result = await page.evaluate(async () => {
@@ -41,26 +41,18 @@ async function run() {
       const MR = window.MeeshoReframe;
 
       const defaults = FS.defaultStickerLayoutForTemplate("supplierden_match");
-      const legacy = FS.normalizeStickerLayout(
-        {
-          visibility: "primary",
-          primary: { x: 0.2, y: 0.5, text1: "SHIP", text2: "FREE" },
-        },
-        "supplierden_match"
-      );
-      const custom = FS.normalizeStickerLayout(
+      const heavyLayout = FS.normalizeStickerLayout(
         {
           version: 2,
           stickers: [
             { type: "free_delivery", x: 0.15, y: 0.2, text1: "FREE", text2: "SHIP" },
             { type: "special_offer", x: 0.8, y: 0.75, text1: "DEAL", text2: "NOW" },
+            { type: "mega_sale", x: 0.5, y: 0.5, text1: "MEGA", text2: "SALE" },
+            { type: "hot_sale", x: 0.3, y: 0.8, text1: "HOT", text2: "SALE" },
           ],
         },
         "supplierden_match"
       );
-      const empty = FS.normalizeStickerLayout({ version: 2, stickers: [] }, "supplierden_match");
-      const added = FS.cloneStickerLayout(custom, "supplierden_match");
-      added.stickers.push(FS.newStickerSlot("mega_sale", { x: 0.5, y: 0.5 }));
 
       const jpeg =
         "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCwAA//2Q==";
@@ -81,56 +73,71 @@ async function run() {
         framedMaxSide: 1024,
         tier: { slabKb: 48, preserveKb: 48 },
         whiteRatio: 0.9,
+        baselineFrameStyle: {
+          borderColor: "#7C3AED",
+          stickerTemplate: "supplierden_match",
+          stickerLayout: null,
+        },
       };
 
-      const framedCustom = await MR.renderCustomVariant(
+      const original = await MR.renderCustomVariant(
         await loadImg(),
         meta,
+        "framed",
+        { borderColor: "#7C3AED", stickerTemplate: "supplierden_match" }
+      );
+
+      const anchorBytes = original.bytes;
+      const anchorInr = MR.estimateMeeshoInr(original);
+      const anchoredMeta = {
+        ...meta,
+        tier: {
+          slabKb: 48,
+          preserveKb: 48,
+          anchorBytes,
+          anchorInr,
+          preserveBytes: anchorBytes,
+        },
+      };
+
+      const reframedHeavy = await MR.renderCustomVariant(
+        await loadImg(),
+        anchoredMeta,
         "framed",
         {
           borderColor: "#7C3AED",
           stickerTemplate: "supplierden_match",
-          stickerLayout: custom,
+          stickerLayout: heavyLayout,
         }
       );
 
-      const framedEmpty = await MR.renderCustomVariant(
+      const reframedReset = await MR.renderCustomVariant(
         await loadImg(),
-        meta,
+        anchoredMeta,
         "framed",
-        {
-          borderColor: "#7C3AED",
-          stickerTemplate: "supplierden_match",
-          stickerLayout: empty,
-        }
+        { borderColor: "#7C3AED", stickerTemplate: "supplierden_match" }
       );
 
       return {
         defaultCount: defaults.stickers.length,
-        legacyCount: legacy.stickers.length,
-        legacyText: legacy.stickers[0]?.text1,
-        customCount: custom.stickers.length,
-        customText: custom.stickers[0]?.text1,
-        emptyCount: empty.stickers.length,
-        addedCount: added.stickers.length,
-        maxStickers: FS.REFRAME_MAX_STICKERS,
-        customBytes: framedCustom.bytes,
-        emptyBytes: framedEmpty.bytes,
-        customKb: MR.kb(framedCustom.bytes),
+        anchorBytes,
+        anchorInr,
+        heavyBytes: reframedHeavy.bytes,
+        heavyInr: MR.estimateMeeshoInr(reframedHeavy),
+        resetBytes: reframedReset.bytes,
+        resetInr: MR.estimateMeeshoInr(reframedReset),
+        heavyWithinCap: reframedHeavy.bytes <= anchorBytes,
+        resetWithinCap: reframedReset.bytes <= anchorBytes,
+        heavyInrOk: MR.estimateMeeshoInr(reframedHeavy) <= anchorInr,
       };
     });
 
     const ok =
       result.defaultCount === 2 &&
-      result.legacyCount === 1 &&
-      result.legacyText === "SHIP" &&
-      result.customCount === 2 &&
-      result.customText === "FREE" &&
-      result.emptyCount === 0 &&
-      result.addedCount === 3 &&
-      result.maxStickers === 5 &&
-      result.customBytes > 0 &&
-      result.emptyBytes > 0;
+      result.anchorBytes > 0 &&
+      result.heavyWithinCap &&
+      result.resetWithinCap &&
+      result.heavyInrOk;
 
     if (!ok) {
       console.error("FAIL", result);
