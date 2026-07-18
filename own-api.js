@@ -942,6 +942,7 @@
     return {
       id: "supplierden_match",
       studio: false,
+      supplierDenExclusive: true,
       tiers: TIERS_SUPPLIERDEN_50,
       path: "supplierden_match_50",
       modeName: "SupplierDen Match ₹50",
@@ -1949,6 +1950,7 @@
   }
 
   function isFullLengthTagName(tagName) {
+    if (isSupplierDenTagName(tagName)) return false;
     const tag = String(tagName || "").toLowerCase();
     return (
       tag.includes("full-length") ||
@@ -1958,6 +1960,16 @@
       tag.includes("kaftan") ||
       tag.includes("dress full") ||
       tag.includes("saree full")
+    );
+  }
+
+  function isSupplierDenTagName(tagName) {
+    const tag = String(tagName || "").toLowerCase();
+    return (
+      tag.includes("supplierden match") ||
+      tag.includes("supplierden ₹50") ||
+      tag.includes("supplierden 50") ||
+      tag.includes("supplierden lowest")
     );
   }
 
@@ -2407,6 +2419,9 @@
     if (tag.includes("auto lowest") || tag.includes("auto detect") || tag.includes("auto shipping")) {
       return { id: "auto_all", auto: true, modeName: "Auto Lowest Shipping" };
     }
+    if (isSupplierDenTagName(tag)) {
+      return profileSupplierDenMatch();
+    }
     if (
       tag.includes("flat-lay") ||
       tag.includes("flatlay") ||
@@ -2456,14 +2471,6 @@
     }
     if (tag.includes("studio balanced") || tag.includes("studio 20-40") || tag.includes("studio ₹20–40")) {
       return profileStudioBalanced();
-    }
-    if (
-      tag.includes("supplierden match") ||
-      tag.includes("supplierden ₹50") ||
-      tag.includes("supplierden 50") ||
-      tag.includes("supplierden lowest")
-    ) {
-      return profileSupplierDenMatch();
     }
     if (
       tag.includes("framed pro") ||
@@ -3618,7 +3625,7 @@
           api: "own",
           service: "own-api.js",
           processing: useServerProcessing ? "server" : "client",
-          version: 92,
+          version: 93,
           platform: "cloudflare-static",
         },
       };
