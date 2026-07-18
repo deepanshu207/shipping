@@ -341,13 +341,14 @@
     .reframe-range-meta { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--muted); margin-top: 0.15rem; }
     .reframe-slot-preview { margin-top: 0.35rem; font-size: 0.7rem; color: var(--muted); }
     .reframe-slot-actions { display: flex; gap: 0.45rem; margin-top: 0.45rem; }
-    .reframe-slot-remove, .reframe-add-sticker {
+    .reframe-slot-remove, .reframe-add-sticker, .reframe-reset-stickers {
       border: 1px solid var(--border); background: var(--surface); color: var(--text);
       font: inherit; font-size: 0.78rem; font-weight: 800; padding: 0.45rem 0.7rem;
       border-radius: 0.55rem; cursor: pointer;
     }
     .reframe-slot-remove { color: #b91c1c; border-color: #fecaca; }
     .reframe-add-sticker { width: 100%; margin-top: 0.55rem; color: var(--emerald-dark); border-color: #a7f3d0; }
+    .reframe-reset-stickers { width: 100%; margin-top: 0.45rem; color: var(--muted); }
     .reframe-preview-status { font-size: 0.72rem; color: var(--muted); min-height: 1rem; margin: 0.35rem 0 0; text-align: center; }
     .framed-settings { margin-top: 1.15rem; display: flex; flex-direction: column; gap: 0.65rem; }
     .framed-settings--inactive .accordion { opacity: 0.72; }
@@ -698,7 +699,7 @@
           <h3 id="reframe-title">Customize frame</h3>
           <button type="button" class="reframe-close" id="reframe-close" aria-label="Close">×</button>
         </div>
-        <p class="reframe-note" id="reframe-note">Preview updates as you edit. Sticker changes keep the same KB target (~₹ band). Default is 2 stickers — use + / − to add or remove.</p>
+        <p class="reframe-note" id="reframe-note">Preview updates as you edit. Shipping is locked to the original file size from generation. Default is 2 stickers — use + / − to add or remove.</p>
         <div class="reframe-preview"><img id="reframe-preview-img" alt="Preview" /></div>
         <p class="reframe-preview-status" id="reframe-preview-status"></p>
         <div class="reframe-mode-row">
@@ -734,8 +735,9 @@
           <details class="accordion reframe-sticker-layout" id="reframe-sticker-layout" open style="margin-top:0.5rem">
             <summary>Stickers — add, remove, move, text, image</summary>
             <div class="accordion-body">
-              <p class="reframe-note">Default: 2 stickers. Tap <b>−</b> to remove one, <b>+ Add sticker</b> for more (up to 5). Preview above updates live.</p>
+              <p class="reframe-note">Default: 2 stickers. Tap <b>−</b> to remove one, <b>+ Add sticker</b> for more (up to 5). Use <b>Reset stickers</b> to restore the original template.</p>
               <div id="reframe-sticker-slots"></div>
+              <button type="button" class="reframe-reset-stickers" id="reframe-reset-stickers">Reset stickers</button>
               <button type="button" class="reframe-add-sticker" id="reframe-add-sticker">+ Add sticker</button>
             </div>
           </details>
@@ -747,7 +749,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=103"></script>
+  <script src="/own-api.js?v=104"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -815,8 +817,10 @@
       var reframeStickerLayoutPanel = document.getElementById("reframe-sticker-layout");
       var reframeStickerSlotsEl = document.getElementById("reframe-sticker-slots");
       var reframeAddStickerBtn = document.getElementById("reframe-add-sticker");
+      var reframeResetStickersBtn = document.getElementById("reframe-reset-stickers");
       var reframePreviewStatus = document.getElementById("reframe-preview-status");
       var reframeStickerSlots = [];
+      var reframeStickerCustomized = false;
       var reframePreviewTimer = null;
       var reframePreviewToken = 0;
       var MR = window.MeeshoReframe;
@@ -946,13 +950,38 @@
         reframeTemplateDesc.textContent = t ? t.name + " — " + t.desc + "." : "";
       }
 
+      function ensureReframeAnchorMeta(result) {
+        if (!result || !result.reframeMeta) return;
+        var tier = result.reframeMeta.tier || (result.reframeMeta.tier = {});
+        if (!tier.anchorBytes && result.fileSizeBytes) {
+          tier.anchorBytes = result.fileSizeBytes;
+          tier.preserveBytes = result.fileSizeBytes;
+          tier.anchorInr = result.estimatedShippingInr;
+        }
+        if (!tier.preserveKb) {
+          tier.preserveKb = tier.slabKb || tier.targetKb || result.fileSizeKb;
+        }
+        if (!result.reframeMeta.baselineFrameStyle && result.reframeMeta.frameStyle) {
+          result.reframeMeta.baselineFrameStyle = {
+            borderColor: result.reframeMeta.frameStyle.borderColor,
+            stickerTemplate: result.reframeMeta.frameStyle.stickerTemplate,
+            stickerLayout: null,
+          };
+        }
+      }
+
+      function markStickerLayoutCustomized() {
+        reframeStickerCustomized = true;
+        scheduleReframePreview();
+      }
+
       function getReframeSettingsFromUi() {
         if (!FS) return { borderColor: DEFAULT_BORDER_COLOR, stickerTemplate: RECOMMENDED_STICKER };
         var settings = {
           borderColor: FS.normalizeBorderColor(reframeBorderHex.value),
           stickerTemplate: FS.normalizeStickerTemplate(reframeStickerTemplate.value),
         };
-        if (reframeDisplayMode === "framed") {
+        if (reframeDisplayMode === "framed" && reframeStickerCustomized) {
           settings.stickerLayout = getStickerLayoutFromUi();
         }
         return settings;
@@ -1013,7 +1042,7 @@
           typeSelect.addEventListener("change", function () {
             slot.type = typeSelect.value;
             title.textContent = "Sticker " + (index + 1) + " · " + stickerTypeLabel(slot.type);
-            scheduleReframePreview();
+            markStickerLayoutCustomized();
           });
           typeField.appendChild(typeSelect);
           card.appendChild(typeField);
@@ -1043,7 +1072,7 @@
             input.addEventListener("input", function () {
               slot[key] = normFromPct(input.value);
               valSpan.textContent = input.value + "%";
-              scheduleReframePreview();
+              markStickerLayoutCustomized();
             });
             field.appendChild(input);
             field.appendChild(meta);
@@ -1066,7 +1095,7 @@
             input.value = slot[key] || "";
             input.addEventListener("input", function () {
               slot[key] = input.value.trim();
-              scheduleReframePreview();
+              markStickerLayoutCustomized();
             });
             field.appendChild(input);
             card.appendChild(field);
@@ -1084,7 +1113,7 @@
             reader.onload = function () {
               slot.imageUrl = reader.result;
               imageNote.textContent = imageInput.files[0].name;
-              scheduleReframePreview();
+              markStickerLayoutCustomized();
             };
             reader.readAsDataURL(imageInput.files[0]);
           });
@@ -1121,12 +1150,30 @@
         var seed = defaults.stickers[reframeStickerSlots.length] || defaults.stickers[0];
         reframeStickerSlots.push(FS.newStickerSlot(seed.type, { x: seed.x, y: seed.y }));
         renderStickerSlotCards();
-        scheduleReframePreview();
+        markStickerLayoutCustomized();
       }
 
       function removeReframeSticker(slotId) {
         reframeStickerSlots = reframeStickerSlots.filter(function (s) { return s.id !== slotId; });
         renderStickerSlotCards();
+        markStickerLayoutCustomized();
+      }
+
+      function resetReframeStickers() {
+        if (!FS || reframeIndex < 0) return;
+        var r = lastResults[reframeIndex];
+        if (!r || !r.reframeMeta) return;
+        ensureReframeAnchorMeta(r);
+        var baseline = r.reframeMeta.baselineFrameStyle || r.reframeMeta.frameStyle;
+        if (!baseline) return;
+        reframeStickerCustomized = false;
+        syncReframeBorderUi(baseline.borderColor || DEFAULT_BORDER_COLOR);
+        reframeStickerTemplate.value = FS.normalizeStickerTemplate(baseline.stickerTemplate || RECOMMENDED_STICKER);
+        updateReframeTemplateDesc();
+        setStickerLayoutToUi(
+          FS.defaultStickerLayoutForTemplate(reframeStickerTemplate.value),
+          reframeStickerTemplate.value
+        );
         scheduleReframePreview();
       }
 
@@ -1159,8 +1206,22 @@
           if (token !== reframePreviewToken) return;
           reframePreviewImg.src = imageUrl;
           if (reframePreviewStatus) {
-            reframePreviewStatus.textContent =
-              "Preview · ~₹" + MR.estimateMeeshoInr(variant) + " · " + MR.kb(variant.bytes) + " KB";
+            var anchorInr =
+              r.reframeMeta.tier && (r.reframeMeta.tier.anchorInr || r.estimatedShippingInr);
+            var currentInr = MR.estimateMeeshoInr(variant);
+            var anchorKb =
+              r.reframeMeta.tier && r.reframeMeta.tier.anchorBytes
+                ? MR.kb(r.reframeMeta.tier.anchorBytes)
+                : null;
+            var status =
+              "Preview · ~₹" + currentInr + " · " + MR.kb(variant.bytes) + " KB";
+            if (anchorInr && currentInr <= anchorInr) {
+              status += " · shipping locked";
+            } else if (anchorInr) {
+              status += " · was ~₹" + anchorInr + " at generation";
+            }
+            if (anchorKb) status += " · cap " + anchorKb + " KB";
+            reframePreviewStatus.textContent = status;
           }
         } catch (err) {
           if (token === reframePreviewToken && reframePreviewStatus) {
@@ -1203,12 +1264,14 @@
         if (!MR || !lastUploadDataUrl) return;
         var r = lastResults[index];
         if (!r || !r.reframeMeta) return;
+        ensureReframeAnchorMeta(r);
         var meta = r.reframeMeta;
         reframeIndex = index;
         reframePreviewImg.src = r.imageUrl;
         var isStudioKind = meta.kind === "collage_studio" || meta.kind === "studio";
         var stickerNone = meta.frameStyle && meta.frameStyle.stickerTemplate === "none";
         reframeDisplayMode = isStudioKind ? "studio" : stickerNone ? "frame_only" : "framed";
+        reframeStickerCustomized = !!(meta.frameStyle && meta.frameStyle.stickerLayout);
         if (meta.frameStyle) {
           syncReframeBorderUi(meta.frameStyle.borderColor || DEFAULT_BORDER_COLOR);
           reframeStickerTemplate.value = FS.normalizeStickerTemplate(meta.frameStyle.stickerTemplate || RECOMMENDED_STICKER);
@@ -1217,11 +1280,14 @@
           syncReframeBorderUi(defaults.borderColor);
           reframeStickerTemplate.value = defaults.stickerTemplate;
         }
-        setStickerLayoutToUi(
-          (meta.frameStyle && meta.frameStyle.stickerLayout) ||
+        if (reframeStickerCustomized && meta.frameStyle && meta.frameStyle.stickerLayout) {
+          setStickerLayoutToUi(meta.frameStyle.stickerLayout, reframeStickerTemplate.value);
+        } else {
+          setStickerLayoutToUi(
             FS.defaultStickerLayoutForTemplate(reframeStickerTemplate.value),
-          reframeStickerTemplate.value
-        );
+            reframeStickerTemplate.value
+          );
+        }
         updateReframeTemplateDesc();
         syncReframeStickerLayoutLabels();
         syncReframeModeUi();
@@ -1257,24 +1323,40 @@
           r.height = variant.height;
           r.tagName = variant.label + " · " + fileSizeKb + " KB · customized";
           if (r.reframeMeta) {
-            var preserveKb =
-              r.reframeMeta.tier && (r.reframeMeta.tier.preserveKb || r.reframeMeta.tier.targetKb || r.reframeMeta.tier.slabKb);
-            if (!preserveKb) preserveKb = fileSizeKb;
+            ensureReframeAnchorMeta(r);
+            var tier = r.reframeMeta.tier || {};
+            var preserveKb = tier.preserveKb || tier.targetKb || tier.slabKb || fileSizeKb;
+            var anchorBytes = tier.anchorBytes || r.fileSizeBytes || null;
+            var anchorInr = tier.anchorInr || r.estimatedShippingInr || null;
             r.reframeMeta.frameStyle = {
               borderColor: frame.borderColor,
               stickerTemplate:
                 reframeDisplayMode === "frame_only" ? "none" : frame.stickerTemplate,
               stickerLayout:
-                reframeDisplayMode === "framed" ? frame.stickerLayout || null : null,
+                reframeDisplayMode === "framed" && reframeStickerCustomized
+                  ? frame.stickerLayout || null
+                  : null,
             };
             if (reframeDisplayMode === "studio") {
               r.reframeMeta.kind = "collage_studio";
               r.reframeMeta.studioBase = true;
-              r.reframeMeta.tier = { targetKb: preserveKb, preserveKb: preserveKb };
+              r.reframeMeta.tier = {
+                targetKb: preserveKb,
+                preserveKb: preserveKb,
+                preserveBytes: anchorBytes,
+                anchorBytes: anchorBytes,
+                anchorInr: anchorInr,
+              };
             } else {
               r.reframeMeta.kind = "framed_slab";
               r.reframeMeta.studioBase = false;
-              r.reframeMeta.tier = { slabKb: preserveKb, preserveKb: preserveKb };
+              r.reframeMeta.tier = {
+                slabKb: preserveKb,
+                preserveKb: preserveKb,
+                preserveBytes: anchorBytes,
+                anchorBytes: anchorBytes,
+                anchorInr: anchorInr,
+              };
             }
           }
           var card = resultsGrid.querySelector('[data-result-index="' + reframeIndex + '"]');
@@ -1972,10 +2054,13 @@
       reframeStickerTemplate.addEventListener("change", function () {
         updateReframeTemplateDesc();
         setStickerLayoutToUi(FS.defaultStickerLayoutForTemplate(reframeStickerTemplate.value), reframeStickerTemplate.value);
-        scheduleReframePreview();
+        markStickerLayoutCustomized();
       });
       if (reframeAddStickerBtn) {
         reframeAddStickerBtn.addEventListener("click", addReframeSticker);
+      }
+      if (reframeResetStickersBtn) {
+        reframeResetStickersBtn.addEventListener("click", resetReframeStickers);
       }
       reframeApply.addEventListener("click", applyReframeEdit);
 

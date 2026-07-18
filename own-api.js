@@ -3764,6 +3764,97 @@
     return compressBusyToSlabOnce(canvas, slabKb);
   }
 
+  /** Hard byte cap for reframe — quality downscale before exceeding original shipping slab. */
+  async function compressBusyUnderBytes(canvas, maxBytes) {
+    let best = null;
+    let lo = 5;
+    let hi = 98;
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      const blob = await blobAtCanvasQuality(canvas, mid / 100, 0.05);
+      if (blob.size <= maxBytes) {
+        best = blob;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    if (best) return best;
+    return blobAtCanvasQuality(canvas, 0.05, 0.05);
+  }
+
+  async function compressToByteCap(canvas, maxBytes, opts = {}) {
+    const studio = !!opts.studio;
+    const slabKb = opts.slabKb ?? opts.targetKb ?? Math.max(1, Math.ceil(maxBytes / 1024));
+
+    if (!maxBytes || maxBytes <= 0) {
+      if (studio) {
+        return compressCanvas(canvas, slabKb * 1024, opts.minQ, opts.whiteRatio, true, opts.absMinQ);
+      }
+      return compressBusyToSlab(canvas, slabKb);
+    }
+
+    let blob;
+    if (studio) {
+      blob = await compressCanvas(canvas, maxBytes, opts.minQ, opts.whiteRatio, true, opts.absMinQ);
+    } else {
+      blob = await compressBusyToSlabOnce(canvas, Math.max(1, Math.ceil(maxBytes / 1024)));
+    }
+    if (blob.size <= maxBytes) return blob;
+
+    blob = await compressBusyUnderBytes(canvas, maxBytes);
+    if (blob.size <= maxBytes) return blob;
+
+    let factor = 0.98;
+    let fallback = blob;
+    while (factor >= 0.82) {
+      const scaled = scaleCanvas(canvas, factor);
+      const candidate = await compressBusyUnderBytes(scaled, maxBytes);
+      releaseCanvas(scaled);
+      if (candidate.size <= maxBytes) return candidate;
+      if (candidate.size < fallback.size) fallback = candidate;
+      factor -= 0.02;
+    }
+    return fallback;
+  }
+
+  function cloneFrameStyleRecord(style) {
+    if (!style) return null;
+    const out = {
+      borderColor: style.borderColor,
+      stickerTemplate: style.stickerTemplate,
+    };
+    if (style.stickerLayout) {
+      out.stickerLayout = cloneStickerLayout(style.stickerLayout, style.stickerTemplate);
+    }
+    return out;
+  }
+
+  function finalizeReframeMetaAnchors(meta, variantStub) {
+    if (!meta) return null;
+    const tier = meta.tier || {};
+    if (tier.anchorBytes) return meta;
+    const anchorBytes = variantStub.bytes;
+    const anchorInr = estimateMeeshoInr(variantStub);
+    return {
+      ...meta,
+      baselineFrameStyle:
+        meta.baselineFrameStyle ||
+        cloneFrameStyleRecord(
+          meta.frameStyle
+            ? { ...meta.frameStyle, stickerLayout: null }
+            : null
+        ),
+      tier: {
+        ...tier,
+        anchorBytes,
+        anchorInr,
+        preserveBytes: anchorBytes,
+        preserveKb: tier.preserveKb ?? tier.slabKb ?? tier.targetKb ?? kb(anchorBytes),
+      },
+    };
+  }
+
   /** Hit byte target for studio white-bg photos (mozjpeg). */
   async function compressCanvas(canvas, targetBytes, minQ, whiteRatio, studio, absMinOverride) {
     if (!studio) {
@@ -3801,13 +3892,33 @@
 
   async function buildVariantForTier(canvas, whiteRatio, profile, tier, options = {}) {
     const minQ = adaptiveMinQ(whiteRatio);
-    const blob =
-      profile.studio || profile.collageFramed
+    const capBytes = options.preserveBytes ?? null;
+    const compressOpts = {
+      studio: !!(profile.studio || profile.collageFramed),
+      whiteRatio,
+      absMinQ: profile.absMinQ,
+      minQ,
+      slabKb: tier.slabKb,
+      targetKb: tier.targetKb,
+    };
+    const blob = capBytes
+      ? await compressToByteCap(canvas, capBytes, compressOpts)
+      : profile.studio || profile.collageFramed
         ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true, profile.absMinQ)
         : await compressBusyToSlab(canvas, tier.slabKb);
     const label = options.showMode
       ? `[${profile.modeName || profile.id}] ${tier.label} · ${canvas.width}×${canvas.height}`
       : `${tier.label} · ${canvas.width}×${canvas.height}`;
+    const variantStub = {
+      bytes: blob.size,
+      width: canvas.width,
+      height: canvas.height,
+      processingPath: profile.path,
+      profileId: profile.id,
+    };
+    const reframeMeta = options.reframeMeta
+      ? finalizeReframeMetaAnchors(options.reframeMeta, variantStub)
+      : null;
     return {
       blob,
       bytes: blob.size,
@@ -3821,7 +3932,7 @@
       height: canvas.height,
       lingeriePriority: profile.lingeriePriority,
       flatlayPriority: profile.flatlayPriority,
-      reframeMeta: options.reframeMeta || null,
+      reframeMeta,
     };
   }
 
@@ -3834,6 +3945,13 @@
     else if (!profile.studio) kind = "framed_slab";
 
     const style = options.frameStyle;
+    const baselineFrameStyle = style
+      ? {
+          borderColor: style.borderColor,
+          stickerTemplate: style.stickerTemplate,
+          stickerLayout: null,
+        }
+      : null;
     return {
       kind,
       profileId: profile.id,
@@ -3848,6 +3966,7 @@
       },
       whiteRatio: options.whiteRatio ?? null,
       absMinQ: profile.absMinQ ?? null,
+      baselineFrameStyle,
       frameStyle: style
         ? {
             borderColor: style.borderColor,
@@ -3899,6 +4018,8 @@
   async function renderCustomVariant(sourceImg, meta, displayMode, frameStyle) {
     await loadMozjpeg();
     const preserveKb = meta.tier?.preserveKb ?? meta.tier?.targetKb ?? meta.tier?.slabKb ?? 51;
+    const preserveBytes =
+      meta.tier?.anchorBytes ?? meta.tier?.preserveBytes ?? Math.round(preserveKb * 1024);
     const framedMode = displayMode === "framed" || displayMode === "frame_only";
 
     if (isSupplierDenProfileId(meta.profileId) && meta.studioLayout) {
@@ -3925,7 +4046,7 @@
           displayMode === "studio"
             ? { targetKb: preserveKb, label: "custom" }
             : { slabKb: preserveKb, label: "custom" };
-        return buildVariantForTier(canvas, whiteRatio, profile, tier);
+        return buildVariantForTier(canvas, whiteRatio, profile, tier, { preserveBytes });
       }
     }
 
@@ -3950,7 +4071,7 @@
         modeName: "custom framed",
       };
       const tier = { slabKb: preserveKb, label: "custom" };
-      return buildVariantForTier(canvas, whiteRatio, profile, tier);
+      return buildVariantForTier(canvas, whiteRatio, profile, tier, { preserveBytes });
     }
 
     const profile = {
@@ -3961,7 +4082,7 @@
       modeName: "custom studio",
     };
     const tier = { targetKb: preserveKb, label: "custom" };
-    return buildVariantForTier(canvas, whiteRatio, profile, tier);
+    return buildVariantForTier(canvas, whiteRatio, profile, tier, { preserveBytes });
   }
 
   /** Studio-only modes — append framed copies without jumping to ₹66+ slabs. */
