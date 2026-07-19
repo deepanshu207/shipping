@@ -809,7 +809,7 @@
           <details class="accordion reframe-sticker-layout" id="reframe-sticker-layout" open style="margin-top:0.5rem">
             <summary>Stickers — add, remove, move, text, image</summary>
             <div class="accordion-body">
-              <p class="reframe-note">Default: 2 stickers. Tap <b>−</b> to remove one, <b>+ Add sticker</b> for more (up to 5). <b>Hide sticker</b> keeps a nearly invisible ghost sticker so shipping stays locked like text/position edits.</p>
+              <p class="reframe-note">Default: 2 stickers. Tap <b>−</b> to remove one, <b>+ Add sticker</b> for more (up to 5). <b>Hide sticker</b> removes it from the image but keeps layout data — shipping stays locked to generation like text/position edits.</p>
               <div id="reframe-sticker-slots"></div>
               <button type="button" class="reframe-add-sticker" id="reframe-add-sticker">+ Add sticker</button>
             </div>
@@ -825,7 +825,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=121"></script>
+  <script src="/own-api.js?v=122"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1302,11 +1302,17 @@
         if (!MR) return variant && variant.estimatedShippingInr;
         ensureReframeAnchorMeta(result);
         var anchorInr = resolveReframeAnchorInr(meta || result.reframeMeta, result);
-        var inr = MR.estimateReframeShippingInr
+        if (anchorInr != null) return anchorInr;
+        return MR.estimateReframeShippingInr
           ? MR.estimateReframeShippingInr(variant, meta || result.reframeMeta)
           : MR.estimateMeeshoInr(variant);
-        if (anchorInr != null) return Math.min(inr, anchorInr);
-        return inr;
+      }
+
+      function lockReframeDisplayKb(result, variant, meta) {
+        if (!MR) return variant && MR.kb(variant.bytes);
+        var anchorBytes = resolveReframeAnchorBytes(meta || result.reframeMeta, result);
+        if (anchorBytes != null) return MR.kb(anchorBytes);
+        return MR.kb(variant.bytes);
       }
 
       function resolveReframeAnchorInr(meta, result) {
@@ -1604,14 +1610,14 @@
           if (hidden && !badge) {
             badge = document.createElement("span");
             badge.className = "reframe-slot-hidden-badge";
-            badge.textContent = "Ghost hidden";
+            badge.textContent = "Hidden";
             titleEl.appendChild(badge);
           } else if (!hidden && badge) {
             badge.remove();
           }
         }
         if (hideBtn) {
-          hideBtn.textContent = hidden ? "Show sticker" : "Ghost hide";
+          hideBtn.textContent = hidden ? "Show sticker" : "Hide sticker";
           hideBtn.classList.toggle("is-hidden", hidden);
           hideBtn.setAttribute("aria-pressed", hidden ? "true" : "false");
         }
@@ -1632,7 +1638,7 @@
           if (slot.hidden) {
             var hiddenBadge = document.createElement("span");
             hiddenBadge.className = "reframe-slot-hidden-badge";
-            hiddenBadge.textContent = "Ghost hidden";
+            hiddenBadge.textContent = "Hidden";
             title.appendChild(hiddenBadge);
           }
           card.appendChild(title);
@@ -1738,7 +1744,7 @@
           var hideBtn = document.createElement("button");
           hideBtn.type = "button";
           hideBtn.className = "reframe-slot-hide" + (slot.hidden ? " is-hidden" : "");
-          hideBtn.textContent = slot.hidden ? "Show sticker" : "Ghost hide";
+          hideBtn.textContent = slot.hidden ? "Show sticker" : "Hide sticker";
           hideBtn.setAttribute("aria-pressed", slot.hidden ? "true" : "false");
           hideBtn.addEventListener("click", function () {
             slot.hidden = !slot.hidden;
@@ -1856,22 +1862,14 @@
           if (reframePreviewStatus) {
             var anchorInr = resolveReframeAnchorInr(r.reframeMeta, r);
             var currentInr = lockReframeShippingInr(r, variant, r.reframeMeta);
-            var anchorBytes = resolveReframeAnchorBytes(r.reframeMeta, r);
-            var anchorKb = anchorBytes != null ? MR.kb(anchorBytes) : null;
-            var status =
-              "Preview · ~₹" + currentInr + " · " + MR.kb(variant.bytes) + " KB";
-            if (anchorInr != null && currentInr <= anchorInr) {
-              status += " · shipping locked";
-            } else if (anchorInr != null) {
-              status += " · was ~₹" + anchorInr + " at generation";
+            var displayKb = lockReframeDisplayKb(r, variant, r.reframeMeta);
+            var status = "Preview · ~₹" + currentInr + " · " + displayKb + " KB";
+            if (anchorInr != null) {
+              status += " · shipping locked at generation";
             }
-            if (anchorKb) status += " · cap " + anchorKb + " KB";
             var hiddenStickers = countHiddenReframeStickers();
             if (hiddenStickers > 0) {
-              status +=
-                " · " +
-                hiddenStickers +
-                " ghost-hidden (light)";
+              status += " · " + hiddenStickers + " hidden";
             }
             reframePreviewStatus.textContent = status;
           }
@@ -2030,7 +2028,7 @@
             frame
           );
           var imageUrl = await MR.blobToDataUrl(variant.blob);
-          var fileSizeKb = MR.kb(variant.bytes);
+          var fileSizeKb = lockReframeDisplayKb(r, variant, metaForRender || r.reframeMeta);
           var estimatedShippingInr = lockReframeShippingInr(r, variant, metaForRender || r.reframeMeta);
           r.imageUrl = imageUrl;
           r.fileSizeKb = fileSizeKb;

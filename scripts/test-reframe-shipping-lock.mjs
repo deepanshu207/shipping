@@ -34,7 +34,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/?v=121`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/?v=122`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoFrameSettings && window.MeeshoReframe, { timeout: 20000 });
 
     const result = await page.evaluate(async () => {
@@ -107,7 +107,7 @@ async function run() {
           raw,
           locked,
           anchorInr,
-          shippingLocked: locked <= anchorInr,
+          shippingLocked: locked === anchorInr,
           bytesWithinCap: v.bytes <= gen.bytes,
         };
       }
@@ -187,7 +187,7 @@ async function run() {
           raw,
           locked,
           anchorInr,
-          shippingLocked: locked <= anchorInr,
+          shippingLocked: locked === anchorInr,
         };
       }
 
@@ -239,25 +239,19 @@ async function run() {
             ...baseline,
             stickerLayout: addedMulti,
           });
-          const ghost = await MR.renderCustomVariant(await loadImg(), anchored, "framed", {
+          const hidden = await MR.renderCustomVariant(await loadImg(), anchored, "framed", {
             ...baseline,
             stickerLayout: hiddenLayout,
           });
-          const removed = await MR.renderCustomVariant(await loadImg(), anchored, "framed", {
-            ...baseline,
-            stickerLayout: FS.normalizeStickerLayout({ version: 2, stickers: [] }, "supplierden_match"),
-          });
-          const ghostLocked = MR.estimateReframeShippingInr(ghost, anchored);
-          const ghostNearVisible = ghost.bytes >= visible.bytes * 0.9;
+          const hiddenLocked = MR.estimateReframeShippingInr(hidden, anchored);
           return {
             slotCount: hiddenLayout.stickers.length,
             allHidden: hiddenLayout.stickers.every((slot) => slot.hidden),
             visibleBytes: visible.bytes,
-            ghostBytes: ghost.bytes,
-            removedBytes: removed.bytes,
-            ghostLocked,
-            shippingLocked: ghostLocked <= anchorInr,
-            ghostNearVisible,
+            hiddenBytes: hidden.bytes,
+            hiddenLocked,
+            shippingLocked: hiddenLocked === anchorInr,
+            hiddenSmallerOrEqual: hidden.bytes <= visible.bytes,
           };
         })(),
         tightCustomImages: await lockedInrTight("tightCustomImages", "framed", {
@@ -290,7 +284,7 @@ async function run() {
             label: "customizedMetaOnly",
             locked,
             anchorInr,
-            shippingLocked: locked <= anchorInr,
+            shippingLocked: locked === anchorInr,
           };
         })(),
       };
@@ -316,7 +310,6 @@ async function run() {
       checks.every((c) => c.shippingLocked) &&
       result.hiddenKeepsSlots.slotCount === 4 &&
       result.hiddenKeepsSlots.allHidden &&
-      result.hiddenKeepsSlots.ghostNearVisible &&
       result.hiddenKeepsSlots.shippingLocked;
 
     if (!ok) {
