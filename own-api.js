@@ -607,41 +607,47 @@
   /** Raincoat / indoor busy — framed + promo stickers, mid slabs targeting ~₹63 on Meesho. */
   const RAINCOAT_KB_TIERS = [
     { slabKb: 55, label: "55KB · lowest try", lowest: true },
-    { slabKb: 58, label: "58KB · low band" },
-    { slabKb: 60, label: "60KB · target" },
-    { slabKb: 61, label: "61KB" },
-    { slabKb: 62, label: "62KB" },
+    { slabKb: 60, label: "60KB · low band" },
     { slabKb: 63, label: "63KB · ₹63 match", recommended: true },
-    { slabKb: 64, label: "64KB" },
-    { slabKb: 65, label: "65KB" },
-    { slabKb: 66, label: "66KB · backup" },
+    { slabKb: 64, label: "64KB · ₹64 slab" },
+    { slabKb: 66, label: "66KB · ₹66 backup" },
   ];
-  const RAINCOAT_MAX_VARIANTS = 54;
+  const RAINCOAT_MAX_VARIANTS = 40;
   const RAINCOAT_PROCESS_TIMEOUT_MS = 300000;
-  const RAINCOAT_DEFAULT_OLIVE = "#556B2F";
+  const RAINCOAT_DEFAULT_OLIVE = "#6B7C3C";
   const RAINCOAT_LAYOUTS = [
-    {
-      layout: "rc_match",
-      type: "indoor_framed",
-      framedMaxSide: 1024,
-      priority: 0,
-      panelTag: "match · framed 1024 promo",
-      tiers: RAINCOAT_KB_TIERS,
-    },
     {
       layout: "rc_f1024",
       type: "indoor_framed",
       framedMaxSide: 1024,
-      priority: 1,
+      priority: 0,
       panelTag: "framed 1024 · promo",
+      tiers: RAINCOAT_KB_TIERS,
+    },
+    {
+      layout: "rc_f1024_ns",
+      type: "indoor_framed",
+      framedMaxSide: 1024,
+      noStickers: true,
+      priority: 2,
+      panelTag: "framed 1024 · no stickers",
       tiers: RAINCOAT_KB_TIERS,
     },
     {
       layout: "rc_f960",
       type: "indoor_framed",
       framedMaxSide: 960,
-      priority: 3,
+      priority: 5,
       panelTag: "framed 960 · promo",
+      tiers: RAINCOAT_KB_TIERS,
+    },
+    {
+      layout: "rc_f960_ns",
+      type: "indoor_framed",
+      framedMaxSide: 960,
+      noStickers: true,
+      priority: 8,
+      panelTag: "framed 960 · no stickers",
       tiers: RAINCOAT_KB_TIERS,
     },
     {
@@ -649,8 +655,8 @@
       type: "indoor_capped_framed",
       capMaxSide: 1024,
       framedMaxSide: 1024,
-      priority: 5,
-      panelTag: "capped 1024 · promo",
+      priority: 10,
+      panelTag: "capped 1024 framed",
       tiers: RAINCOAT_KB_TIERS,
     },
     {
@@ -658,17 +664,8 @@
       type: "indoor_capped_framed",
       capMaxSide: 960,
       framedMaxSide: 960,
-      priority: 7,
-      panelTag: "capped 960 · promo",
-      tiers: RAINCOAT_KB_TIERS,
-    },
-    {
-      layout: "rc_cap900",
-      type: "indoor_capped_framed",
-      capMaxSide: 900,
-      framedMaxSide: 1024,
-      priority: 9,
-      panelTag: "capped 900 · promo",
+      priority: 12,
+      panelTag: "capped 960 framed",
       tiers: RAINCOAT_KB_TIERS,
     },
   ];
@@ -715,7 +712,7 @@
     { id: "royal_blue", name: "Royal Blue", color: "#1565C0" },
     { id: "emerald", name: "Emerald Green", color: "#059669" },
     { id: "purple", name: "Purple", color: "#7C3AED" },
-    { id: "olive", name: "Olive Green", color: "#556B2F" },
+    { id: "olive", name: "Olive Green", color: "#6B7C3C" },
     { id: "black", name: "Black", color: "#111827" },
   ];
   const STICKER_TEMPLATE_META = [
@@ -739,7 +736,7 @@
     {
       id: "raincoat_promo",
       name: "Raincoat promo",
-      desc: "SPECIAL OFFER + SPECIAL SALE + Best Seller",
+      desc: "SPECIAL OFFER + HOT SALE + BEST CHOICE",
     },
   ];
   const STICKER_TEMPLATE_IDS = new Set(STICKER_TEMPLATE_META.map((t) => t.id));
@@ -2554,7 +2551,6 @@
     return (
       tag.includes("raincoat lowest") ||
       tag.includes("raincoat indoor lowest") ||
-      (tag.includes("raincoat") && tag.includes("lowest")) ||
       (INDOOR_CATEGORY_RE.test(tag) && tag.includes("lowest"))
     );
   }
@@ -3325,141 +3321,6 @@
     return renderCompactPromoSticker(scale, texts, "best_choice");
   }
 
-  function renderSpecialOfferBurst(scale, texts = {}) {
-    const spikes = 14;
-    const outer = 78 * scale;
-    const inner = 34 * scale;
-    const pad = 14 * scale;
-    const size = outer * 2 + pad * 2;
-    const center = size / 2;
-    const ss = OVERLAY_SUPERSAMPLE;
-    const c = document.createElement("canvas");
-    c.width = Math.ceil(size * ss);
-    c.height = Math.ceil(size * ss);
-    const ctx = c.getContext("2d");
-    ctx.scale(ss, ss);
-    ctx.translate(center, center);
-    ctx.beginPath();
-    for (let i = 0; i < spikes * 2; i++) {
-      const angle = (Math.PI * i) / spikes - Math.PI / 2;
-      const radius = i % 2 === 0 ? outer : inner;
-      const px = Math.cos(angle) * radius;
-      const py = Math.sin(angle) * radius;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    const grad = ctx.createRadialGradient(0, 0, inner * 0.2, 0, 0, outer);
-    grad.addColorStop(0, "#FFEB3B");
-    grad.addColorStop(0.55, "#FF9800");
-    grad.addColorStop(1, "#E53935");
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = "#B71C1C";
-    ctx.lineWidth = 2.4 * scale;
-    ctx.stroke();
-    const line1 = String(texts.line1 || "SPECIAL").slice(0, 12);
-    const line2 = String(texts.line2 || "OFFER").slice(0, 12);
-    drawStickerText(ctx, line1, 0, -10 * scale, 14, scale, {
-      fill: "#D32F2F",
-      stroke: "#FFFFFF",
-      strokeWidth: 2.1,
-    });
-    drawStickerText(ctx, line2, 0, 10 * scale, 13, scale, {
-      fill: "#D32F2F",
-      stroke: "#FFFFFF",
-      strokeWidth: 2,
-    });
-    return { canvas: c, width: size, height: size };
-  }
-
-  function renderSpecialSaleSticker(scale, texts = {}) {
-    const line1 = String(texts.line1 || "SPECIAL").slice(0, 12);
-    const line2 = String(texts.line2 || "SALE").slice(0, 12);
-    const w = 108 * scale;
-    const h = 52 * scale;
-    const pad = 10 * scale;
-    const bw = w + pad * 2;
-    const bh = h + pad * 2;
-    const ss = OVERLAY_SUPERSAMPLE;
-    const c = document.createElement("canvas");
-    c.width = Math.ceil(bw * ss);
-    c.height = Math.ceil(bh * ss);
-    const ctx = c.getContext("2d");
-    ctx.scale(ss, ss);
-    ctx.translate(pad, pad);
-    roundRectPath(ctx, 0, 0, w, h, h / 2);
-    ctx.fillStyle = "#111827";
-    ctx.fill();
-    ctx.strokeStyle = "#FFD600";
-    ctx.lineWidth = 3 * scale;
-    ctx.stroke();
-    drawStickerText(ctx, line1, w / 2, h * 0.38, 13, scale, {
-      fill: "#FFD600",
-      stroke: "#000000",
-      strokeWidth: 1.2,
-    });
-    drawStickerText(ctx, line2, w / 2, h * 0.72, 14, scale, {
-      fill: "#FFD600",
-      stroke: "#000000",
-      strokeWidth: 1.25,
-    });
-    return { canvas: c, width: bw, height: bh };
-  }
-
-  function renderBestSellerSeal(scale, texts = {}) {
-    const d = 96 * scale;
-    const pad = 10 * scale;
-    const size = d + pad * 2;
-    const center = size / 2;
-    const ss = OVERLAY_SUPERSAMPLE;
-    const c = document.createElement("canvas");
-    c.width = Math.ceil(size * ss);
-    c.height = Math.ceil((size + 28 * scale) * ss);
-    const ctx = c.getContext("2d");
-    ctx.scale(ss, ss);
-    const grad = ctx.createRadialGradient(center, center, d * 0.1, center, center, d / 2);
-    grad.addColorStop(0, "#FFE082");
-    grad.addColorStop(0.45, "#FFC107");
-    grad.addColorStop(1, "#FF8F00");
-    ctx.beginPath();
-    ctx.arc(center, center, d / 2, 0, Math.PI * 2);
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = "#F57F17";
-    ctx.lineWidth = 2.8 * scale;
-    ctx.stroke();
-    const title = String(texts.line1 || "Best Seller").slice(0, 14);
-    const sub = String(texts.line2 || "TOP QUALITY").slice(0, 14);
-    ctx.font = `900 ${11 * scale}px Arial,Helvetica,sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = "#4E342E";
-    ctx.fillText(title, center, center - d * 0.08);
-    ctx.font = `800 ${8.5 * scale}px Arial,Helvetica,sans-serif`;
-    ctx.fillText(sub, center, center + d * 0.2);
-    const ribbonW = d * 0.34;
-    const ribbonH = 22 * scale;
-    const ribbonY = center + d / 2 - 2 * scale;
-    ctx.fillStyle = "#1A237E";
-    roundRectPath(ctx, center - ribbonW / 2, ribbonY, ribbonW, ribbonH, 3 * scale);
-    ctx.fill();
-    ctx.fillStyle = "#283593";
-    ctx.beginPath();
-    ctx.moveTo(center - ribbonW / 2, ribbonY + ribbonH);
-    ctx.lineTo(center - ribbonW / 2 + 8 * scale, ribbonY + ribbonH + 10 * scale);
-    ctx.lineTo(center - ribbonW / 2 + 16 * scale, ribbonY + ribbonH);
-    ctx.closePath();
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(center + ribbonW / 2, ribbonY + ribbonH);
-    ctx.lineTo(center + ribbonW / 2 - 8 * scale, ribbonY + ribbonH + 10 * scale);
-    ctx.lineTo(center + ribbonW / 2 - 16 * scale, ribbonY + ribbonH);
-    ctx.closePath();
-    ctx.fill();
-    return { canvas: c, width: size, height: size + 28 * scale };
-  }
-
   function drawSupplierDenOneStickerOverlay(ctx, border, photoW, photoH) {
     const scale = Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
     const delivery = renderFreeDeliverySticker(scale);
@@ -3659,9 +3520,9 @@
     },
     raincoat_promo: {
       dual: true,
-      primary: { type: "special_offer_burst", x: 0.5, y: 0.11, label: "Special offer sunburst" },
-      secondary: { type: "special_sale", x: 0.24, y: 0.76, label: "Special sale badge" },
-      extra: [{ type: "best_seller", x: 0.78, y: 0.76, label: "Best seller seal" }],
+      primary: { type: "special_offer", x: 0.18, y: 0.12, label: "Special offer badge" },
+      secondary: { type: "hot_sale", x: 0.22, y: 0.72, label: "Hot sale burst" },
+      extra: [{ type: "best_choice", x: 0.78, y: 0.72, label: "Best choice offer" }],
     },
     mega_sale: {
       dual: false,
@@ -3675,9 +3536,6 @@
     { id: "best_choice", name: "Best choice offer" },
     { id: "special_offer", name: "Special offer" },
     { id: "hot_sale", name: "Hot sale burst" },
-    { id: "special_offer_burst", name: "Special offer sunburst" },
-    { id: "special_sale", name: "Special sale badge" },
-    { id: "best_seller", name: "Best seller seal" },
     { id: "limited_time", name: "Limited time" },
     { id: "flash_deal", name: "Flash deal" },
     { id: "best_price", name: "Best price ribbon" },
@@ -3911,12 +3769,6 @@
         return renderSpecialOfferBadge(scale, texts);
       case "hot_sale":
         return renderHotSaleBurst(scale, texts);
-      case "special_offer_burst":
-        return renderSpecialOfferBurst(scale, texts);
-      case "special_sale":
-        return renderSpecialSaleSticker(scale, texts);
-      case "best_seller":
-        return renderBestSellerSeal(scale, texts);
       case "free_delivery":
         return renderFreeDeliverySticker(scale, texts);
       case "best_choice":
@@ -4295,6 +4147,41 @@
     }
     if (best) return best;
     return blobAtCanvasQuality(canvas, 0.05, 0.05);
+  }
+
+  async function compressToByteCap(canvas, maxBytes, opts = {}) {
+    const studio = !!opts.studio;
+    const slabKb = opts.slabKb ?? opts.targetKb ?? Math.max(1, Math.ceil(maxBytes / 1024));
+
+    if (!maxBytes || maxBytes <= 0) {
+      if (studio) {
+        return compressCanvas(canvas, slabKb * 1024, opts.minQ, opts.whiteRatio, true, opts.absMinQ);
+      }
+      return compressBusyToSlab(canvas, slabKb);
+    }
+
+    let blob;
+    if (studio) {
+      blob = await compressCanvas(canvas, maxBytes, opts.minQ, opts.whiteRatio, true, opts.absMinQ);
+    } else {
+      blob = await compressBusyToSlabOnce(canvas, Math.max(1, Math.ceil(maxBytes / 1024)));
+    }
+    if (blob.size <= maxBytes) return blob;
+
+    blob = await compressBusyUnderBytes(canvas, maxBytes);
+    if (blob.size <= maxBytes) return blob;
+
+    let factor = 0.98;
+    let fallback = blob;
+    while (factor >= 0.82) {
+      const scaled = scaleCanvas(canvas, factor);
+      const candidate = await compressBusyUnderBytes(scaled, maxBytes);
+      releaseCanvas(scaled);
+      if (candidate.size <= maxBytes) return candidate;
+      if (candidate.size < fallback.size) fallback = candidate;
+      factor -= 0.02;
+    }
+    return fallback;
   }
 
   async function compressToByteCap(canvas, maxBytes, opts = {}) {

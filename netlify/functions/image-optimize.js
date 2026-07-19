@@ -62,25 +62,19 @@ const TIERS_SUPPLIERDEN_TALL = [
 
 const RAINCOAT_KB_TIERS = [
   { slabKb: 55, label: "55KB · lowest try", lowest: true },
-  { slabKb: 58, label: "58KB · low band" },
-  { slabKb: 60, label: "60KB · target" },
-  { slabKb: 61, label: "61KB" },
-  { slabKb: 62, label: "62KB" },
+  { slabKb: 60, label: "60KB · low band" },
   { slabKb: 63, label: "63KB · ₹63 match", recommended: true },
-  { slabKb: 64, label: "64KB" },
-  { slabKb: 65, label: "65KB" },
-  { slabKb: 66, label: "66KB · backup" },
+  { slabKb: 64, label: "64KB · ₹64 slab" },
+  { slabKb: 66, label: "66KB · ₹66 backup" },
 ];
 
-const RAINCOAT_DEFAULT_OLIVE = "#556B2F";
+const RAINCOAT_DEFAULT_OLIVE = "#6B7C3C";
 
 const RAINCOAT_LAYOUTS = [
-  { layout: "rc_match", framedMaxSide: 1024, capMaxSide: null, priority: 0, panelTag: "match · framed 1024 promo" },
-  { layout: "rc_f1024", framedMaxSide: 1024, capMaxSide: null, priority: 1, panelTag: "framed 1024 · promo" },
-  { layout: "rc_f960", framedMaxSide: 960, capMaxSide: null, priority: 3, panelTag: "framed 960 · promo" },
-  { layout: "rc_cap1024", framedMaxSide: 1024, capMaxSide: 1024, priority: 5, panelTag: "capped 1024 · promo" },
-  { layout: "rc_cap960", framedMaxSide: 960, capMaxSide: 960, priority: 7, panelTag: "capped 960 · promo" },
-  { layout: "rc_cap900", framedMaxSide: 1024, capMaxSide: 900, priority: 9, panelTag: "capped 900 · promo" },
+  { layout: "rc_f960", framedMaxSide: 960, capMaxSide: null, priority: 0, panelTag: "framed 960 · promo" },
+  { layout: "rc_f1024", framedMaxSide: 1024, capMaxSide: null, priority: 2, panelTag: "framed 1024 · promo" },
+  { layout: "rc_cap960", framedMaxSide: 960, capMaxSide: 960, priority: 5, panelTag: "capped 960 framed" },
+  { layout: "rc_cap1024", framedMaxSide: 1024, capMaxSide: 1024, priority: 10, panelTag: "capped 1024 framed" },
 ];
 
 const SUPPLIERDEN_TALL_LAYOUTS = [
@@ -360,70 +354,6 @@ function bestChoiceOfferSvg(scale) {
   </svg>`);
 }
 
-function specialOfferBurstSvg(scale) {
-  const outer = 78 * scale;
-  const pad = 14 * scale;
-  const size = outer * 2 + pad * 2;
-  const center = size / 2;
-  const spikes = 14;
-  let points = "";
-  for (let i = 0; i < spikes * 2; i++) {
-    const angle = (Math.PI * i) / spikes - Math.PI / 2;
-    const radius = i % 2 === 0 ? outer : 34 * scale;
-    const px = center + Math.cos(angle) * radius;
-    const py = center + Math.sin(angle) * radius;
-    points += `${px},${py} `;
-  }
-  const ss = OVERLAY_SUPERSAMPLE;
-  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(size * ss)}" height="${Math.ceil(size * ss)}" viewBox="0 0 ${Math.ceil(size)} ${Math.ceil(size)}">
-    <polygon points="${points.trim()}" fill="url(#sob)" stroke="#B71C1C" stroke-width="${2.4 * scale}"/>
-    <defs>
-      <radialGradient id="sob">
-        <stop offset="0%" stop-color="#FFEB3B"/>
-        <stop offset="55%" stop-color="#FF9800"/>
-        <stop offset="100%" stop-color="#E53935"/>
-      </radialGradient>
-    </defs>
-    <text x="${center}" y="${center - 10 * scale}" fill="#D32F2F" stroke="#FFFFFF" stroke-width="${2.1 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${14 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SPECIAL</text>
-    <text x="${center}" y="${center + 10 * scale}" fill="#D32F2F" stroke="#FFFFFF" stroke-width="${2 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${13 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">OFFER</text>
-  </svg>`);
-}
-
-function specialSaleSvg(scale) {
-  const w = 108 * scale;
-  const h = 52 * scale;
-  const pad = 10 * scale;
-  const bw = w + pad * 2;
-  const bh = h + pad * 2;
-  const ss = OVERLAY_SUPERSAMPLE;
-  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(bw * ss)}" height="${Math.ceil(bh * ss)}" viewBox="0 0 ${Math.ceil(bw)} ${Math.ceil(bh)}">
-    <rect x="${pad}" y="${pad}" width="${w}" height="${h}" rx="${h / 2}" fill="#111827" stroke="#FFD600" stroke-width="${3 * scale}"/>
-    <text x="${pad + w / 2}" y="${pad + h * 0.38}" fill="#FFD600" stroke="#000000" stroke-width="${1.2 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${13 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SPECIAL</text>
-    <text x="${pad + w / 2}" y="${pad + h * 0.72}" fill="#FFD600" stroke="#000000" stroke-width="${1.25 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${14 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SALE</text>
-  </svg>`);
-}
-
-function bestSellerSealSvg(scale) {
-  const d = 96 * scale;
-  const pad = 10 * scale;
-  const size = d + pad * 2;
-  const center = size / 2;
-  const ribbonW = d * 0.34;
-  const ribbonH = 22 * scale;
-  const ribbonY = center + d / 2 - 2 * scale;
-  const totalH = size + 28 * scale;
-  const ss = OVERLAY_SUPERSAMPLE;
-  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(size * ss)}" height="${Math.ceil(totalH * ss)}" viewBox="0 0 ${Math.ceil(size)} ${Math.ceil(totalH)}">
-    <defs><radialGradient id="bss"><stop offset="0%" stop-color="#FFE082"/><stop offset="45%" stop-color="#FFC107"/><stop offset="100%" stop-color="#FF8F00"/></radialGradient></defs>
-    <circle cx="${center}" cy="${center}" r="${d / 2}" fill="url(#bss)" stroke="#F57F17" stroke-width="${2.8 * scale}"/>
-    <text x="${center}" y="${center - d * 0.08}" fill="#4E342E" font-family="Arial,Helvetica,sans-serif" font-size="${11 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">Best Seller</text>
-    <text x="${center}" y="${center + d * 0.2}" fill="#4E342E" font-family="Arial,Helvetica,sans-serif" font-size="${8.5 * scale}" font-weight="800" text-anchor="middle" dominant-baseline="middle">TOP QUALITY</text>
-    <rect x="${center - ribbonW / 2}" y="${ribbonY}" width="${ribbonW}" height="${ribbonH}" rx="${3 * scale}" fill="#1A237E"/>
-    <polygon points="${center - ribbonW / 2},${ribbonY + ribbonH} ${center - ribbonW / 2 + 8 * scale},${ribbonY + ribbonH + 10 * scale} ${center - ribbonW / 2 + 16 * scale},${ribbonY + ribbonH}" fill="#283593"/>
-    <polygon points="${center + ribbonW / 2},${ribbonY + ribbonH} ${center + ribbonW / 2 - 8 * scale},${ribbonY + ribbonH + 10 * scale} ${center + ribbonW / 2 - 16 * scale},${ribbonY + ribbonH}" fill="#283593"/>
-  </svg>`);
-}
-
 function stickerCompositesForTemplate(templateId, border, width, height) {
   const scale = Math.max(0.78, Math.min(1.35, Math.min(width, height) / 900));
   const burstScale = scale * 1.05;
@@ -486,27 +416,20 @@ function stickerCompositesForTemplate(templateId, border, width, height) {
       top: Math.round(border + height * 0.42 - deliveryH / 2),
     });
   } else if (template === "raincoat_promo") {
-    const burst = specialOfferBurstSvg(scale);
-    const sale = specialSaleSvg(scale);
-    const seal = bestSellerSealSvg(scale);
-    const burstSize = 78 * scale * 2 + 28 * scale;
-    const saleW = 108 * scale + 20 * scale;
-    const saleH = 52 * scale + 20 * scale;
-    const sealSize = 96 * scale + 20 * scale;
+    const offer = specialOfferSvg(scale);
+    const burst = hotSaleSvg(burstScale);
+    const badge = bestChoiceOfferSvg(scale * 0.95);
+    const badgeSize = 96 * scale * 0.95 + 20 * scale;
     composites.push({
-      input: burst,
-      left: Math.round(border + width * 0.5 - burstSize / 2),
-      top: Math.round(border + height * 0.11 - burstSize / 2),
+      input: offer,
+      left: Math.round(border + width * 0.18 - (96 * scale + 20 * scale) / 2),
+      top: Math.round(border + height * 0.12 - (96 * scale + 20 * scale) / 2),
     });
+    composites.push({ input: burst, left: burstLeft, top: burstTop });
     composites.push({
-      input: sale,
-      left: Math.round(border + width * 0.24 - saleW / 2),
-      top: Math.round(border + height * 0.76 - saleH / 2),
-    });
-    composites.push({
-      input: seal,
-      left: Math.round(border + width * 0.78 - sealSize / 2),
-      top: Math.round(border + height * 0.76 - sealSize / 2),
+      input: badge,
+      left: Math.round(border + width * 0.78 - badgeSize / 2),
+      top: Math.round(border + height * 0.72 - badgeSize / 2),
     });
   } else {
     composites.push({ input: specialOfferSvg(scale), left: offerLeft, top: offerTop });
@@ -571,7 +494,6 @@ function isRaincoatLowestTagName(tagName) {
   return (
     tag.includes("raincoat lowest") ||
     tag.includes("raincoat indoor lowest") ||
-    (tag.includes("raincoat") && tag.includes("lowest")) ||
     (INDOOR_CATEGORY_RE.test(tag) && tag.includes("lowest"))
   );
 }
@@ -1161,7 +1083,7 @@ async function generateRaincoatVariants(imageBuffer) {
     pool[0].recommended = true;
     pool[0].lowest = true;
   }
-  return pool.slice(0, 54);
+  return pool.slice(0, 40);
 }
 
 async function compressToTarget(buffer, targetBytes, minQ, whiteRatio, studio, absMinOverride) {
