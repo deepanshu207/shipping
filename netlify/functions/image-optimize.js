@@ -60,25 +60,6 @@ const TIERS_SUPPLIERDEN_TALL = [
   { slabKb: 52, label: "52KB" },
 ];
 
-const RAINCOAT_KB_TIERS = [
-  { slabKb: 58, label: "58KB · low band", lowest: true },
-  { slabKb: 60, label: "60KB · target" },
-  { slabKb: 61, label: "61KB" },
-  { slabKb: 62, label: "62KB" },
-  { slabKb: 63, label: "63KB · ₹63 match", recommended: true },
-  { slabKb: 64, label: "64KB" },
-  { slabKb: 65, label: "65KB" },
-  { slabKb: 66, label: "66KB · backup" },
-];
-
-const RAINCOAT_DEFAULT_OLIVE = "#556B2F";
-
-const RAINCOAT_LAYOUTS = [
-  { layout: "rc_match", framedMaxSide: 1024, capMaxSide: null, priority: 0, panelTag: "match · framed 1024 promo" },
-  { layout: "rc_f960", framedMaxSide: 960, capMaxSide: null, priority: 1, panelTag: "framed 960 · promo" },
-  { layout: "rc_cap960", framedMaxSide: 960, capMaxSide: 960, priority: 3, panelTag: "capped 960 · promo" },
-];
-
 const SUPPLIERDEN_TALL_LAYOUTS = [
   {
     layout: "sd_exact703",
@@ -356,85 +337,6 @@ function bestChoiceOfferSvg(scale) {
   </svg>`);
 }
 
-function specialOfferBurstSvg(scale) {
-  const outer = 78 * scale;
-  const pad = 14 * scale;
-  const size = outer * 2 + pad * 2;
-  const center = size / 2;
-  const spikes = 14;
-  let points = "";
-  for (let i = 0; i < spikes * 2; i++) {
-    const angle = (Math.PI * i) / spikes - Math.PI / 2;
-    const radius = i % 2 === 0 ? outer : 34 * scale;
-    const px = center + Math.cos(angle) * radius;
-    const py = center + Math.sin(angle) * radius;
-    points += `${px},${py} `;
-  }
-  const ss = OVERLAY_SUPERSAMPLE;
-  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(size * ss)}" height="${Math.ceil(size * ss)}" viewBox="0 0 ${Math.ceil(size)} ${Math.ceil(size)}">
-    <polygon points="${points.trim()}" fill="url(#sob)" stroke="#B71C1C" stroke-width="${2.4 * scale}"/>
-    <defs>
-      <radialGradient id="sob">
-        <stop offset="0%" stop-color="#FFEB3B"/>
-        <stop offset="55%" stop-color="#FF9800"/>
-        <stop offset="100%" stop-color="#E53935"/>
-      </radialGradient>
-    </defs>
-    <text x="${center}" y="${center - 10 * scale}" fill="#FFFFFF" stroke="#B71C1C" stroke-width="${1.6 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${14 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SPECIAL</text>
-    <text x="${center}" y="${center + 10 * scale}" fill="#FFFFFF" stroke="#B71C1C" stroke-width="${1.5 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${13 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">OFFER</text>
-  </svg>`);
-}
-
-function specialSaleSvg(scale) {
-  const outer = 72 * scale;
-  const pad = 12 * scale;
-  const size = outer * 2 + pad * 2;
-  const center = size / 2;
-  const spikes = 12;
-  let points = "";
-  for (let i = 0; i < spikes * 2; i++) {
-    const angle = (Math.PI * i) / spikes - Math.PI / 2;
-    const radius = i % 2 === 0 ? outer : 30 * scale;
-    const px = center + Math.cos(angle) * radius;
-    const py = center + Math.sin(angle) * radius;
-    points += `${px},${py} `;
-  }
-  const ss = OVERLAY_SUPERSAMPLE;
-  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(size * ss)}" height="${Math.ceil(size * ss)}" viewBox="0 0 ${Math.ceil(size)} ${Math.ceil(size)}">
-    <polygon points="${points.trim()}" fill="url(#ssb)" stroke="#111827" stroke-width="${2.6 * scale}"/>
-    <defs>
-      <radialGradient id="ssb">
-        <stop offset="0%" stop-color="#FFF59D"/>
-        <stop offset="55%" stop-color="#FFEB3B"/>
-        <stop offset="100%" stop-color="#FFC107"/>
-      </radialGradient>
-    </defs>
-    <text x="${center}" y="${center - 9 * scale}" fill="#111827" stroke="#FFFFFF" stroke-width="${1.1 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${12.5 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SPECIAL</text>
-    <text x="${center}" y="${center + 9 * scale}" fill="#111827" stroke="#FFFFFF" stroke-width="${1.15 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${13 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SALE</text>
-  </svg>`);
-}
-
-function bestSellerSealSvg(scale) {
-  const d = 96 * scale;
-  const pad = 10 * scale;
-  const size = d + pad * 2;
-  const center = size / 2;
-  const ribbonW = d * 0.34;
-  const ribbonH = 22 * scale;
-  const ribbonY = center + d / 2 - 2 * scale;
-  const totalH = size + 28 * scale;
-  const ss = OVERLAY_SUPERSAMPLE;
-  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(size * ss)}" height="${Math.ceil(totalH * ss)}" viewBox="0 0 ${Math.ceil(size)} ${Math.ceil(totalH)}">
-    <defs><radialGradient id="bss"><stop offset="0%" stop-color="#FFE082"/><stop offset="45%" stop-color="#FFC107"/><stop offset="100%" stop-color="#FF8F00"/></radialGradient></defs>
-    <circle cx="${center}" cy="${center}" r="${d / 2}" fill="url(#bss)" stroke="#F57F17" stroke-width="${2.8 * scale}"/>
-    <text x="${center}" y="${center - d * 0.08}" fill="#4E342E" font-family="Arial,Helvetica,sans-serif" font-size="${11 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">Best Seller</text>
-    <text x="${center}" y="${center + d * 0.2}" fill="#4E342E" font-family="Arial,Helvetica,sans-serif" font-size="${8.5 * scale}" font-weight="800" text-anchor="middle" dominant-baseline="middle">TOP QUALITY</text>
-    <rect x="${center - ribbonW / 2}" y="${ribbonY}" width="${ribbonW}" height="${ribbonH}" rx="${3 * scale}" fill="#1A237E"/>
-    <polygon points="${center - ribbonW / 2},${ribbonY + ribbonH} ${center - ribbonW / 2 + 8 * scale},${ribbonY + ribbonH + 10 * scale} ${center - ribbonW / 2 + 16 * scale},${ribbonY + ribbonH}" fill="#283593"/>
-    <polygon points="${center + ribbonW / 2},${ribbonY + ribbonH} ${center + ribbonW / 2 - 8 * scale},${ribbonY + ribbonH + 10 * scale} ${center + ribbonW / 2 - 16 * scale},${ribbonY + ribbonH}" fill="#283593"/>
-  </svg>`);
-}
-
 function stickerCompositesForTemplate(templateId, border, width, height) {
   const scale = Math.max(0.78, Math.min(1.35, Math.min(width, height) / 900));
   const burstScale = scale * 1.05;
@@ -496,28 +398,6 @@ function stickerCompositesForTemplate(templateId, border, width, height) {
       left: Math.round(border + width * 0.04),
       top: Math.round(border + height * 0.42 - deliveryH / 2),
     });
-  } else if (template === "raincoat_promo") {
-    const burst = specialOfferBurstSvg(scale);
-    const sale = specialSaleSvg(scale);
-    const seal = bestSellerSealSvg(scale);
-    const burstSize = 78 * scale * 2 + 28 * scale;
-    const saleSize = 72 * scale * 2 + 24 * scale;
-    const sealSize = 96 * scale + 20 * scale;
-    composites.push({
-      input: burst,
-      left: Math.round(border + width * 0.5 - burstSize / 2),
-      top: Math.round(border + height * 0.1 - burstSize / 2),
-    });
-    composites.push({
-      input: sale,
-      left: Math.round(border + width * 0.24 - saleSize / 2),
-      top: Math.round(border + height * 0.74 - saleSize / 2),
-    });
-    composites.push({
-      input: seal,
-      left: Math.round(border + width * 0.78 - sealSize / 2),
-      top: Math.round(border + height * 0.78 - sealSize / 2),
-    });
   } else {
     composites.push({ input: specialOfferSvg(scale), left: offerLeft, top: offerTop });
     composites.push({ input: hotSaleSvg(burstScale), left: burstLeft, top: burstTop });
@@ -562,38 +442,10 @@ function estimateMeeshoInr(item) {
     if (maxSide > 1024 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 79);
     return Math.min(fileKb, 50);
   }
-  if (path === "raincoat_framed") {
-    if (fileKb <= 68) return fileKb;
-    if (maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 66);
-    return Math.min(fileKb, 66);
-  }
   if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
     return Math.min(fileKb, 93);
   }
   return fileKb;
-}
-
-function isRaincoatTagName(tagName) {
-  const tag = String(tagName || "").toLowerCase();
-  return INDOOR_CATEGORY_RE.test(tag) || tag.includes("raincoat") || tag.includes("rain coat");
-}
-
-function isRaincoatLowestTagName(tagName) {
-  const tag = String(tagName || "").toLowerCase();
-  return (
-    isRaincoatTagName(tagName) ||
-    tag.includes("raincoat lowest") ||
-    tag.includes("raincoat indoor lowest") ||
-    (tag.includes("raincoat") && tag.includes("lowest")) ||
-    (INDOOR_CATEGORY_RE.test(tag) && tag.includes("lowest"))
-  );
-}
-
-function resolveRaincoatFrameStyle() {
-  return {
-    borderColor: RAINCOAT_DEFAULT_OLIVE,
-    stickerTemplate: "raincoat_promo",
-  };
 }
 
 function isSupplierDenOneStickerTagName(tagName) {
@@ -1001,11 +853,14 @@ function resolveProcessingProfile(buffer, categoryName) {
   if (tag.includes("studio balanced") || tag.includes("studio ₹20") || tag.includes("studio 20-40")) {
     return profileStudioBalanced();
   }
-  if (isSupplierDenTagName(categoryName)) {
+  if (
+    tag.includes("supplierden match") ||
+    tag.includes("supplierden ₹50") ||
+    tag.includes("supplierden 50") ||
+    tag.includes("supplierden lowest") ||
+    (tag.includes("tall dress") && tag.includes("₹50"))
+  ) {
     return profileSupplierDenMatch();
-  }
-  if (isRaincoatLowestTagName(categoryName)) {
-    return { id: "raincoat_all", raincoat: true, modeName: "Raincoat Lowest ₹" };
   }
   if (
     tag.includes("framed pro") ||
@@ -1082,99 +937,6 @@ async function compressBusyToSlabOnce(buffer, slabKb) {
 
 async function compressBusyToSlab(buffer, slabKb) {
   return compressBusyToSlabOnce(buffer, slabKb);
-}
-
-async function compressBusyToSlabCapped(buffer, slabKb) {
-  const capBytes = slabKb * 1024;
-  let best = await compressBusyToSlabOnce(buffer, slabKb);
-  if (best.length <= capBytes) return best;
-  let factor = 0.96;
-  while (factor >= 0.78) {
-    const meta = await sharp(buffer).metadata();
-    const w = Math.max(1, Math.round((meta.width || 1) * factor));
-    const h = Math.max(1, Math.round((meta.height || 1) * factor));
-    const scaled = await sharp(buffer).resize(w, h, { fit: "fill" }).toBuffer();
-    const candidate = await compressBusyToSlabOnce(scaled, slabKb);
-    if (candidate.length <= capBytes) return candidate;
-    if (candidate.length < best.length) best = candidate;
-    factor -= 0.04;
-  }
-  return best;
-}
-
-async function prepareRaincoatNativeBuffer(imageBuffer, capMaxSide) {
-  let buffer = await sharp(imageBuffer).rotate().toBuffer();
-  let meta = await sharp(buffer).metadata();
-  let w = meta.width || 1;
-  let h = meta.height || 1;
-  const max0 = Math.max(w, h);
-  const cap = capMaxSide ? Number(capMaxSide) : 0;
-  if (cap > 0 && max0 > cap) {
-    buffer = await sharp(buffer).resize(cap, cap, { fit: "inside", withoutEnlargement: true }).toBuffer();
-    meta = await sharp(buffer).metadata();
-    w = meta.width || w;
-    h = meta.height || h;
-  } else if (max0 > 2000) {
-    buffer = await sharp(buffer).resize(2000, 2000, { fit: "inside", withoutEnlargement: true }).toBuffer();
-    meta = await sharp(buffer).metadata();
-    w = meta.width || w;
-    h = meta.height || h;
-  }
-  return { buffer, width: w, height: h };
-}
-
-async function prepareRaincoatFramedBuffer(imageBuffer, layoutSpec) {
-  const style = resolveRaincoatFrameStyle();
-  const native = await prepareRaincoatNativeBuffer(imageBuffer, layoutSpec.capMaxSide);
-  const fitted = fitFramedPhotoDims(native.width, native.height, layoutSpec.framedMaxSide ?? 1024);
-  let photo = native.buffer;
-  if (fitted.w !== native.width || fitted.h !== native.height) {
-    photo = await sharp(native.buffer).resize(fitted.w, fitted.h, { fit: "fill" }).toBuffer();
-  }
-  return prepareFramedBuffer(photo, fitted.w, fitted.h, layoutSpec.framedMaxSide ?? 1024, style);
-}
-
-async function generateRaincoatVariants(imageBuffer) {
-  const built = [];
-  for (const layoutSpec of RAINCOAT_LAYOUTS) {
-    const prepared = await prepareRaincoatFramedBuffer(imageBuffer, layoutSpec);
-    const profile = {
-      id: `raincoat_${layoutSpec.layout}`,
-      path: "raincoat_framed",
-      modeName: `Raincoat · ${layoutSpec.panelTag}`,
-    };
-    for (const tier of RAINCOAT_KB_TIERS) {
-      const jpeg = await compressBusyToSlabCapped(prepared.buffer, tier.slabKb);
-      built.push({
-        buffer: jpeg,
-        fileSizeBytes: jpeg.length,
-        fileSizeKb: kbFromBytes(jpeg.length),
-        tagName: `[${profile.modeName}] ${tier.label} · ${prepared.width}×${prepared.height}`,
-        recommended: !!tier.recommended,
-        lowest: !!tier.lowest,
-        width: prepared.width,
-        height: prepared.height,
-        processingPath: profile.path,
-        profileId: profile.id,
-        modeName: profile.modeName,
-        flatlayPriority: layoutSpec.priority,
-      });
-    }
-  }
-  const capped = built.filter((b) => Math.max(b.width, b.height) <= 1024);
-  const pool = capped.length ? capped : built;
-  pool.sort(
-    (a, b) =>
-      estimateMeeshoInr(a) - estimateMeeshoInr(b) ||
-      (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99) ||
-      a.fileSizeBytes - b.fileSizeBytes
-  );
-  if (pool.length) {
-    pool[0].autoBest = true;
-    pool[0].recommended = true;
-    pool[0].lowest = true;
-  }
-  return pool.slice(0, 24);
 }
 
 async function compressToTarget(buffer, targetBytes, minQ, whiteRatio, studio, absMinOverride) {
@@ -1339,9 +1101,7 @@ export async function generateAllVariants(imageBuffer, categoryName, frameStyleI
   const rotated = await sharp(imageBuffer).rotate().toBuffer();
   const built = isSupplierDenTagName(categoryName)
     ? await generateSupplierDenVariants(imageBuffer, frameStyleInput, categoryName)
-    : isRaincoatLowestTagName(categoryName)
-      ? await generateRaincoatVariants(imageBuffer)
-      : await (async () => {
+    : (await (async () => {
         const profile = resolveProcessingProfile(rotated, categoryName);
         if (profile.auto) {
           return generateAutoVariants(imageBuffer, categoryName, frameStyleInput);
@@ -1352,7 +1112,7 @@ export async function generateAllVariants(imageBuffer, categoryName, frameStyleI
           items.push(await buildVariant(prepared, tier));
         }
         return items;
-      })();
+      })());
 
   const minEstimate = Math.min(...built.map((b) => estimateMeeshoInr(b)));
 

@@ -604,47 +604,6 @@
       tiers: FLATLAY_KB_TIERS_FRAMED,
     },
   ];
-  /** Raincoat / indoor busy — framed + promo stickers, mid slabs targeting ~₹63 on Meesho. */
-  const RAINCOAT_KB_TIERS = [
-    { slabKb: 58, label: "58KB · low band", lowest: true },
-    { slabKb: 60, label: "60KB · target" },
-    { slabKb: 61, label: "61KB" },
-    { slabKb: 62, label: "62KB" },
-    { slabKb: 63, label: "63KB · ₹63 match", recommended: true },
-    { slabKb: 64, label: "64KB" },
-    { slabKb: 65, label: "65KB" },
-    { slabKb: 66, label: "66KB · backup" },
-  ];
-  const RAINCOAT_MAX_VARIANTS = 24;
-  const RAINCOAT_PROCESS_TIMEOUT_MS = 300000;
-  const RAINCOAT_DEFAULT_OLIVE = "#556B2F";
-  const RAINCOAT_LAYOUTS = [
-    {
-      layout: "rc_match",
-      type: "indoor_framed",
-      framedMaxSide: 1024,
-      priority: 0,
-      panelTag: "match · framed 1024 promo",
-      tiers: RAINCOAT_KB_TIERS,
-    },
-    {
-      layout: "rc_f960",
-      type: "indoor_framed",
-      framedMaxSide: 960,
-      priority: 1,
-      panelTag: "framed 960 · promo",
-      tiers: RAINCOAT_KB_TIERS,
-    },
-    {
-      layout: "rc_cap960",
-      type: "indoor_capped_framed",
-      capMaxSide: 960,
-      framedMaxSide: 960,
-      priority: 3,
-      panelTag: "capped 960 · promo",
-      tiers: RAINCOAT_KB_TIERS,
-    },
-  ];
   /** Large framed files — same 1280px cap; Meesho may tier on dimensions not KB alone. */
   const TIERS_FRAMED_PRO = [
     { slabKb: 177, label: "Large file ~177 KB", lowest: true },
@@ -688,7 +647,6 @@
     { id: "royal_blue", name: "Royal Blue", color: "#1565C0" },
     { id: "emerald", name: "Emerald Green", color: "#059669" },
     { id: "purple", name: "Purple", color: "#7C3AED" },
-    { id: "olive", name: "Olive Green", color: "#556B2F" },
     { id: "black", name: "Black", color: "#111827" },
   ];
   const STICKER_TEMPLATE_META = [
@@ -709,11 +667,6 @@
     { id: "limited_time", name: "Limited Time", desc: "LIMITED TIME urgency tag" },
     { id: "flash_deal", name: "Flash Deal", desc: "FLASH DEAL star burst" },
     { id: "super_offer", name: "Super Offer", desc: "SUPER OFFER + 50% OFF" },
-    {
-      id: "raincoat_promo",
-      name: "Raincoat promo",
-      desc: "SPECIAL OFFER + SPECIAL SALE + Best Seller",
-    },
   ];
   const STICKER_TEMPLATE_IDS = new Set(STICKER_TEMPLATE_META.map((t) => t.id));
   const STICKER_TEMPLATE_ALIASES = { supplierden: "supplierden_match", supplierden_one_sticker: "supplierden_one" };
@@ -734,7 +687,6 @@
     "supplierden",
     "supplierden_heavy",
     "supplierden_match_50",
-    "raincoat_framed",
   ]);
   /** Meesho may tier on max framed side — pro sellers often cap near 1280px. */
   const MEESHO_FRAMED_MAX_SIDE = 1280;
@@ -974,11 +926,6 @@
       }
       return Math.min(fileKb, 93);
     }
-    if (path === "raincoat_framed") {
-      if (fileKb <= 68) return fileKb;
-      if (maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 66);
-      return Math.min(fileKb, 66);
-    }
     if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
       return Math.min(fileKb, 93);
     }
@@ -1111,18 +1058,6 @@
       modeName: "Full-Length",
       absMinQ: 22,
       fullLength: true,
-    };
-  }
-
-  function profileRaincoatLowest() {
-    return {
-      id: "raincoat_framed",
-      studio: false,
-      tiers: RAINCOAT_KB_TIERS,
-      path: "raincoat_framed",
-      modeName: "Raincoat Lowest ₹",
-      raincoat: true,
-      framedMaxSide: 1024,
     };
   }
 
@@ -1852,64 +1787,6 @@
     return c;
   }
 
-  function isRaincoatProfileId(profileId) {
-    return String(profileId || "").startsWith("raincoat_");
-  }
-
-  function resolveRaincoatFrameStyle(frameStyle, options = {}) {
-    const user = parseFrameStyle(frameStyle || {});
-    const forceDefaults = !!options.forceDefaults;
-    const stickerTemplate = forceDefaults
-      ? "raincoat_promo"
-      : normalizeStickerTemplate(user.stickerTemplate || "raincoat_promo");
-    const borderColor = forceDefaults
-      ? RAINCOAT_DEFAULT_OLIVE
-      : user.borderColor
-        ? normalizeBorderColor(user.borderColor)
-        : RAINCOAT_DEFAULT_OLIVE;
-    return {
-      borderColor,
-      stickerTemplate,
-      stickerLayout: user.stickerLayout || defaultStickerLayoutForTemplate(stickerTemplate),
-      borderWidthPreset: user.borderWidthPreset || "standard",
-      borderWidthAdjust: user.borderWidthAdjust ?? 100,
-    };
-  }
-
-  function prepareRaincoatNativeSource(img, capMaxSide) {
-    let w = img.width;
-    let h = img.height;
-    const cap = capMaxSide ? Number(capMaxSide) : 0;
-    const max0 = Math.max(w, h);
-    if (cap > 0 && max0 > cap) {
-      const scale = cap / max0;
-      w = Math.round(w * scale);
-      h = Math.round(h * scale);
-    } else if (max0 > MAX_SIDE) {
-      const scale = MAX_SIDE / max0;
-      w = Math.round(w * scale);
-      h = Math.round(h * scale);
-    }
-    const c = document.createElement("canvas");
-    c.width = w;
-    c.height = h;
-    const ctx = c.getContext("2d");
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, w, h);
-    return c;
-  }
-
-  function prepareRaincoatLayoutCanvas(img, layoutSpec, frameStyle) {
-    const styled = resolveRaincoatFrameStyle(frameStyle);
-    const style = flatlayFramedStyle(layoutSpec, styled);
-    const source =
-      layoutSpec.type === "indoor_capped_framed"
-        ? prepareRaincoatNativeSource(img, layoutSpec.capMaxSide ?? 1024)
-        : prepareRaincoatNativeSource(img, null);
-    return prepareFramedCanvas(source, layoutSpec.framedMaxSide ?? 1024, style);
-  }
-
   function flatlayFramedStyle(layoutSpec, frameStyle) {
     if (layoutSpec.noStickers) {
       return mergeFrameStyle(frameStyle, { stickerTemplate: "none" });
@@ -1971,14 +1848,10 @@
         flatlayFramedStyle(layoutSpec, frameStyle)
       );
     }
-    if (type === "indoor_framed" || type === "indoor_capped_framed") {
-      return prepareRaincoatLayoutCanvas(img, layoutSpec, frameStyle);
-    }
     return prepareCanvas(img, true);
   }
 
   function apparelProfileKey(profile) {
-    if (profile.raincoat) return "raincoat";
     if (profile.fullLength) return "full_length";
     if (profile.modelPhoto) return "model";
     return "flatlay";
@@ -1987,7 +1860,6 @@
   function apparelPathForLayout(profile, layoutSpec, isFramed) {
     const key = apparelProfileKey(profile);
     if (isFramed) {
-      if (key === "raincoat") return "raincoat_framed";
       if (key === "full_length") return "full_length_framed";
       if (key === "model") return "model_framed";
       return "flatlay_framed";
@@ -2001,7 +1873,7 @@
   function withFlatlayLayout(profile, layoutSpec) {
     const isFramed = String(layoutSpec.type || "").includes("framed");
     const key = apparelProfileKey(profile);
-    const labels = { raincoat: "Raincoat", full_length: "Full-length", model: "Model", flatlay: "Flat-lay" };
+    const labels = { full_length: "Full-length", model: "Model", flatlay: "Flat-lay" };
     return {
       ...profile,
       id: `${key}_${layoutSpec.layout}`,
@@ -2070,59 +1942,6 @@
       maxVariants,
       minVariants: 1,
     });
-  }
-
-  function raincoatProfilesForImage() {
-    const base = profileRaincoatLowest();
-    return RAINCOAT_LAYOUTS.map((layoutSpec) => withFlatlayLayout(base, layoutSpec)).sort(
-      (a, b) => (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99)
-    );
-  }
-
-  async function optimizeRaincoatLayoutsAll(img, profiles, maxVariants, frameStyle, onProgress) {
-    const styled = resolveRaincoatFrameStyle(frameStyle, { forceDefaults: true });
-    const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
-    const allVariants = [];
-    let done = 0;
-    for (const profile of profiles) {
-      const canvas = prepareRaincoatLayoutCanvas(img, profile.flatlaySpec, styled);
-      const whiteRatio = measureNearWhiteRatio(canvas);
-      for (const tier of profile.tiers) {
-        if (onProgress) {
-          onProgress(
-            10 + (done / totalSteps) * 85,
-            `Raincoat · ${profile.modeName} · ${tier.label}`
-          );
-        }
-        allVariants.push(
-          await buildVariantForTier(canvas, whiteRatio, profile, tier, {
-            showMode: true,
-            reframeMeta: buildReframeMeta(profile, tier, {
-              frameStyle: flatlayFramedStyle(profile.flatlaySpec, styled),
-              studioLayout: profile.studioLayout,
-              whiteRatio,
-            }),
-          })
-        );
-        done += 1;
-        await yieldToMain();
-      }
-      releaseCanvas(canvas);
-    }
-    return finalizeRaincoatVariants(allVariants, {
-      maxVariants,
-      minVariants: 1,
-    });
-  }
-
-  async function optimizeRaincoatAll(img, frameStyle, onProgress) {
-    return optimizeRaincoatLayoutsAll(
-      img,
-      raincoatProfilesForImage(),
-      RAINCOAT_MAX_VARIANTS,
-      frameStyle,
-      onProgress
-    );
   }
 
   async function optimizeFlatlayApparelAll(img, frameStyle, onProgress) {
@@ -2388,56 +2207,6 @@
     return finalizeAutoVariants(pool, options);
   }
 
-  /** Raincoat — keep framed max side ≤1024; prefer olive + promo stickers in the ₹63 band. */
-  function finalizeRaincoatVariants(variants, options = {}) {
-    const maxVariants = options.maxVariants ?? RAINCOAT_MAX_VARIANTS;
-    const minVariants = options.minVariants ?? 1;
-    const capped = variants.filter((v) => Math.max(v.width || 0, v.height || 0) <= 1024);
-    const pool = capped.length > 0 ? capped : variants;
-    const deduped = dedupeAutoVariants(pool);
-
-    const inrOf = (v) => estimateMeeshoInr(v);
-    const priorityOf = (v) => v.flatlayPriority ?? v.reframeMeta?.flatlayPriority ?? 99;
-    const isPromo = (v) => v.reframeMeta?.frameStyle?.stickerTemplate === "raincoat_promo";
-    const isNoStickers = (v) =>
-      v.reframeMeta?.frameStyle?.stickerTemplate === "none" ||
-      String(v.profileId || "").includes("_ns");
-
-    const byCost = (a, b) =>
-      inrOf(a) - inrOf(b) ||
-      priorityOf(a) - priorityOf(b) ||
-      (a.bytes || 0) - (b.bytes || 0);
-
-    const promoInBand = deduped.filter((v) => isPromo(v) && inrOf(v) <= 66);
-    const sorted = deduped.slice().sort((a, b) => {
-      const promoBias = (v) => (isPromo(v) ? 0 : isNoStickers(v) ? 2 : 1);
-      return promoBias(a) - promoBias(b) || byCost(a, b);
-    });
-
-    let ordered = sorted;
-    if (promoInBand.length) {
-      const bestPromo = promoInBand.slice().sort((a, b) => {
-        const tierBias = (v) => (v.reframeMeta?.tier?.slabKb === 63 ? 0 : 1);
-        return tierBias(a) - tierBias(b) || byCost(a, b);
-      })[0];
-      ordered = [bestPromo, ...sorted.filter((v) => v !== bestPromo)];
-    }
-
-    const cappedList = ordered.slice(0, maxVariants);
-    const minCount = Math.min(minVariants, ordered.length);
-    const results =
-      cappedList.length >= minCount
-        ? cappedList
-        : ordered.slice(0, Math.max(minCount, cappedList.length));
-    results.forEach((v, i) => {
-      v.autoRank = i + 1;
-      v.autoBest = i === 0;
-      v.recommended = i < 3;
-      v.lowest = i === 0;
-    });
-    return results;
-  }
-
   function pathOf(url) {
     try {
       return new URL(url, location.origin).pathname;
@@ -2519,33 +2288,6 @@
     );
   }
 
-  function isRaincoatTagName(tagName) {
-    const tag = String(tagName || "").toLowerCase();
-    return INDOOR_CATEGORY_RE.test(tag) || tag.includes("raincoat") || tag.includes("rain coat");
-  }
-
-  function isRaincoatLowestTagName(tagName) {
-    const tag = String(tagName || "").toLowerCase();
-    return (
-      isRaincoatTagName(tagName) ||
-      tag.includes("raincoat lowest") ||
-      tag.includes("raincoat indoor lowest") ||
-      (tag.includes("raincoat") && tag.includes("lowest")) ||
-      (INDOOR_CATEGORY_RE.test(tag) && tag.includes("lowest"))
-    );
-  }
-
-  function shouldAutoRouteRaincoat(img, tagName) {
-    if (isRaincoatTagName(tagName)) return true;
-    const tag = String(tagName || "").toLowerCase();
-    if (!tag.includes("auto")) return false;
-    if (img.height < img.width * 1.05) return false;
-    const probe = prepareFramedCanvas(img, 1024, resolveRaincoatFrameStyle({}, { forceDefaults: true }));
-    const busyRatio = measureNearWhiteRatio(probe);
-    releaseCanvas(probe);
-    return busyRatio < 0.42;
-  }
-
   function isSupplierDenOneStickerTagName(tagName) {
     const tag = String(tagName || "").toLowerCase();
     return tag.includes("one sticker") || tag.includes("1 sticker");
@@ -2569,7 +2311,6 @@
     if (isFlatlayTagName(tagName)) return FLATLAY_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     if (isModelPhotoTagName(tagName)) return MODEL_PHOTO_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     if (isFullLengthTagName(tagName)) return FULL_LENGTH_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
-    if (isRaincoatLowestTagName(tagName)) return RAINCOAT_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     if (isSupplierDenTagName(tagName)) return SUPPLIERDEN_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     return PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
   }
@@ -3054,12 +2795,6 @@
     ) {
       return { id: "full_length_all", fullLength: true, modeName: "Full-Length Lowest ₹" };
     }
-    if (isRaincoatLowestTagName(tag)) {
-      return { id: "raincoat_all", raincoat: true, modeName: "Raincoat Lowest ₹" };
-    }
-    if (isRaincoatTagName(tag)) {
-      return { id: "raincoat_all", raincoat: true, modeName: "Raincoat Lowest ₹" };
-    }
     if (
       tag.includes("bra collage") ||
       tag.includes("multi-scenario") ||
@@ -3315,159 +3050,6 @@
     return renderCompactPromoSticker(scale, texts, "best_choice");
   }
 
-  function renderSpecialOfferBurst(scale, texts = {}) {
-    const spikes = 14;
-    const outer = 78 * scale;
-    const inner = 34 * scale;
-    const pad = 14 * scale;
-    const size = outer * 2 + pad * 2;
-    const center = size / 2;
-    const ss = OVERLAY_SUPERSAMPLE;
-    const c = document.createElement("canvas");
-    c.width = Math.ceil(size * ss);
-    c.height = Math.ceil(size * ss);
-    const ctx = c.getContext("2d");
-    ctx.scale(ss, ss);
-    ctx.translate(center, center);
-    ctx.beginPath();
-    for (let i = 0; i < spikes * 2; i++) {
-      const angle = (Math.PI * i) / spikes - Math.PI / 2;
-      const radius = i % 2 === 0 ? outer : inner;
-      const px = Math.cos(angle) * radius;
-      const py = Math.sin(angle) * radius;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    const grad = ctx.createRadialGradient(0, 0, inner * 0.2, 0, 0, outer);
-    grad.addColorStop(0, "#FFEB3B");
-    grad.addColorStop(0.55, "#FF9800");
-    grad.addColorStop(1, "#E53935");
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = "#B71C1C";
-    ctx.lineWidth = 2.4 * scale;
-    ctx.stroke();
-    const line1 = String(texts.line1 || "SPECIAL").slice(0, 12);
-    const line2 = String(texts.line2 || "OFFER").slice(0, 12);
-    drawStickerText(ctx, line1, 0, -10 * scale, 14, scale, {
-      fill: "#FFFFFF",
-      stroke: "#B71C1C",
-      strokeWidth: 1.6,
-    });
-    drawStickerText(ctx, line2, 0, 10 * scale, 13, scale, {
-      fill: "#FFFFFF",
-      stroke: "#B71C1C",
-      strokeWidth: 1.5,
-    });
-    return { canvas: c, width: size, height: size };
-  }
-
-  function renderSpecialSaleBurst(scale, texts = {}) {
-    const spikes = 12;
-    const outer = 72 * scale;
-    const inner = 30 * scale;
-    const pad = 12 * scale;
-    const size = outer * 2 + pad * 2;
-    const center = size / 2;
-    const ss = OVERLAY_SUPERSAMPLE;
-    const c = document.createElement("canvas");
-    c.width = Math.ceil(size * ss);
-    c.height = Math.ceil(size * ss);
-    const ctx = c.getContext("2d");
-    ctx.scale(ss, ss);
-    ctx.translate(center, center);
-    ctx.beginPath();
-    for (let i = 0; i < spikes * 2; i++) {
-      const angle = (Math.PI * i) / spikes - Math.PI / 2;
-      const radius = i % 2 === 0 ? outer : inner;
-      const px = Math.cos(angle) * radius;
-      const py = Math.sin(angle) * radius;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    const grad = ctx.createRadialGradient(0, 0, inner * 0.15, 0, 0, outer);
-    grad.addColorStop(0, "#FFF59D");
-    grad.addColorStop(0.55, "#FFEB3B");
-    grad.addColorStop(1, "#FFC107");
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = "#111827";
-    ctx.lineWidth = 2.6 * scale;
-    ctx.stroke();
-    const line1 = String(texts.line1 || "SPECIAL").slice(0, 12);
-    const line2 = String(texts.line2 || "SALE").slice(0, 12);
-    drawStickerText(ctx, line1, 0, -9 * scale, 12.5, scale, {
-      fill: "#111827",
-      stroke: "#FFFFFF",
-      strokeWidth: 1.1,
-    });
-    drawStickerText(ctx, line2, 0, 9 * scale, 13, scale, {
-      fill: "#111827",
-      stroke: "#FFFFFF",
-      strokeWidth: 1.15,
-    });
-    return { canvas: c, width: size, height: size };
-  }
-
-  function renderSpecialSaleSticker(scale, texts = {}) {
-    return renderSpecialSaleBurst(scale, texts);
-  }
-
-  function renderBestSellerSeal(scale, texts = {}) {
-    const d = 96 * scale;
-    const pad = 10 * scale;
-    const size = d + pad * 2;
-    const center = size / 2;
-    const ss = OVERLAY_SUPERSAMPLE;
-    const c = document.createElement("canvas");
-    c.width = Math.ceil(size * ss);
-    c.height = Math.ceil((size + 28 * scale) * ss);
-    const ctx = c.getContext("2d");
-    ctx.scale(ss, ss);
-    const grad = ctx.createRadialGradient(center, center, d * 0.1, center, center, d / 2);
-    grad.addColorStop(0, "#FFE082");
-    grad.addColorStop(0.45, "#FFC107");
-    grad.addColorStop(1, "#FF8F00");
-    ctx.beginPath();
-    ctx.arc(center, center, d / 2, 0, Math.PI * 2);
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = "#F57F17";
-    ctx.lineWidth = 2.8 * scale;
-    ctx.stroke();
-    const title = String(texts.line1 || "Best Seller").slice(0, 14);
-    const sub = String(texts.line2 || "TOP QUALITY").slice(0, 14);
-    ctx.font = `900 ${11 * scale}px Arial,Helvetica,sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = "#4E342E";
-    ctx.fillText(title, center, center - d * 0.08);
-    ctx.font = `800 ${8.5 * scale}px Arial,Helvetica,sans-serif`;
-    ctx.fillText(sub, center, center + d * 0.2);
-    const ribbonW = d * 0.34;
-    const ribbonH = 22 * scale;
-    const ribbonY = center + d / 2 - 2 * scale;
-    ctx.fillStyle = "#1A237E";
-    roundRectPath(ctx, center - ribbonW / 2, ribbonY, ribbonW, ribbonH, 3 * scale);
-    ctx.fill();
-    ctx.fillStyle = "#283593";
-    ctx.beginPath();
-    ctx.moveTo(center - ribbonW / 2, ribbonY + ribbonH);
-    ctx.lineTo(center - ribbonW / 2 + 8 * scale, ribbonY + ribbonH + 10 * scale);
-    ctx.lineTo(center - ribbonW / 2 + 16 * scale, ribbonY + ribbonH);
-    ctx.closePath();
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(center + ribbonW / 2, ribbonY + ribbonH);
-    ctx.lineTo(center + ribbonW / 2 - 8 * scale, ribbonY + ribbonH + 10 * scale);
-    ctx.lineTo(center + ribbonW / 2 - 16 * scale, ribbonY + ribbonH);
-    ctx.closePath();
-    ctx.fill();
-    return { canvas: c, width: size, height: size + 28 * scale };
-  }
-
   function drawSupplierDenOneStickerOverlay(ctx, border, photoW, photoH) {
     const scale = Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
     const delivery = renderFreeDeliverySticker(scale);
@@ -3548,18 +3130,6 @@
 
     if (template === "supplierden_one") {
       drawSupplierDenOneStickerOverlay(ctx, border, photoW, photoH);
-      return;
-    }
-
-    if (template === "raincoat_promo") {
-      drawFramedOverlaysWithLayout(
-        ctx,
-        border,
-        photoW,
-        photoH,
-        template,
-        defaultStickerLayoutForTemplate(template)
-      );
       return;
     }
 
@@ -3665,12 +3235,6 @@
       primary: { type: "super_offer", x: 0.71, y: 0.09, label: "Super offer badge" },
       secondary: { type: "flat_off", x: 0.1, y: 0.72, label: "50% off badge" },
     },
-    raincoat_promo: {
-      dual: true,
-      primary: { type: "special_offer_burst", x: 0.5, y: 0.1, label: "Special offer sunburst" },
-      secondary: { type: "special_sale", x: 0.24, y: 0.74, label: "Special sale burst" },
-      extra: [{ type: "best_seller", x: 0.78, y: 0.78, label: "Best seller seal" }],
-    },
     mega_sale: {
       dual: false,
       primary: { type: "mega_sale", x: 0.68, y: 0.08, label: "Mega sale badge" },
@@ -3683,9 +3247,6 @@
     { id: "best_choice", name: "Best choice offer" },
     { id: "special_offer", name: "Special offer" },
     { id: "hot_sale", name: "Hot sale burst" },
-    { id: "special_offer_burst", name: "Special offer sunburst" },
-    { id: "special_sale", name: "Special sale badge" },
-    { id: "best_seller", name: "Best seller seal" },
     { id: "limited_time", name: "Limited time" },
     { id: "flash_deal", name: "Flash deal" },
     { id: "best_price", name: "Best price ribbon" },
@@ -3796,11 +3357,6 @@
           y: 0.72,
         })
       );
-    }
-    if (Array.isArray(defs.extra)) {
-      for (const slot of defs.extra) {
-        stickers.push(defaultStickerSlotFromDef(slot));
-      }
     }
     return stickers;
   }
@@ -3919,12 +3475,6 @@
         return renderSpecialOfferBadge(scale, texts);
       case "hot_sale":
         return renderHotSaleBurst(scale, texts);
-      case "special_offer_burst":
-        return renderSpecialOfferBurst(scale, texts);
-      case "special_sale":
-        return renderSpecialSaleSticker(scale, texts);
-      case "best_seller":
-        return renderBestSellerSeal(scale, texts);
       case "free_delivery":
         return renderFreeDeliverySticker(scale, texts);
       case "best_choice":
@@ -4160,27 +3710,18 @@
     if (meta.studioLayout) {
       const spec = findApparelLayoutSpec(meta.studioLayout, meta.profileId);
       if (spec) {
-        const supplierDen = isSupplierDenProfileId(meta.profileId);
-        const raincoat = isRaincoatProfileId(meta.profileId);
+        const supplierDen = String(meta.profileId || "").startsWith("supplierden_");
         if (supplierDen && spec.type === "exact_framed") {
           return prepareSupplierDenExactFramedCanvas(sourceImg, spec, mergedStyle);
         }
         if (layoutSpecIncludesFrame(spec)) {
-          if (raincoat) {
-            return prepareRaincoatLayoutCanvas(sourceImg, spec, mergedStyle);
-          }
           return supplierDen
             ? prepareSupplierDenLayoutCanvas(sourceImg, spec, mergedStyle)
             : prepareFlatlayLayoutCanvas(sourceImg, spec, mergedStyle);
         }
         const studioCanvas = supplierDen
           ? prepareSupplierDenLayoutCanvas(sourceImg, spec, null)
-          : raincoat
-            ? prepareRaincoatNativeSource(
-                sourceImg,
-                spec.type === "indoor_capped_framed" ? spec.capMaxSide ?? 1024 : null
-              )
-            : prepareFlatlayLayoutCanvas(sourceImg, spec, null);
+          : prepareFlatlayLayoutCanvas(sourceImg, spec, null);
         if (anchorW && anchorH) {
           const photo = prepareFramedPhotoCanvas(studioCanvas, spec.framedMaxSide ?? framedMaxSide);
           return prepareFramedCanvasAtSize(photo, anchorW, anchorH, mergedStyle, spec.framedMaxSide ?? framedMaxSide);
@@ -4303,6 +3844,41 @@
     }
     if (best) return best;
     return blobAtCanvasQuality(canvas, 0.05, 0.05);
+  }
+
+  async function compressToByteCap(canvas, maxBytes, opts = {}) {
+    const studio = !!opts.studio;
+    const slabKb = opts.slabKb ?? opts.targetKb ?? Math.max(1, Math.ceil(maxBytes / 1024));
+
+    if (!maxBytes || maxBytes <= 0) {
+      if (studio) {
+        return compressCanvas(canvas, slabKb * 1024, opts.minQ, opts.whiteRatio, true, opts.absMinQ);
+      }
+      return compressBusyToSlab(canvas, slabKb);
+    }
+
+    let blob;
+    if (studio) {
+      blob = await compressCanvas(canvas, maxBytes, opts.minQ, opts.whiteRatio, true, opts.absMinQ);
+    } else {
+      blob = await compressBusyToSlabOnce(canvas, Math.max(1, Math.ceil(maxBytes / 1024)));
+    }
+    if (blob.size <= maxBytes) return blob;
+
+    blob = await compressBusyUnderBytes(canvas, maxBytes);
+    if (blob.size <= maxBytes) return blob;
+
+    let factor = 0.98;
+    let fallback = blob;
+    while (factor >= 0.82) {
+      const scaled = scaleCanvas(canvas, factor);
+      const candidate = await compressBusyUnderBytes(scaled, maxBytes);
+      releaseCanvas(scaled);
+      if (candidate.size <= maxBytes) return candidate;
+      if (candidate.size < fallback.size) fallback = candidate;
+      factor -= 0.02;
+    }
+    return fallback;
   }
 
   async function compressToByteCap(canvas, maxBytes, opts = {}) {
@@ -4562,11 +4138,9 @@
     };
     const blob = capBytes
       ? await compressToByteCap(canvas, capBytes, compressOpts)
-      : profile.raincoat && tier.slabKb
-        ? await compressToByteCap(canvas, tier.slabKb * 1024, compressOpts)
-        : profile.studio || profile.collageFramed
-          ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true, profile.absMinQ)
-          : await compressBusyToSlab(canvas, tier.slabKb);
+      : profile.studio || profile.collageFramed
+        ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true, profile.absMinQ)
+        : await compressBusyToSlab(canvas, tier.slabKb);
     const reportW = options.anchorWidth ?? canvas.width;
     const reportH = options.anchorHeight ?? canvas.height;
     const label = options.showMode
@@ -4650,7 +4224,6 @@
       return SUPPLIERDEN_TALL_LAYOUTS.find((s) => s.layout === layout);
     }
     if (pid.startsWith("full_length_")) return FULL_LENGTH_LAYOUTS.find((s) => s.layout === layout);
-    if (pid.startsWith("raincoat_")) return RAINCOAT_LAYOUTS.find((s) => s.layout === layout);
     if (pid.startsWith("model_")) return MODEL_PHOTO_LAYOUTS.find((s) => s.layout === layout);
     if (pid.startsWith("flatlay_")) return FLATLAY_LAYOUTS.find((s) => s.layout === layout);
     return null;
@@ -4668,15 +4241,6 @@
           : null;
         if (String(meta.profileId || "").startsWith("supplierden_")) {
           return prepareSupplierDenLayoutCanvas(sourceImg, spec, style);
-        }
-        if (isRaincoatProfileId(meta.profileId)) {
-          if (meta.studioBase && meta.kind !== "framed_slab") {
-            return prepareRaincoatNativeSource(
-              sourceImg,
-              spec.type === "indoor_capped_framed" ? spec.capMaxSide ?? 1024 : null
-            );
-          }
-          return prepareRaincoatLayoutCanvas(sourceImg, spec, style);
         }
         return prepareFlatlayLayoutCanvas(sourceImg, spec, style);
       }
@@ -4859,14 +4423,7 @@
     return built;
   }
 
-  async function optimizeAutoAll(img, frameStyle, onProgress, tagName) {
-    if (shouldAutoRouteRaincoat(img, tagName)) {
-      return optimizeRaincoatAll(
-        img,
-        resolveRaincoatFrameStyle(frameStyle, { forceDefaults: true }),
-        onProgress
-      );
-    }
+  async function optimizeAutoAll(img, frameStyle, onProgress) {
     const collage = isLingerieSplitCollage(img);
     const profiles = autoProfilesForImage(img).sort((a, b) => (a.autoPriority ?? 99) - (b.autoPriority ?? 99));
     const collageProfiles = collage ? autoCollageProfilesForImage(img) : [];
@@ -4937,7 +4494,7 @@
     await yieldToMain();
     const profile = resolveProcessingProfile(img, tagName);
     if (profile.auto) {
-      return optimizeAutoAll(img, frameStyle, onProgress, tagName);
+      return optimizeAutoAll(img, frameStyle, onProgress);
     }
     if (profile.lingerie) {
       return optimizeLingerieAll(img, frameStyle, onProgress);
@@ -4950,9 +4507,6 @@
     }
     if (profile.fullLength) {
       return optimizeFullLengthAll(img, frameStyle, onProgress);
-    }
-    if (profile.raincoat) {
-      return optimizeRaincoatAll(img, frameStyle, onProgress);
     }
     if (profile.supplierDenAll) {
       return optimizeSupplierDenAll(img, frameStyle, onProgress, tagName);
@@ -5049,7 +4603,6 @@
     const isFlatlay = isFlatlayTagName(tagName);
     const isModelPhoto = isModelPhotoTagName(tagName);
     const isFullLength = isFullLengthTagName(tagName);
-    const isRaincoat = isRaincoatLowestTagName(tagName);
     const isSupplierDen = isSupplierDenTagName(tagName);
     const timeoutMs = isAuto
       ? AUTO_PROCESS_TIMEOUT_MS
@@ -5061,11 +4614,9 @@
             ? MODEL_PHOTO_PROCESS_TIMEOUT_MS
             : isFullLength
               ? FULL_LENGTH_PROCESS_TIMEOUT_MS
-              : isRaincoat
-                ? RAINCOAT_PROCESS_TIMEOUT_MS
-                : isSupplierDen
-                  ? SUPPLIERDEN_PROCESS_TIMEOUT_MS
-                  : PROCESS_TIMEOUT_MS;
+              : isSupplierDen
+                ? SUPPLIERDEN_PROCESS_TIMEOUT_MS
+                : PROCESS_TIMEOUT_MS;
     const deadline = Date.now() + timeoutMs;
     const checkCancelled = () => {
       const live = STORE.requests.get(id);
