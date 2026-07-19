@@ -61,8 +61,7 @@ const TIERS_SUPPLIERDEN_TALL = [
 ];
 
 const RAINCOAT_KB_TIERS = [
-  { slabKb: 55, label: "55KB · lowest try", lowest: true },
-  { slabKb: 58, label: "58KB · low band" },
+  { slabKb: 58, label: "58KB · low band", lowest: true },
   { slabKb: 60, label: "60KB · target" },
   { slabKb: 61, label: "61KB" },
   { slabKb: 62, label: "62KB" },
@@ -76,11 +75,8 @@ const RAINCOAT_DEFAULT_OLIVE = "#556B2F";
 
 const RAINCOAT_LAYOUTS = [
   { layout: "rc_match", framedMaxSide: 1024, capMaxSide: null, priority: 0, panelTag: "match · framed 1024 promo" },
-  { layout: "rc_f1024", framedMaxSide: 1024, capMaxSide: null, priority: 1, panelTag: "framed 1024 · promo" },
-  { layout: "rc_f960", framedMaxSide: 960, capMaxSide: null, priority: 3, panelTag: "framed 960 · promo" },
-  { layout: "rc_cap1024", framedMaxSide: 1024, capMaxSide: 1024, priority: 5, panelTag: "capped 1024 · promo" },
-  { layout: "rc_cap960", framedMaxSide: 960, capMaxSide: 960, priority: 7, panelTag: "capped 960 · promo" },
-  { layout: "rc_cap900", framedMaxSide: 1024, capMaxSide: 900, priority: 9, panelTag: "capped 900 · promo" },
+  { layout: "rc_f960", framedMaxSide: 960, capMaxSide: null, priority: 1, panelTag: "framed 960 · promo" },
+  { layout: "rc_cap960", framedMaxSide: 960, capMaxSide: 960, priority: 3, panelTag: "capped 960 · promo" },
 ];
 
 const SUPPLIERDEN_TALL_LAYOUTS = [
@@ -384,22 +380,37 @@ function specialOfferBurstSvg(scale) {
         <stop offset="100%" stop-color="#E53935"/>
       </radialGradient>
     </defs>
-    <text x="${center}" y="${center - 10 * scale}" fill="#D32F2F" stroke="#FFFFFF" stroke-width="${2.1 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${14 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SPECIAL</text>
-    <text x="${center}" y="${center + 10 * scale}" fill="#D32F2F" stroke="#FFFFFF" stroke-width="${2 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${13 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">OFFER</text>
+    <text x="${center}" y="${center - 10 * scale}" fill="#FFFFFF" stroke="#B71C1C" stroke-width="${1.6 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${14 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SPECIAL</text>
+    <text x="${center}" y="${center + 10 * scale}" fill="#FFFFFF" stroke="#B71C1C" stroke-width="${1.5 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${13 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">OFFER</text>
   </svg>`);
 }
 
 function specialSaleSvg(scale) {
-  const w = 108 * scale;
-  const h = 52 * scale;
-  const pad = 10 * scale;
-  const bw = w + pad * 2;
-  const bh = h + pad * 2;
+  const outer = 72 * scale;
+  const pad = 12 * scale;
+  const size = outer * 2 + pad * 2;
+  const center = size / 2;
+  const spikes = 12;
+  let points = "";
+  for (let i = 0; i < spikes * 2; i++) {
+    const angle = (Math.PI * i) / spikes - Math.PI / 2;
+    const radius = i % 2 === 0 ? outer : 30 * scale;
+    const px = center + Math.cos(angle) * radius;
+    const py = center + Math.sin(angle) * radius;
+    points += `${px},${py} `;
+  }
   const ss = OVERLAY_SUPERSAMPLE;
-  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(bw * ss)}" height="${Math.ceil(bh * ss)}" viewBox="0 0 ${Math.ceil(bw)} ${Math.ceil(bh)}">
-    <rect x="${pad}" y="${pad}" width="${w}" height="${h}" rx="${h / 2}" fill="#111827" stroke="#FFD600" stroke-width="${3 * scale}"/>
-    <text x="${pad + w / 2}" y="${pad + h * 0.38}" fill="#FFD600" stroke="#000000" stroke-width="${1.2 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${13 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SPECIAL</text>
-    <text x="${pad + w / 2}" y="${pad + h * 0.72}" fill="#FFD600" stroke="#000000" stroke-width="${1.25 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${14 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SALE</text>
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(size * ss)}" height="${Math.ceil(size * ss)}" viewBox="0 0 ${Math.ceil(size)} ${Math.ceil(size)}">
+    <polygon points="${points.trim()}" fill="url(#ssb)" stroke="#111827" stroke-width="${2.6 * scale}"/>
+    <defs>
+      <radialGradient id="ssb">
+        <stop offset="0%" stop-color="#FFF59D"/>
+        <stop offset="55%" stop-color="#FFEB3B"/>
+        <stop offset="100%" stop-color="#FFC107"/>
+      </radialGradient>
+    </defs>
+    <text x="${center}" y="${center - 9 * scale}" fill="#111827" stroke="#FFFFFF" stroke-width="${1.1 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${12.5 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SPECIAL</text>
+    <text x="${center}" y="${center + 9 * scale}" fill="#111827" stroke="#FFFFFF" stroke-width="${1.15 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${13 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SALE</text>
   </svg>`);
 }
 
@@ -490,23 +501,22 @@ function stickerCompositesForTemplate(templateId, border, width, height) {
     const sale = specialSaleSvg(scale);
     const seal = bestSellerSealSvg(scale);
     const burstSize = 78 * scale * 2 + 28 * scale;
-    const saleW = 108 * scale + 20 * scale;
-    const saleH = 52 * scale + 20 * scale;
+    const saleSize = 72 * scale * 2 + 24 * scale;
     const sealSize = 96 * scale + 20 * scale;
     composites.push({
       input: burst,
       left: Math.round(border + width * 0.5 - burstSize / 2),
-      top: Math.round(border + height * 0.11 - burstSize / 2),
+      top: Math.round(border + height * 0.1 - burstSize / 2),
     });
     composites.push({
       input: sale,
-      left: Math.round(border + width * 0.24 - saleW / 2),
-      top: Math.round(border + height * 0.76 - saleH / 2),
+      left: Math.round(border + width * 0.24 - saleSize / 2),
+      top: Math.round(border + height * 0.74 - saleSize / 2),
     });
     composites.push({
       input: seal,
       left: Math.round(border + width * 0.78 - sealSize / 2),
-      top: Math.round(border + height * 0.76 - sealSize / 2),
+      top: Math.round(border + height * 0.78 - sealSize / 2),
     });
   } else {
     composites.push({ input: specialOfferSvg(scale), left: offerLeft, top: offerTop });
@@ -553,12 +563,9 @@ function estimateMeeshoInr(item) {
     return Math.min(fileKb, 50);
   }
   if (path === "raincoat_framed") {
-    if (maxSide > 0 && maxSide <= 1024) {
-      if (fileKb <= 68) return fileKb;
-      return Math.min(fileKb, 93);
-    }
-    if (maxSide > 1024 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 93);
-    return fileKb;
+    if (fileKb <= 68) return fileKb;
+    if (maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 66);
+    return Math.min(fileKb, 66);
   }
   if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
     return Math.min(fileKb, 93);
@@ -566,9 +573,15 @@ function estimateMeeshoInr(item) {
   return fileKb;
 }
 
+function isRaincoatTagName(tagName) {
+  const tag = String(tagName || "").toLowerCase();
+  return INDOOR_CATEGORY_RE.test(tag) || tag.includes("raincoat") || tag.includes("rain coat");
+}
+
 function isRaincoatLowestTagName(tagName) {
   const tag = String(tagName || "").toLowerCase();
   return (
+    isRaincoatTagName(tagName) ||
     tag.includes("raincoat lowest") ||
     tag.includes("raincoat indoor lowest") ||
     (tag.includes("raincoat") && tag.includes("lowest")) ||
@@ -1161,7 +1174,7 @@ async function generateRaincoatVariants(imageBuffer) {
     pool[0].recommended = true;
     pool[0].lowest = true;
   }
-  return pool.slice(0, 54);
+  return pool.slice(0, 24);
 }
 
 async function compressToTarget(buffer, targetBytes, minQ, whiteRatio, studio, absMinOverride) {

@@ -35,6 +35,7 @@ const maxSides = results.map((r) => Math.max(r.width || 0, r.height || 0));
 
 const ok =
   results.length >= 20 &&
+  results.length <= 30 &&
   paths.includes("raincoat_framed") &&
   !paths.includes("framed_classic") &&
   inrs.every((n) => n <= 66) &&
