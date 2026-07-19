@@ -4014,16 +4014,15 @@
       return blob;
     }
 
-    const minFactor = opts.reframeHeavyLayout ? 0.74 : 0.82;
-    let factor = opts.reframeHeavyLayout ? 0.96 : 0.98;
+    let factor = 0.98;
     let fallback = blob;
-    while (factor >= minFactor) {
+    while (factor >= 0.82) {
       const scaled = scaleCanvas(canvas, factor);
       const candidate = await compressBusyUnderBytes(scaled, maxBytes);
       releaseCanvas(scaled);
       if (candidate.size <= maxBytes) return candidate;
       if (candidate.size < fallback.size) fallback = candidate;
-      factor -= opts.reframeHeavyLayout ? 0.015 : 0.02;
+      factor -= 0.02;
     }
     return fallback;
   }
@@ -4063,13 +4062,6 @@
         normalizeBorderWidthPreset(baseline.borderWidthPreset) &&
       normalizeBorderWidthAdjust(style.borderWidthAdjust) === normalizeBorderWidthAdjust(baseline.borderWidthAdjust)
     );
-  }
-
-  function isReframeHeavyStickerLayout(style) {
-    const layout = style?.stickerLayout;
-    if (!layout || !Array.isArray(layout.stickers) || !layout.stickers.length) return false;
-    if (layout.stickers.some((slot) => !!slot?.imageUrl)) return true;
-    return layout.stickers.length > 2;
   }
 
   function estimateReframeShippingInr(variant, meta) {
@@ -4225,7 +4217,6 @@
       slabKb: tier.slabKb,
       targetKb: tier.targetKb,
       allowDimensionDownscale: options.allowDimensionDownscale,
-      reframeHeavyLayout: options.reframeHeavyLayout,
     };
     const blob = capBytes
       ? await compressToByteCap(canvas, capBytes, compressOpts)
@@ -4356,20 +4347,18 @@
     const anchorW = meta.tier?.anchorWidth ?? null;
     const anchorH = meta.tier?.anchorHeight ?? null;
     const framedMode = displayMode === "framed" || displayMode === "frame_only";
+    const reframeOpts = {
+      preserveBytes: capBytes,
+      allowDimensionDownscale: !!(anchorW && anchorH),
+      anchorWidth: anchorW,
+      anchorHeight: anchorH,
+    };
 
     let style = parseFrameStyle(frameStyle);
     if (displayMode === "frame_only") {
       style = mergeFrameStyle(style, { stickerTemplate: "none" });
       style.stickerLayout = null;
     }
-    const heavyStickerLayout = isReframeHeavyStickerLayout(style);
-    const reframeOpts = {
-      preserveBytes: capBytes,
-      allowDimensionDownscale: anchorBytes != null || !!(anchorW && anchorH),
-      anchorWidth: anchorW,
-      anchorHeight: anchorH,
-      reframeHeavyLayout: heavyStickerLayout,
-    };
 
     if (framedMode && meta.anchorBlob && isReframeBaselineFrameStyle(style, meta)) {
       return buildVariantFromAnchorBlob(meta);
