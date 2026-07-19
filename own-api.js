@@ -606,7 +606,8 @@
   ];
   /** Raincoat / indoor busy — framed + promo stickers, mid slabs targeting ~₹63 on Meesho. */
   const RAINCOAT_KB_TIERS = [
-    { slabKb: 58, label: "58KB · low band", lowest: true },
+    { slabKb: 55, label: "55KB · lowest try", lowest: true },
+    { slabKb: 58, label: "58KB · low band" },
     { slabKb: 60, label: "60KB · target" },
     { slabKb: 61, label: "61KB" },
     { slabKb: 62, label: "62KB" },
@@ -615,7 +616,7 @@
     { slabKb: 65, label: "65KB" },
     { slabKb: 66, label: "66KB · backup" },
   ];
-  const RAINCOAT_MAX_VARIANTS = 24;
+  const RAINCOAT_MAX_VARIANTS = 54;
   const RAINCOAT_PROCESS_TIMEOUT_MS = 300000;
   const RAINCOAT_DEFAULT_OLIVE = "#556B2F";
   const RAINCOAT_LAYOUTS = [
@@ -628,11 +629,28 @@
       tiers: RAINCOAT_KB_TIERS,
     },
     {
+      layout: "rc_f1024",
+      type: "indoor_framed",
+      framedMaxSide: 1024,
+      priority: 1,
+      panelTag: "framed 1024 · promo",
+      tiers: RAINCOAT_KB_TIERS,
+    },
+    {
       layout: "rc_f960",
       type: "indoor_framed",
       framedMaxSide: 960,
-      priority: 1,
+      priority: 3,
       panelTag: "framed 960 · promo",
+      tiers: RAINCOAT_KB_TIERS,
+    },
+    {
+      layout: "rc_cap1024",
+      type: "indoor_capped_framed",
+      capMaxSide: 1024,
+      framedMaxSide: 1024,
+      priority: 5,
+      panelTag: "capped 1024 · promo",
       tiers: RAINCOAT_KB_TIERS,
     },
     {
@@ -640,8 +658,17 @@
       type: "indoor_capped_framed",
       capMaxSide: 960,
       framedMaxSide: 960,
-      priority: 3,
+      priority: 7,
       panelTag: "capped 960 · promo",
+      tiers: RAINCOAT_KB_TIERS,
+    },
+    {
+      layout: "rc_cap900",
+      type: "indoor_capped_framed",
+      capMaxSide: 900,
+      framedMaxSide: 1024,
+      priority: 9,
+      panelTag: "capped 900 · promo",
       tiers: RAINCOAT_KB_TIERS,
     },
   ];
@@ -975,9 +1002,12 @@
       return Math.min(fileKb, 93);
     }
     if (path === "raincoat_framed") {
-      if (fileKb <= 68) return fileKb;
-      if (maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 66);
-      return Math.min(fileKb, 66);
+      if (maxSide > 0 && maxSide <= 1024) {
+        if (fileKb <= 68) return fileKb;
+        return Math.min(fileKb, 93);
+      }
+      if (maxSide > 1024 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 93);
+      return fileKb;
     }
     if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
       return Math.min(fileKb, 93);
@@ -2519,31 +2549,14 @@
     );
   }
 
-  function isRaincoatTagName(tagName) {
-    const tag = String(tagName || "").toLowerCase();
-    return INDOOR_CATEGORY_RE.test(tag) || tag.includes("raincoat") || tag.includes("rain coat");
-  }
-
   function isRaincoatLowestTagName(tagName) {
     const tag = String(tagName || "").toLowerCase();
     return (
-      isRaincoatTagName(tagName) ||
       tag.includes("raincoat lowest") ||
       tag.includes("raincoat indoor lowest") ||
       (tag.includes("raincoat") && tag.includes("lowest")) ||
       (INDOOR_CATEGORY_RE.test(tag) && tag.includes("lowest"))
     );
-  }
-
-  function shouldAutoRouteRaincoat(img, tagName) {
-    if (isRaincoatTagName(tagName)) return true;
-    const tag = String(tagName || "").toLowerCase();
-    if (!tag.includes("auto")) return false;
-    if (img.height < img.width * 1.05) return false;
-    const probe = prepareFramedCanvas(img, 1024, resolveRaincoatFrameStyle({}, { forceDefaults: true }));
-    const busyRatio = measureNearWhiteRatio(probe);
-    releaseCanvas(probe);
-    return busyRatio < 0.42;
   }
 
   function isSupplierDenOneStickerTagName(tagName) {
@@ -3057,9 +3070,6 @@
     if (isRaincoatLowestTagName(tag)) {
       return { id: "raincoat_all", raincoat: true, modeName: "Raincoat Lowest ₹" };
     }
-    if (isRaincoatTagName(tag)) {
-      return { id: "raincoat_all", raincoat: true, modeName: "Raincoat Lowest ₹" };
-    }
     if (
       tag.includes("bra collage") ||
       tag.includes("multi-scenario") ||
@@ -3351,68 +3361,50 @@
     const line1 = String(texts.line1 || "SPECIAL").slice(0, 12);
     const line2 = String(texts.line2 || "OFFER").slice(0, 12);
     drawStickerText(ctx, line1, 0, -10 * scale, 14, scale, {
-      fill: "#FFFFFF",
-      stroke: "#B71C1C",
-      strokeWidth: 1.6,
+      fill: "#D32F2F",
+      stroke: "#FFFFFF",
+      strokeWidth: 2.1,
     });
     drawStickerText(ctx, line2, 0, 10 * scale, 13, scale, {
-      fill: "#FFFFFF",
-      stroke: "#B71C1C",
-      strokeWidth: 1.5,
-    });
-    return { canvas: c, width: size, height: size };
-  }
-
-  function renderSpecialSaleBurst(scale, texts = {}) {
-    const spikes = 12;
-    const outer = 72 * scale;
-    const inner = 30 * scale;
-    const pad = 12 * scale;
-    const size = outer * 2 + pad * 2;
-    const center = size / 2;
-    const ss = OVERLAY_SUPERSAMPLE;
-    const c = document.createElement("canvas");
-    c.width = Math.ceil(size * ss);
-    c.height = Math.ceil(size * ss);
-    const ctx = c.getContext("2d");
-    ctx.scale(ss, ss);
-    ctx.translate(center, center);
-    ctx.beginPath();
-    for (let i = 0; i < spikes * 2; i++) {
-      const angle = (Math.PI * i) / spikes - Math.PI / 2;
-      const radius = i % 2 === 0 ? outer : inner;
-      const px = Math.cos(angle) * radius;
-      const py = Math.sin(angle) * radius;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    const grad = ctx.createRadialGradient(0, 0, inner * 0.15, 0, 0, outer);
-    grad.addColorStop(0, "#FFF59D");
-    grad.addColorStop(0.55, "#FFEB3B");
-    grad.addColorStop(1, "#FFC107");
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = "#111827";
-    ctx.lineWidth = 2.6 * scale;
-    ctx.stroke();
-    const line1 = String(texts.line1 || "SPECIAL").slice(0, 12);
-    const line2 = String(texts.line2 || "SALE").slice(0, 12);
-    drawStickerText(ctx, line1, 0, -9 * scale, 12.5, scale, {
-      fill: "#111827",
+      fill: "#D32F2F",
       stroke: "#FFFFFF",
-      strokeWidth: 1.1,
-    });
-    drawStickerText(ctx, line2, 0, 9 * scale, 13, scale, {
-      fill: "#111827",
-      stroke: "#FFFFFF",
-      strokeWidth: 1.15,
+      strokeWidth: 2,
     });
     return { canvas: c, width: size, height: size };
   }
 
   function renderSpecialSaleSticker(scale, texts = {}) {
-    return renderSpecialSaleBurst(scale, texts);
+    const line1 = String(texts.line1 || "SPECIAL").slice(0, 12);
+    const line2 = String(texts.line2 || "SALE").slice(0, 12);
+    const w = 108 * scale;
+    const h = 52 * scale;
+    const pad = 10 * scale;
+    const bw = w + pad * 2;
+    const bh = h + pad * 2;
+    const ss = OVERLAY_SUPERSAMPLE;
+    const c = document.createElement("canvas");
+    c.width = Math.ceil(bw * ss);
+    c.height = Math.ceil(bh * ss);
+    const ctx = c.getContext("2d");
+    ctx.scale(ss, ss);
+    ctx.translate(pad, pad);
+    roundRectPath(ctx, 0, 0, w, h, h / 2);
+    ctx.fillStyle = "#111827";
+    ctx.fill();
+    ctx.strokeStyle = "#FFD600";
+    ctx.lineWidth = 3 * scale;
+    ctx.stroke();
+    drawStickerText(ctx, line1, w / 2, h * 0.38, 13, scale, {
+      fill: "#FFD600",
+      stroke: "#000000",
+      strokeWidth: 1.2,
+    });
+    drawStickerText(ctx, line2, w / 2, h * 0.72, 14, scale, {
+      fill: "#FFD600",
+      stroke: "#000000",
+      strokeWidth: 1.25,
+    });
+    return { canvas: c, width: bw, height: bh };
   }
 
   function renderBestSellerSeal(scale, texts = {}) {
@@ -3667,9 +3659,9 @@
     },
     raincoat_promo: {
       dual: true,
-      primary: { type: "special_offer_burst", x: 0.5, y: 0.1, label: "Special offer sunburst" },
-      secondary: { type: "special_sale", x: 0.24, y: 0.74, label: "Special sale burst" },
-      extra: [{ type: "best_seller", x: 0.78, y: 0.78, label: "Best seller seal" }],
+      primary: { type: "special_offer_burst", x: 0.5, y: 0.11, label: "Special offer sunburst" },
+      secondary: { type: "special_sale", x: 0.24, y: 0.76, label: "Special sale badge" },
+      extra: [{ type: "best_seller", x: 0.78, y: 0.76, label: "Best seller seal" }],
     },
     mega_sale: {
       dual: false,
@@ -4859,14 +4851,7 @@
     return built;
   }
 
-  async function optimizeAutoAll(img, frameStyle, onProgress, tagName) {
-    if (shouldAutoRouteRaincoat(img, tagName)) {
-      return optimizeRaincoatAll(
-        img,
-        resolveRaincoatFrameStyle(frameStyle, { forceDefaults: true }),
-        onProgress
-      );
-    }
+  async function optimizeAutoAll(img, frameStyle, onProgress) {
     const collage = isLingerieSplitCollage(img);
     const profiles = autoProfilesForImage(img).sort((a, b) => (a.autoPriority ?? 99) - (b.autoPriority ?? 99));
     const collageProfiles = collage ? autoCollageProfilesForImage(img) : [];
@@ -4937,7 +4922,7 @@
     await yieldToMain();
     const profile = resolveProcessingProfile(img, tagName);
     if (profile.auto) {
-      return optimizeAutoAll(img, frameStyle, onProgress, tagName);
+      return optimizeAutoAll(img, frameStyle, onProgress);
     }
     if (profile.lingerie) {
       return optimizeLingerieAll(img, frameStyle, onProgress);
