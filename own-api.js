@@ -4148,9 +4148,24 @@
     const layout = style?.stickerLayout;
     if (!layout || !Array.isArray(layout.stickers) || !layout.stickers.length) return false;
     const visible = layout.stickers.filter((slot) => slot && !slot.hidden);
-    if (!visible.length) return false;
-    if (visible.some((slot) => !!slot.imageUrl)) return true;
+    // Custom icons are layout edits like text/position — only count extra sticker count as heavy.
     return visible.length > 2;
+  }
+
+  function enforceReframeFrozenAnchors(meta) {
+    if (!meta?.anchorFrozen) return meta;
+    const tier = meta.tier || (meta.tier = {});
+    if (meta.anchorFileSizeBytes != null) {
+      tier.anchorBytes = meta.anchorFileSizeBytes;
+      tier.preserveBytes = meta.anchorFileSizeBytes;
+    }
+    if (meta.anchorEstimatedShippingInr != null) {
+      tier.anchorInr = meta.anchorEstimatedShippingInr;
+    }
+    if (meta.anchorFileSizeKb != null && tier.preserveKb == null) {
+      tier.preserveKb = meta.anchorFileSizeKb;
+    }
+    return meta;
   }
 
   function estimateReframeShippingInr(variant, meta) {
@@ -5087,6 +5102,7 @@
     blobToDataUrl,
     estimateMeeshoInr,
     estimateReframeShippingInr,
+    enforceReframeFrozenAnchors,
     hydrateReframeAnchorBlob,
     isReframeBaselineFrameStyle,
     kb,
