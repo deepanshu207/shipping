@@ -796,7 +796,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=117"></script>
+  <script src="/own-api.js?v=118"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1076,6 +1076,34 @@
         meta.anchorFrozen = true;
       }
 
+      function syncReframeTierAnchors(result) {
+        if (!result || !result.reframeMeta) return;
+        var meta = result.reframeMeta;
+        var tier = meta.tier || (meta.tier = {});
+        var bytes =
+          tier.anchorBytes ||
+          meta.anchorFileSizeBytes ||
+          result.fileSizeBytes ||
+          (result.fileSizeKb ? Math.round(result.fileSizeKb * 1024) : null);
+        if (bytes && !tier.anchorBytes) {
+          tier.anchorBytes = bytes;
+          tier.preserveBytes = bytes;
+        }
+        if (tier.anchorInr == null) {
+          tier.anchorInr =
+            meta.anchorEstimatedShippingInr ??
+            (isResultCustomized(result) ? null : result.estimatedShippingInr) ??
+            null;
+        }
+        if (!tier.anchorWidth && result.width) {
+          tier.anchorWidth = result.width;
+          tier.anchorHeight = result.height;
+        }
+        if (!tier.preserveKb) {
+          tier.preserveKb = tier.slabKb || tier.targetKb || result.fileSizeKb || null;
+        }
+      }
+
       function ensureReframeAnchorMeta(result) {
         if (!result || !result.reframeMeta) return;
         freezeReframeGenerationAnchor(result);
@@ -1093,6 +1121,7 @@
         if (tier.anchorInr == null) {
           tier.anchorInr = meta.anchorEstimatedShippingInr ?? result.estimatedShippingInr ?? null;
         }
+        syncReframeTierAnchors(result);
         if (!tier.anchorWidth && result.width) {
           tier.anchorWidth = result.width;
           tier.anchorHeight = result.height;
@@ -1166,6 +1195,9 @@
           absMinQ: meta.absMinQ,
           anchorBlob: meta.anchorBlob,
           anchorImageUrl: meta.anchorImageUrl,
+          anchorEstimatedShippingInr: meta.anchorEstimatedShippingInr,
+          anchorFileSizeBytes: meta.anchorFileSizeBytes,
+          anchorFileSizeKb: meta.anchorFileSizeKb,
           baselineKind: meta.baselineKind,
           baselineStudioBase: meta.baselineStudioBase,
           baselineDisplayMode: meta.baselineDisplayMode,
@@ -1177,6 +1209,19 @@
 
       function prepareMetaForReframeRender(meta) {
         var metaForRender = cloneReframeMetaForRender(meta);
+        if (metaForRender && metaForRender.tier) {
+          if (metaForRender.tier.anchorBytes == null && meta.anchorFileSizeBytes != null) {
+            metaForRender.tier.anchorBytes = meta.anchorFileSizeBytes;
+            metaForRender.tier.preserveBytes = meta.anchorFileSizeBytes;
+          }
+          if (metaForRender.tier.anchorInr == null && meta.anchorEstimatedShippingInr != null) {
+            metaForRender.tier.anchorInr = meta.anchorEstimatedShippingInr;
+          }
+          if (!metaForRender.tier.anchorWidth && meta.tier && meta.tier.anchorWidth) {
+            metaForRender.tier.anchorWidth = meta.tier.anchorWidth;
+            metaForRender.tier.anchorHeight = meta.tier.anchorHeight;
+          }
+        }
         if (metaForRender && metaForRender.frameStyle && !reframeStickerCustomized) {
           metaForRender.frameStyle = Object.assign({}, metaForRender.frameStyle, { stickerLayout: null });
         }
@@ -1341,8 +1386,8 @@
         if (meta.baselineStudioBase != null) meta.studioBase = meta.baselineStudioBase;
         var tier = meta.tier || {};
         var preserveKb = tier.preserveKb || tier.targetKb || tier.slabKb || r.fileSizeKb;
-        var anchorBytes = tier.anchorBytes || r.fileSizeBytes || null;
-        var anchorInr = tier.anchorInr || r.estimatedShippingInr || null;
+        var anchorBytes = resolveReframeAnchorBytes(meta, r);
+        var anchorInr = resolveReframeAnchorInr(meta, r);
         var baselineMode = meta.baselineDisplayMode || inferBaselineDisplayMode(meta);
         if (baselineMode === "studio") {
           meta.tier = Object.assign({}, tier, {
@@ -1673,6 +1718,7 @@
         try {
           var r = lastResults[reframeIndex];
           if (!r || !r.reframeMeta) return;
+          ensureReframeAnchorMeta(r);
           if (isReframeUiAtBaseline(r.reframeMeta)) {
             if (token !== reframePreviewToken) return;
             await showReframeAnchorPreview(r);
