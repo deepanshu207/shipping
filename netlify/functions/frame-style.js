@@ -33,7 +33,7 @@ export const STICKER_TEMPLATES = [
   {
     id: "raincoat_promo",
     name: "Raincoat promo",
-    desc: "SPECIAL OFFER + HOT SALE + BEST CHOICE",
+    desc: "SPECIAL OFFER + SPECIAL SALE + Best Seller",
   },
 ];
 
