@@ -353,6 +353,7 @@
     .reframe-sticker-layout .field { margin-bottom: 0.55rem; }
     .reframe-sticker-layout label { font-size: 0.75rem; font-weight: 700; color: var(--muted); display: block; margin-bottom: 0.2rem; }
     .reframe-sticker-layout input[type="text"],
+    .reframe-sticker-layout input[type="number"],
     .reframe-sticker-layout select { width: 100%; font: inherit; font-size: 0.85rem; padding: 0.45rem 0.55rem; border-radius: 0.55rem; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
     .reframe-sticker-layout input[type="range"] { width: 100%; }
     .reframe-slot-card {
@@ -809,7 +810,7 @@
           <details class="accordion reframe-sticker-layout" id="reframe-sticker-layout" open style="margin-top:0.5rem">
             <summary>Stickers — add, remove, move, text, image</summary>
             <div class="accordion-body">
-              <p class="reframe-note">Default: 2 stickers. Tap <b>−</b> to remove one, <b>+ Add sticker</b> for more (up to 5). <b>Hide sticker</b> removes it from the image but keeps layout data — shipping stays locked to generation like text/position edits.</p>
+              <p class="reframe-note">Default: 2 stickers. Tap <b>−</b> to remove one, <b>+ Add sticker</b> for more (up to 5). Set <b>width (px)</b> for icon or custom image stickers. <b>Hide sticker</b> removes it from the image — shipping stays locked to generation like text, position, and size edits.</p>
               <div id="reframe-sticker-slots"></div>
               <button type="button" class="reframe-add-sticker" id="reframe-add-sticker">+ Add sticker</button>
             </div>
@@ -825,7 +826,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=122"></script>
+  <script src="/own-api.js?v=123"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1657,6 +1658,11 @@
           typeSelect.addEventListener("change", function () {
             slot.type = typeSelect.value;
             title.textContent = "Sticker " + (index + 1) + " · " + stickerTypeLabel(slot.type);
+            if (slot.sizePx == null) {
+              var autoPx = FS.estimateStickerSlotWidthPx(slot.type, refPhotoW, refPhotoH, slot);
+              sizeInput.value = String(autoPx);
+              sizeNote.textContent = "Auto · ~" + autoPx + " px (change to set exact width)";
+            }
             markStickerLayoutCustomized();
           });
           typeField.appendChild(typeSelect);
@@ -1697,6 +1703,38 @@
           addRange("Horizontal position", "x");
           addRange("Vertical position", "y");
 
+          var sizeField = document.createElement("div");
+          sizeField.className = "field";
+          var sizeLabel = document.createElement("label");
+          sizeLabel.textContent = "Width (px) — icon or custom image";
+          sizeField.appendChild(sizeLabel);
+          var refPhotoW = FS.REFRAME_STICKER_REF_PHOTO_W || 645;
+          var refPhotoH = Math.round(refPhotoW * 1.5);
+          var defaultSizePx = FS.estimateStickerSlotWidthPx(slot.type, refPhotoW, refPhotoH, slot);
+          var sizeInput = document.createElement("input");
+          sizeInput.type = "number";
+          sizeInput.min = String(FS.STICKER_SIZE_PX_MIN || 32);
+          sizeInput.max = String(FS.STICKER_SIZE_PX_MAX || 360);
+          sizeInput.step = "1";
+          sizeInput.value = String(slot.sizePx != null ? slot.sizePx : defaultSizePx);
+          sizeInput.placeholder = String(defaultSizePx);
+          var sizeNote = document.createElement("p");
+          sizeNote.className = "reframe-slot-preview";
+          sizeNote.textContent =
+            slot.sizePx != null
+              ? "Custom width · " + slot.sizePx + " px"
+              : "Auto · ~" + defaultSizePx + " px (change to set exact width)";
+          sizeInput.addEventListener("input", function () {
+            var px = FS.normalizeStickerSizePx(sizeInput.value);
+            if (px == null) return;
+            slot.sizePx = px;
+            sizeNote.textContent = "Custom width · " + px + " px";
+            markStickerLayoutCustomized();
+          });
+          sizeField.appendChild(sizeInput);
+          sizeField.appendChild(sizeNote);
+          card.appendChild(sizeField);
+
           ["text1", "text2"].forEach(function (key, lineIdx) {
             var field = document.createElement("div");
             field.className = "field";
@@ -1728,6 +1766,11 @@
             reader.onload = function () {
               slot.imageUrl = reader.result;
               imageNote.textContent = imageInput.files[0].name;
+              if (slot.sizePx == null) {
+                var autoPx = FS.estimateStickerSlotWidthPx(slot.type, refPhotoW, refPhotoH, slot);
+                sizeInput.value = String(autoPx);
+                sizeNote.textContent = "Auto · ~" + autoPx + " px (change to set exact width)";
+              }
               markStickerLayoutCustomized();
             };
             reader.readAsDataURL(imageInput.files[0]);

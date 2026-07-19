@@ -3471,6 +3471,33 @@
   ];
   const STICKER_ASSET_TYPE_IDS = new Set(STICKER_ASSET_TYPES.map((t) => t.id));
   const REFRAME_MAX_STICKERS = 5;
+  const STICKER_SIZE_PX_MIN = 32;
+  const STICKER_SIZE_PX_MAX = 360;
+  /** Typical inner photo width for reframe size defaults (supplierden ~645px). */
+  const REFRAME_STICKER_REF_PHOTO_W = 645;
+
+  function normalizeStickerSizePx(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return Math.round(Math.min(STICKER_SIZE_PX_MAX, Math.max(STICKER_SIZE_PX_MIN, n)));
+  }
+
+  function stickerLayoutBaseScale(photoW, photoH) {
+    return Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
+  }
+
+  function estimateStickerSlotWidthPx(assetType, photoW, photoH, slot) {
+    const baseScale = stickerLayoutBaseScale(photoW, photoH);
+    const slotScale = slot?.scale || 1;
+    if (slot?.imageUrl) {
+      return Math.round(photoW * 0.24 * slotScale);
+    }
+    const texts = {};
+    if (slot?.text1) texts.line1 = slot.text1;
+    if (slot?.text2) texts.line2 = slot.text2;
+    const rendered = renderStickerAsset(assetType, baseScale * slotScale, texts);
+    return Math.round(rendered.width);
+  }
 
   function newStickerSlotId() {
     return "st_" + Math.random().toString(16).slice(2, 10);
@@ -3528,6 +3555,7 @@
       text2: String(s.text2 || "").slice(0, 16),
       imageUrl: String(s.imageUrl || ""),
       scale: Math.min(1.6, Math.max(0.45, Number(s.scale) || 1)),
+      sizePx: normalizeStickerSizePx(s.sizePx),
       hidden: !!s.hidden,
       _image: s._image || null,
     };
@@ -3577,6 +3605,7 @@
         text2: slot.text2,
         imageUrl: slot.imageUrl,
         scale: slot.scale,
+        sizePx: slot.sizePx,
         hidden: !!slot.hidden,
       })),
     };
@@ -3645,12 +3674,12 @@
     if (!slotLayout || slotLayout.hidden) return;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
+    const sizePx = normalizeStickerSizePx(slotLayout.sizePx);
     const slotScale = slotLayout.scale || 1;
     if (slotLayout._image) {
-      const maxW = photoW * 0.24 * slotScale;
+      const drawW = sizePx != null ? sizePx : photoW * 0.24 * slotScale;
       const ratio = slotLayout._image.height / Math.max(1, slotLayout._image.width);
-      const drawW = maxW;
-      const drawH = maxW * ratio;
+      const drawH = drawW * ratio;
       const x = border + photoW * slotLayout.x - drawW / 2;
       const y = border + photoH * slotLayout.y - drawH / 2;
       ctx.drawImage(slotLayout._image, x, y, drawW, drawH);
@@ -3660,16 +3689,23 @@
     if (slotLayout.text1) texts.line1 = slotLayout.text1;
     if (slotLayout.text2) texts.line2 = slotLayout.text2;
     const rendered = renderStickerAsset(assetType, scale * slotScale, texts);
-    const x = border + photoW * slotLayout.x - rendered.width / 2;
-    const y = border + photoH * slotLayout.y - rendered.height / 2;
-    ctx.drawImage(rendered.canvas, x, y, rendered.width, rendered.height);
+    let drawW = rendered.width;
+    let drawH = rendered.height;
+    if (sizePx != null) {
+      const ratio = drawH / Math.max(1, drawW);
+      drawW = sizePx;
+      drawH = Math.round(sizePx * ratio);
+    }
+    const x = border + photoW * slotLayout.x - drawW / 2;
+    const y = border + photoH * slotLayout.y - drawH / 2;
+    ctx.drawImage(rendered.canvas, x, y, drawW, drawH);
   }
 
   function drawFramedOverlaysWithLayout(ctx, border, photoW, photoH, templateId, stickerLayout) {
     const template = normalizeStickerTemplate(templateId);
     if (template === "none") return;
     const layout = normalizeStickerLayout(stickerLayout, template);
-    const scale = Math.max(0.78, Math.min(1.35, Math.min(photoW, photoH) / 900));
+    const scale = stickerLayoutBaseScale(photoW, photoH);
     for (const slot of layout.stickers) {
       drawStickerSlotOnPhoto(ctx, border, photoW, photoH, slot.type, slot, scale);
     }
@@ -5028,6 +5064,11 @@
     getTemplateStickerSlotInfo,
     STICKER_ASSET_TYPES,
     REFRAME_MAX_STICKERS,
+    STICKER_SIZE_PX_MIN,
+    STICKER_SIZE_PX_MAX,
+    REFRAME_STICKER_REF_PHOTO_W,
+    normalizeStickerSizePx,
+    estimateStickerSlotWidthPx,
     normalizeBorderColor,
     normalizeStickerTemplate,
     normalizeBorderPreset,
