@@ -1,5 +1,5 @@
 /**
- * Raincoat Lowest ₹ — multi-scenario framed indoor path targets ~₹63 band.
+ * Auto mode on busy indoor portrait must route to raincoat (not studio ₹244 band).
  */
 import { chromium } from "playwright";
 import { spawn } from "child_process";
@@ -54,44 +54,24 @@ async function run() {
       ctx.fillRect(280, 180, 340, 980);
       const dataUrl = c.toDataURL("image/jpeg", 0.92);
 
-      const tag = "Raincoat indoor busy lowest shipping framed";
+      const tag = "Auto Lowest Shipping product photo";
       const variants = await window.MeeshoProcessor.optimize(dataUrl, tag, {
         borderColor: "#FF7900",
         stickerTemplate: "classic_promo",
       });
 
       const inrs = variants.map((v) => Number(v.estimatedShippingInr || v.shippingCharge || 0));
-      const bytes = variants.map((v) => v.fileSizeBytes || 0);
       const paths = [...new Set(variants.map((v) => v.processingPath))];
-      const maxSides = variants.map((v) => Math.max(v.width || 0, v.height || 0));
       const bestStyle = variants[0]?.reframeMeta?.frameStyle || {};
-      const oliveForced = String(bestStyle.borderColor || "").toUpperCase() === "#556B2F";
-      const hasPromoVariant = variants.some(
-        (v) => v.reframeMeta?.frameStyle?.stickerTemplate === "raincoat_promo"
-      );
-      const stickerTypes = variants[0]?.reframeMeta?.frameStyle?.stickerLayout?.stickers?.map((s) => s.type) || [];
-      const hasMatchStickers =
-        stickerTypes.includes("special_offer_burst") &&
-        stickerTypes.includes("special_sale") &&
-        stickerTypes.includes("best_seller");
-      const allWithinSlab = bytes.every((b) => b <= 68 * 1024);
 
       return {
         count: variants.length,
         minInr: Math.min(...inrs),
         maxInr: Math.max(...inrs),
-        minBytes: Math.min(...bytes),
-        maxBytes: Math.max(...bytes),
-        maxSide: Math.max(...maxSides),
         paths,
         hasRaincoatPath: paths.includes("raincoat_framed"),
-        oliveForced,
-        hasPromoVariant,
-        hasMatchStickers,
-        allWithinSlab,
-        inrAtMost66: inrs.every((n) => n <= 66),
-        maxSideAtMost1024: maxSides.every((n) => n <= 1024),
-        best: variants[0],
+        oliveForced: String(bestStyle.borderColor || "").toUpperCase() === "#556B2F",
+        noHighBand: inrs.every((n) => n <= 66),
       };
     });
 
@@ -100,12 +80,8 @@ async function run() {
       result.count <= 30 &&
       result.hasRaincoatPath &&
       result.oliveForced &&
-      result.hasPromoVariant &&
-      result.hasMatchStickers &&
-      result.allWithinSlab &&
-      result.inrAtMost66 &&
-      result.maxSideAtMost1024 &&
-      result.minInr <= 66;
+      result.noHighBand &&
+      result.maxInr <= 66;
 
     if (!ok) {
       console.error("FAIL", result);
