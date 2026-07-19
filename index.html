@@ -796,7 +796,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=112"></script>
+  <script src="/own-api.js?v=113"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1108,7 +1108,11 @@
       function updateResultCardAtIndex(index, result) {
         var card = resultsGrid.querySelector('[data-result-index="' + index + '"]');
         if (!card || !result) return;
-        card.querySelector(".result-img img").src = result.imageUrl;
+        var img = card.querySelector(".result-img img");
+        if (img) {
+          img.src = "";
+          img.src = result.imageUrl;
+        }
         card.querySelector(".result-label").textContent = result.tagName;
         card.querySelector(".result-meta").textContent =
           "Est. ~₹" + (result.estimatedShippingInr || result.fileSizeKb) +
@@ -1145,6 +1149,86 @@
 
       function setReframePreviewError(message) {
         if (reframePreviewStatus) reframePreviewStatus.textContent = message;
+      }
+
+      function isReframeUiAtBaseline(meta) {
+        if (!FS || !meta || !meta.baselineFrameStyle) return false;
+        if (reframeStickerCustomized) return false;
+        var baseline = meta.baselineFrameStyle;
+        var baselineMode = meta.baselineDisplayMode || inferBaselineDisplayMode(meta);
+        if (reframeDisplayMode !== baselineMode) return false;
+        var frame = getReframeSettingsFromUi();
+        var uiSticker = reframeDisplayMode === "frame_only"
+          ? "none"
+          : FS.normalizeStickerTemplate(frame.stickerTemplate);
+        var baselineSticker = baselineMode === "frame_only"
+          ? "none"
+          : FS.normalizeStickerTemplate(baseline.stickerTemplate);
+        return (
+          FS.normalizeBorderColor(frame.borderColor) === FS.normalizeBorderColor(baseline.borderColor) &&
+          uiSticker === baselineSticker &&
+          FS.normalizeBorderWidthPreset(frame.borderWidthPreset) ===
+            FS.normalizeBorderWidthPreset(baseline.borderWidthPreset) &&
+          FS.normalizeBorderWidthAdjust(frame.borderWidthAdjust) ===
+            FS.normalizeBorderWidthAdjust(baseline.borderWidthAdjust)
+        );
+      }
+
+      async function applyBaselineRestore(r, savedIndex) {
+        ensureReframeAnchorMeta(r);
+        var meta = r.reframeMeta;
+        var baseline = meta.baselineFrameStyle;
+        var anchorUrl = meta.anchorImageUrl;
+        if (!anchorUrl) {
+          throw new Error("Original image anchor is missing.");
+        }
+        if (MR && MR.hydrateReframeAnchorBlob) {
+          await MR.hydrateReframeAnchorBlob(meta, anchorUrl);
+        }
+        var imageUrl = anchorUrl;
+        if (meta.anchorBlob && MR && MR.blobToDataUrl) {
+          imageUrl = await MR.blobToDataUrl(meta.anchorBlob);
+        }
+        r.imageUrl = imageUrl;
+        r.tagName = meta.anchorTagName || String(r.tagName || "").replace(/ · customized$/, "");
+        r.fileSizeKb =
+          meta.anchorFileSizeKb ||
+          (meta.tier && meta.tier.anchorBytes && MR ? MR.kb(meta.tier.anchorBytes) : r.fileSizeKb);
+        r.fileSizeBytes = (meta.tier && meta.tier.anchorBytes) || r.fileSizeBytes;
+        r.estimatedShippingInr =
+          meta.anchorEstimatedShippingInr || (meta.tier && meta.tier.anchorInr) || r.estimatedShippingInr;
+        r.shippingCharge = String(r.estimatedShippingInr);
+        if (meta.tier && meta.tier.anchorWidth) {
+          r.width = meta.tier.anchorWidth;
+          r.height = meta.tier.anchorHeight;
+        }
+        meta.frameStyle = cloneJson(baseline);
+        if (meta.baselineKind != null) meta.kind = meta.baselineKind;
+        if (meta.baselineStudioBase != null) meta.studioBase = meta.baselineStudioBase;
+        var tier = meta.tier || {};
+        var preserveKb = tier.preserveKb || tier.targetKb || tier.slabKb || r.fileSizeKb;
+        var anchorBytes = tier.anchorBytes || r.fileSizeBytes || null;
+        var anchorInr = tier.anchorInr || r.estimatedShippingInr || null;
+        var baselineMode = meta.baselineDisplayMode || inferBaselineDisplayMode(meta);
+        if (baselineMode === "studio") {
+          meta.tier = Object.assign({}, tier, {
+            targetKb: preserveKb,
+            preserveKb: preserveKb,
+            preserveBytes: anchorBytes,
+            anchorBytes: anchorBytes,
+            anchorInr: anchorInr,
+          });
+        } else {
+          meta.tier = Object.assign({}, tier, {
+            slabKb: preserveKb,
+            preserveKb: preserveKb,
+            preserveBytes: anchorBytes,
+            anchorBytes: anchorBytes,
+            anchorInr: anchorInr,
+          });
+        }
+        updateResultCardAtIndex(savedIndex, r);
+        closeReframeEditor();
       }
 
       function inferDisplayModeFromMeta(meta) {
@@ -1607,9 +1691,15 @@
         if (!MR || reframeIndex < 0 || !lastUploadDataUrl || reframeApplyBusy) return;
         var r = lastResults[reframeIndex];
         if (!r || !r.reframeMeta) return;
+        ensureReframeAnchorMeta(r);
+        var meta = r.reframeMeta;
         var savedIndex = reframeIndex;
         setReframeActionsBusy(true);
         try {
+          if (isReframeUiAtBaseline(meta)) {
+            await applyBaselineRestore(r, savedIndex);
+            return;
+          }
           await MR.loadMozjpeg();
           if (MR.hydrateReframeAnchorBlob) {
             await MR.hydrateReframeAnchorBlob(r.reframeMeta, r.reframeMeta.anchorImageUrl || r.imageUrl);
