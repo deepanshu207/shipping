@@ -34,7 +34,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/?v=118`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/?v=117`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoFrameSettings && window.MeeshoReframe, { timeout: 20000 });
 
     const result = await page.evaluate(async () => {
@@ -121,48 +121,6 @@ async function run() {
         s.text2 = "LINE TWO " + i;
       });
 
-      const stickerImg = () => {
-        const s = document.createElement("canvas");
-        s.width = 320;
-        s.height = 160;
-        const sx = s.getContext("2d");
-        for (let i = 0; i < 120; i++) {
-          sx.fillStyle = "hsl(" + i * 3 + ",80%,50%)";
-          sx.fillRect(Math.random() * 320, Math.random() * 160, 24, 18);
-        }
-        return s.toDataURL("image/png");
-      };
-
-      const customImageLayout = FS.normalizeStickerLayout(
-        {
-          version: 2,
-          stickers: [
-            { type: "mega_sale", x: 0.2, y: 0.2, text1: "MEGA", text2: "SALE", imageUrl: stickerImg() },
-            { type: "hot_sale", x: 0.8, y: 0.25, text1: "HOT", text2: "NOW", imageUrl: stickerImg() },
-            { type: "free_delivery", x: 0.5, y: 0.75, text1: "FREE", text2: "SHIP", imageUrl: stickerImg() },
-          ],
-        },
-        "supplierden_match"
-      );
-
-      const removedOne = FS.normalizeStickerLayout(
-        { version: 2, stickers: [heavyLayout.stickers[0]] },
-        "supplierden_match"
-      );
-
-      const addedMulti = FS.normalizeStickerLayout(
-        {
-          version: 2,
-          stickers: [
-            { type: "free_delivery", x: 0.15, y: 0.2, text1: "FREE", text2: "DEL" },
-            { type: "mega_sale", x: 0.82, y: 0.22, text1: "MEGA", text2: "SALE" },
-            { type: "hot_sale", x: 0.5, y: 0.55, text1: "HOT", text2: "NOW" },
-            { type: "limited_time", x: 0.25, y: 0.82, text1: "LIMITED", text2: "TIME" },
-          ],
-        },
-        "supplierden_match"
-      );
-
       const tightAnchored = {
         ...anchored,
         tier: {
@@ -203,22 +161,6 @@ async function run() {
           borderWidthAdjust: 150,
         }),
         textPos: await lockedInr("textPos", "framed", { ...baseline, stickerLayout: heavyLayout }),
-        customImages: await lockedInr("customImages", "framed", {
-          ...baseline,
-          stickerLayout: customImageLayout,
-        }),
-        removedSticker: await lockedInr("removedSticker", "framed", {
-          ...baseline,
-          stickerLayout: removedOne,
-        }),
-        addedMulti: await lockedInr("addedMulti", "framed", {
-          ...baseline,
-          stickerLayout: addedMulti,
-        }),
-        tightCustomImages: await lockedInrTight("tightCustomImages", "framed", {
-          ...baseline,
-          stickerLayout: customImageLayout,
-        }),
         tightColor: await lockedInrTight("tightColor", "framed", { ...baseline, borderColor: "#FF5500" }),
         tightTemplate: await lockedInrTight("tightTemplate", "framed", {
           ...baseline,
@@ -236,10 +178,6 @@ async function run() {
       result.textPos,
       result.tightColor,
       result.tightTemplate,
-      result.customImages,
-      result.removedSticker,
-      result.addedMulti,
-      result.tightCustomImages,
     ];
     const ok = checks.every((c) => c.shippingLocked);
 

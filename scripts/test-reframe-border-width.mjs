@@ -35,7 +35,7 @@ async function run() {
   const page = await context.newPage();
 
   try {
-    await page.goto(`${BASE}/?v=118`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/?v=117`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.__MEESHO_OWN_API__ === true, { timeout: 20000 });
 
     const result = await page.evaluate(() => {
