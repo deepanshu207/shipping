@@ -33,7 +33,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/?v=131`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/?v=130`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoProcessor?.optimize && window.MeeshoReframe, {
       timeout: 20000,
     });

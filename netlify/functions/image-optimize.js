@@ -60,23 +60,6 @@ const TIERS_SUPPLIERDEN_TALL = [
   { slabKb: 52, label: "52KB" },
 ];
 
-const RAINCOAT_KB_TIERS = [
-  { slabKb: 55, label: "55KB · lowest try", lowest: true },
-  { slabKb: 60, label: "60KB · low band" },
-  { slabKb: 63, label: "63KB · ₹63 match", recommended: true },
-  { slabKb: 64, label: "64KB · ₹64 slab" },
-  { slabKb: 66, label: "66KB · ₹66 backup" },
-];
-
-const RAINCOAT_DEFAULT_OLIVE = "#6B7C3C";
-
-const RAINCOAT_LAYOUTS = [
-  { layout: "rc_f960", framedMaxSide: 960, capMaxSide: null, priority: 0, panelTag: "framed 960 · promo" },
-  { layout: "rc_f1024", framedMaxSide: 1024, capMaxSide: null, priority: 2, panelTag: "framed 1024 · promo" },
-  { layout: "rc_cap960", framedMaxSide: 960, capMaxSide: 960, priority: 5, panelTag: "capped 960 framed" },
-  { layout: "rc_cap1024", framedMaxSide: 1024, capMaxSide: 1024, priority: 10, panelTag: "capped 1024 framed" },
-];
-
 const SUPPLIERDEN_TALL_LAYOUTS = [
   {
     layout: "sd_exact703",
@@ -415,22 +398,6 @@ function stickerCompositesForTemplate(templateId, border, width, height) {
       left: Math.round(border + width * 0.04),
       top: Math.round(border + height * 0.42 - deliveryH / 2),
     });
-  } else if (template === "raincoat_promo") {
-    const offer = specialOfferSvg(scale);
-    const burst = hotSaleSvg(burstScale);
-    const badge = bestChoiceOfferSvg(scale * 0.95);
-    const badgeSize = 96 * scale * 0.95 + 20 * scale;
-    composites.push({
-      input: offer,
-      left: Math.round(border + width * 0.18 - (96 * scale + 20 * scale) / 2),
-      top: Math.round(border + height * 0.12 - (96 * scale + 20 * scale) / 2),
-    });
-    composites.push({ input: burst, left: burstLeft, top: burstTop });
-    composites.push({
-      input: badge,
-      left: Math.round(border + width * 0.78 - badgeSize / 2),
-      top: Math.round(border + height * 0.72 - badgeSize / 2),
-    });
   } else {
     composites.push({ input: specialOfferSvg(scale), left: offerLeft, top: offerTop });
     composites.push({ input: hotSaleSvg(burstScale), left: burstLeft, top: burstTop });
@@ -475,34 +442,10 @@ function estimateMeeshoInr(item) {
     if (maxSide > 1024 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 79);
     return Math.min(fileKb, 50);
   }
-  if (path === "raincoat_framed") {
-    if (maxSide > 0 && maxSide <= 1024) {
-      if (fileKb <= 68) return fileKb;
-      return Math.min(fileKb, 93);
-    }
-    if (maxSide > 1024 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 93);
-    return fileKb;
-  }
   if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
     return Math.min(fileKb, 93);
   }
   return fileKb;
-}
-
-function isRaincoatLowestTagName(tagName) {
-  const tag = String(tagName || "").toLowerCase();
-  return (
-    tag.includes("raincoat lowest") ||
-    tag.includes("raincoat indoor lowest") ||
-    (INDOOR_CATEGORY_RE.test(tag) && tag.includes("lowest"))
-  );
-}
-
-function resolveRaincoatFrameStyle() {
-  return {
-    borderColor: RAINCOAT_DEFAULT_OLIVE,
-    stickerTemplate: "raincoat_promo",
-  };
 }
 
 function isSupplierDenOneStickerTagName(tagName) {
@@ -910,11 +853,14 @@ function resolveProcessingProfile(buffer, categoryName) {
   if (tag.includes("studio balanced") || tag.includes("studio ₹20") || tag.includes("studio 20-40")) {
     return profileStudioBalanced();
   }
-  if (isSupplierDenTagName(categoryName)) {
+  if (
+    tag.includes("supplierden match") ||
+    tag.includes("supplierden ₹50") ||
+    tag.includes("supplierden 50") ||
+    tag.includes("supplierden lowest") ||
+    (tag.includes("tall dress") && tag.includes("₹50"))
+  ) {
     return profileSupplierDenMatch();
-  }
-  if (isRaincoatLowestTagName(categoryName)) {
-    return { id: "raincoat_all", raincoat: true, modeName: "Raincoat Lowest ₹" };
   }
   if (
     tag.includes("framed pro") ||
@@ -991,99 +937,6 @@ async function compressBusyToSlabOnce(buffer, slabKb) {
 
 async function compressBusyToSlab(buffer, slabKb) {
   return compressBusyToSlabOnce(buffer, slabKb);
-}
-
-async function compressBusyToSlabCapped(buffer, slabKb) {
-  const capBytes = slabKb * 1024;
-  let best = await compressBusyToSlabOnce(buffer, slabKb);
-  if (best.length <= capBytes) return best;
-  let factor = 0.96;
-  while (factor >= 0.78) {
-    const meta = await sharp(buffer).metadata();
-    const w = Math.max(1, Math.round((meta.width || 1) * factor));
-    const h = Math.max(1, Math.round((meta.height || 1) * factor));
-    const scaled = await sharp(buffer).resize(w, h, { fit: "fill" }).toBuffer();
-    const candidate = await compressBusyToSlabOnce(scaled, slabKb);
-    if (candidate.length <= capBytes) return candidate;
-    if (candidate.length < best.length) best = candidate;
-    factor -= 0.04;
-  }
-  return best;
-}
-
-async function prepareRaincoatNativeBuffer(imageBuffer, capMaxSide) {
-  let buffer = await sharp(imageBuffer).rotate().toBuffer();
-  let meta = await sharp(buffer).metadata();
-  let w = meta.width || 1;
-  let h = meta.height || 1;
-  const max0 = Math.max(w, h);
-  const cap = capMaxSide ? Number(capMaxSide) : 0;
-  if (cap > 0 && max0 > cap) {
-    buffer = await sharp(buffer).resize(cap, cap, { fit: "inside", withoutEnlargement: true }).toBuffer();
-    meta = await sharp(buffer).metadata();
-    w = meta.width || w;
-    h = meta.height || h;
-  } else if (max0 > 2000) {
-    buffer = await sharp(buffer).resize(2000, 2000, { fit: "inside", withoutEnlargement: true }).toBuffer();
-    meta = await sharp(buffer).metadata();
-    w = meta.width || w;
-    h = meta.height || h;
-  }
-  return { buffer, width: w, height: h };
-}
-
-async function prepareRaincoatFramedBuffer(imageBuffer, layoutSpec) {
-  const style = resolveRaincoatFrameStyle();
-  const native = await prepareRaincoatNativeBuffer(imageBuffer, layoutSpec.capMaxSide);
-  const fitted = fitFramedPhotoDims(native.width, native.height, layoutSpec.framedMaxSide ?? 1024);
-  let photo = native.buffer;
-  if (fitted.w !== native.width || fitted.h !== native.height) {
-    photo = await sharp(native.buffer).resize(fitted.w, fitted.h, { fit: "fill" }).toBuffer();
-  }
-  return prepareFramedBuffer(photo, fitted.w, fitted.h, layoutSpec.framedMaxSide ?? 1024, style);
-}
-
-async function generateRaincoatVariants(imageBuffer) {
-  const built = [];
-  for (const layoutSpec of RAINCOAT_LAYOUTS) {
-    const prepared = await prepareRaincoatFramedBuffer(imageBuffer, layoutSpec);
-    const profile = {
-      id: `raincoat_${layoutSpec.layout}`,
-      path: "raincoat_framed",
-      modeName: `Raincoat · ${layoutSpec.panelTag}`,
-    };
-    for (const tier of RAINCOAT_KB_TIERS) {
-      const jpeg = await compressBusyToSlabCapped(prepared.buffer, tier.slabKb);
-      built.push({
-        buffer: jpeg,
-        fileSizeBytes: jpeg.length,
-        fileSizeKb: kbFromBytes(jpeg.length),
-        tagName: `[${profile.modeName}] ${tier.label} · ${prepared.width}×${prepared.height}`,
-        recommended: !!tier.recommended,
-        lowest: !!tier.lowest,
-        width: prepared.width,
-        height: prepared.height,
-        processingPath: profile.path,
-        profileId: profile.id,
-        modeName: profile.modeName,
-        flatlayPriority: layoutSpec.priority,
-      });
-    }
-  }
-  const capped = built.filter((b) => Math.max(b.width, b.height) <= 1024);
-  const pool = capped.length ? capped : built;
-  pool.sort(
-    (a, b) =>
-      estimateMeeshoInr(a) - estimateMeeshoInr(b) ||
-      (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99) ||
-      a.fileSizeBytes - b.fileSizeBytes
-  );
-  if (pool.length) {
-    pool[0].autoBest = true;
-    pool[0].recommended = true;
-    pool[0].lowest = true;
-  }
-  return pool.slice(0, 40);
 }
 
 async function compressToTarget(buffer, targetBytes, minQ, whiteRatio, studio, absMinOverride) {
@@ -1248,9 +1101,7 @@ export async function generateAllVariants(imageBuffer, categoryName, frameStyleI
   const rotated = await sharp(imageBuffer).rotate().toBuffer();
   const built = isSupplierDenTagName(categoryName)
     ? await generateSupplierDenVariants(imageBuffer, frameStyleInput, categoryName)
-    : isRaincoatLowestTagName(categoryName)
-      ? await generateRaincoatVariants(imageBuffer)
-      : await (async () => {
+    : (await (async () => {
         const profile = resolveProcessingProfile(rotated, categoryName);
         if (profile.auto) {
           return generateAutoVariants(imageBuffer, categoryName, frameStyleInput);
@@ -1261,7 +1112,7 @@ export async function generateAllVariants(imageBuffer, categoryName, frameStyleI
           items.push(await buildVariant(prepared, tier));
         }
         return items;
-      })();
+      })());
 
   const minEstimate = Math.min(...built.map((b) => estimateMeeshoInr(b)));
 

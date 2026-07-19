@@ -30,11 +30,6 @@ export const STICKER_TEMPLATES = [
   { id: "limited_time", name: "Limited Time", desc: "LIMITED TIME urgency badge" },
   { id: "flash_deal", name: "Flash Deal", desc: "FLASH DEAL star burst" },
   { id: "super_offer", name: "Super Offer", desc: "SUPER OFFER + flat 50% tag" },
-  {
-    id: "raincoat_promo",
-    name: "Raincoat promo",
-    desc: "SPECIAL OFFER + HOT SALE + BEST CHOICE",
-  },
 ];
 
 const TEMPLATE_IDS = new Set(STICKER_TEMPLATES.map((t) => t.id));
