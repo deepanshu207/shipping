@@ -402,6 +402,45 @@
     }
     .reframe-slot-remove { color: #b91c1c; border-color: #fecaca; }
     .reframe-add-sticker { width: 100%; margin-top: 0.55rem; color: var(--emerald-dark); border-color: #a7f3d0; }
+    .reframe-icon-picker { margin-bottom: 0.55rem; }
+    .reframe-icon-current {
+      display: flex; align-items: center; gap: 0.55rem;
+      padding: 0.5rem 0.55rem; border-radius: 0.55rem;
+      border: 1px solid var(--border); background: rgb(248 250 252 / 0.8);
+      margin-bottom: 0.5rem;
+    }
+    .dark .reframe-icon-current { background: rgb(24 24 27 / 0.55); }
+    .reframe-icon-current img {
+      width: 56px; height: 56px; object-fit: contain; flex-shrink: 0;
+      border-radius: 0.4rem; background: #fff; border: 1px solid var(--border);
+    }
+    .reframe-icon-current-copy { min-width: 0; }
+    .reframe-icon-current-label { font-size: 0.78rem; font-weight: 800; margin: 0; }
+    .reframe-icon-current-sub { font-size: 0.68rem; color: var(--muted); margin: 0.1rem 0 0; }
+    .reframe-icon-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(4.6rem, 1fr));
+      gap: 0.4rem;
+    }
+    .reframe-icon-option {
+      display: flex; flex-direction: column; align-items: center; gap: 0.2rem;
+      padding: 0.35rem 0.25rem; border-radius: 0.5rem;
+      border: 2px solid var(--border); background: var(--surface);
+      cursor: pointer; font: inherit; color: var(--text);
+    }
+    .reframe-icon-option img { width: 44px; height: 44px; object-fit: contain; }
+    .reframe-icon-option span { font-size: 0.58rem; font-weight: 700; text-align: center; line-height: 1.15; color: var(--muted); }
+    .reframe-icon-option.selected {
+      border-color: var(--emerald-dark); background: #ecfdf5;
+      box-shadow: 0 0 0 1px var(--emerald-dark);
+    }
+    .dark .reframe-icon-option.selected { background: rgb(6 78 59 / 0.25); }
+    .reframe-icon-option--custom .reframe-icon-custom-plus {
+      width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+      font-size: 1.35rem; font-weight: 800; color: var(--muted);
+      border: 1px dashed var(--border); border-radius: 0.35rem; background: rgb(248 250 252 / 0.65);
+    }
+    .dark .reframe-icon-option--custom .reframe-icon-custom-plus { background: rgb(24 24 27 / 0.45); }
     .reframe-preview-status { font-size: 0.72rem; color: var(--muted); min-height: 1rem; margin: 0.35rem 0 0; text-align: center; }
     .framed-settings { margin-top: 1.15rem; display: flex; flex-direction: column; gap: 0.65rem; }
     .framed-settings--inactive .accordion { opacity: 0.72; }
@@ -810,7 +849,7 @@
           <details class="accordion reframe-sticker-layout" id="reframe-sticker-layout" open style="margin-top:0.5rem">
             <summary>Stickers — add, remove, move, text, image</summary>
             <div class="accordion-body">
-              <p class="reframe-note">Default: 2 stickers. Tap <b>−</b> to remove one, <b>+ Add sticker</b> for more (up to 5). Set <b>width (px)</b> for icon or custom image stickers. <b>Hide sticker</b> removes it from the image — shipping stays locked to generation like text, position, and size edits.</p>
+              <p class="reframe-note">Default: 2 stickers. Tap <b>−</b> to remove one, <b>+ Add sticker</b> for more (up to 5). Pick a built-in icon or <b>Custom icon</b> — shipping stays locked to generation like text, position, and size edits.</p>
               <div id="reframe-sticker-slots"></div>
               <button type="button" class="reframe-add-sticker" id="reframe-add-sticker">+ Add sticker</button>
             </div>
@@ -826,7 +865,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=123"></script>
+  <script src="/own-api.js?v=124"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1624,9 +1663,16 @@
         }
       }
 
+      function stickerSlotLabel(slot) {
+        if (FS && FS.stickerSlotIconLabel) return FS.stickerSlotIconLabel(slot);
+        return stickerTypeLabel(slot.type);
+      }
+
       function renderStickerSlotCards() {
         if (!reframeStickerSlotsEl || !FS) return;
         reframeStickerSlotsEl.innerHTML = "";
+        var refPhotoW = FS.REFRAME_STICKER_REF_PHOTO_W || 645;
+        var refPhotoH = Math.round(refPhotoW * 1.5);
         reframeStickerSlots.forEach(function (slot, index) {
           var card = document.createElement("div");
           card.className = "reframe-slot-card";
@@ -1635,7 +1681,7 @@
 
           var title = document.createElement("p");
           title.className = "reframe-slot-title";
-          title.textContent = "Sticker " + (index + 1) + " · " + stickerTypeLabel(slot.type);
+          title.textContent = "Sticker " + (index + 1) + " · " + stickerSlotLabel(slot);
           if (slot.hidden) {
             var hiddenBadge = document.createElement("span");
             hiddenBadge.className = "reframe-slot-hidden-badge";
@@ -1644,29 +1690,138 @@
           }
           card.appendChild(title);
 
-          var typeField = document.createElement("div");
-          typeField.className = "field";
-          typeField.innerHTML = '<label>Sticker style</label>';
-          var typeSelect = document.createElement("select");
-          FS.STICKER_ASSET_TYPES.forEach(function (t) {
-            var opt = document.createElement("option");
-            opt.value = t.id;
-            opt.textContent = t.name;
-            if (t.id === slot.type) opt.selected = true;
-            typeSelect.appendChild(opt);
-          });
-          typeSelect.addEventListener("change", function () {
-            slot.type = typeSelect.value;
-            title.textContent = "Sticker " + (index + 1) + " · " + stickerTypeLabel(slot.type);
-            if (slot.sizePx == null) {
-              var autoPx = FS.estimateStickerSlotWidthPx(slot.type, refPhotoW, refPhotoH, slot);
-              sizeInput.value = String(autoPx);
-              sizeNote.textContent = "Auto · ~" + autoPx + " px (change to set exact width)";
+          var iconField = document.createElement("div");
+          iconField.className = "field";
+          var iconLabel = document.createElement("label");
+          iconLabel.textContent = "Sticker icon";
+          iconField.appendChild(iconLabel);
+
+          var iconPicker = document.createElement("div");
+          iconPicker.className = "reframe-icon-picker";
+
+          var iconCurrent = document.createElement("div");
+          iconCurrent.className = "reframe-icon-current";
+          var currentImg = document.createElement("img");
+          currentImg.alt = "";
+          var currentCopy = document.createElement("div");
+          currentCopy.className = "reframe-icon-current-copy";
+          var currentLabel = document.createElement("p");
+          currentLabel.className = "reframe-icon-current-label";
+          var currentSub = document.createElement("p");
+          currentSub.className = "reframe-icon-current-sub";
+          currentCopy.appendChild(currentLabel);
+          currentCopy.appendChild(currentSub);
+          iconCurrent.appendChild(currentImg);
+          iconCurrent.appendChild(currentCopy);
+          iconPicker.appendChild(iconCurrent);
+
+          var iconGrid = document.createElement("div");
+          iconGrid.className = "reframe-icon-grid";
+          var customFileInput = document.createElement("input");
+          customFileInput.type = "file";
+          customFileInput.accept = "image/png,image/jpeg,image/webp";
+          customFileInput.hidden = true;
+
+          function refreshAutoSizeHint() {
+            if (slot.sizePx != null) return;
+            var autoPx = FS.estimateStickerSlotWidthPx(slot.type, refPhotoW, refPhotoH, slot);
+            sizeInput.value = String(autoPx);
+            sizeNote.textContent = "Auto · ~" + autoPx + " px (change to set exact width)";
+          }
+
+          function updateSlotTitle() {
+            title.textContent = "Sticker " + (index + 1) + " · " + stickerSlotLabel(slot);
+          }
+
+          function refreshCustomOption() {
+            customBtn.innerHTML = "";
+            if (slot.imageUrl) {
+              var thumb = document.createElement("img");
+              thumb.src = slot.imageUrl;
+              thumb.alt = "Custom icon";
+              customBtn.appendChild(thumb);
+            } else {
+              var plus = document.createElement("span");
+              plus.className = "reframe-icon-custom-plus";
+              plus.textContent = "+";
+              customBtn.appendChild(plus);
             }
+            var customLbl = document.createElement("span");
+            customLbl.textContent = "Custom icon";
+            customBtn.appendChild(customLbl);
+          }
+
+          function syncIconPickerUi() {
+            var isCustom = !!(slot.imageUrl);
+            iconGrid.querySelectorAll(".reframe-icon-option").forEach(function (btn) {
+              var isCustomBtn = btn.classList.contains("reframe-icon-option--custom");
+              var selected = isCustom ? isCustomBtn : btn.dataset.type === slot.type && !isCustom;
+              btn.classList.toggle("selected", selected);
+            });
+            if (FS.stickerSlotPreviewUrl) {
+              currentImg.src = FS.stickerSlotPreviewUrl(slot, 84);
+            }
+            currentLabel.textContent = stickerSlotLabel(slot);
+            currentSub.textContent = isCustom ? "Your uploaded icon" : "Built-in sticker icon";
+            updateSlotTitle();
+            refreshCustomOption();
+          }
+
+          FS.STICKER_ASSET_TYPES.forEach(function (t) {
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "reframe-icon-option";
+            btn.dataset.type = t.id;
+            btn.title = t.name;
+            var img = document.createElement("img");
+            img.src = FS.renderStickerIconPreview(t.id, FS.STICKER_ICON_PREVIEW_PX || 76);
+            img.alt = t.name;
+            var lbl = document.createElement("span");
+            lbl.textContent = t.name;
+            btn.appendChild(img);
+            btn.appendChild(lbl);
+            btn.addEventListener("click", function () {
+              slot.imageUrl = "";
+              slot.type = t.id;
+              syncIconPickerUi();
+              refreshAutoSizeHint();
+              markStickerLayoutCustomized();
+            });
+            iconGrid.appendChild(btn);
+          });
+
+          var customBtn = document.createElement("button");
+          customBtn.type = "button";
+          customBtn.className = "reframe-icon-option reframe-icon-option--custom";
+          customBtn.title = "Upload your own icon";
+          customBtn.addEventListener("click", function () {
+            if (!slot.imageUrl) {
+              customFileInput.click();
+              return;
+            }
+            syncIconPickerUi();
             markStickerLayoutCustomized();
           });
-          typeField.appendChild(typeSelect);
-          card.appendChild(typeField);
+          iconGrid.appendChild(customBtn);
+
+          customFileInput.addEventListener("change", function () {
+            if (!customFileInput.files[0]) return;
+            var reader = new FileReader();
+            reader.onload = function () {
+              slot.imageUrl = reader.result;
+              syncIconPickerUi();
+              refreshAutoSizeHint();
+              markStickerLayoutCustomized();
+            };
+            reader.readAsDataURL(customFileInput.files[0]);
+          });
+
+          iconPicker.appendChild(iconGrid);
+          iconPicker.appendChild(customFileInput);
+          iconField.appendChild(iconPicker);
+          card.appendChild(iconField);
+          refreshCustomOption();
+          syncIconPickerUi();
 
           function addRange(labelText, key) {
             var field = document.createElement("div");
@@ -1706,10 +1861,8 @@
           var sizeField = document.createElement("div");
           sizeField.className = "field";
           var sizeLabel = document.createElement("label");
-          sizeLabel.textContent = "Width (px) — icon or custom image";
+          sizeLabel.textContent = "Width (px)";
           sizeField.appendChild(sizeLabel);
-          var refPhotoW = FS.REFRAME_STICKER_REF_PHOTO_W || 645;
-          var refPhotoH = Math.round(refPhotoW * 1.5);
           var defaultSizePx = FS.estimateStickerSlotWidthPx(slot.type, refPhotoW, refPhotoH, slot);
           var sizeInput = document.createElement("input");
           sizeInput.type = "number";
@@ -1753,34 +1906,6 @@
             field.appendChild(input);
             card.appendChild(field);
           });
-
-          var imageField = document.createElement("div");
-          imageField.className = "field";
-          imageField.innerHTML = "<label>Custom image (optional)</label>";
-          var imageInput = document.createElement("input");
-          imageInput.type = "file";
-          imageInput.accept = "image/png,image/jpeg,image/webp";
-          imageInput.addEventListener("change", function () {
-            if (!imageInput.files[0]) return;
-            var reader = new FileReader();
-            reader.onload = function () {
-              slot.imageUrl = reader.result;
-              imageNote.textContent = imageInput.files[0].name;
-              if (slot.sizePx == null) {
-                var autoPx = FS.estimateStickerSlotWidthPx(slot.type, refPhotoW, refPhotoH, slot);
-                sizeInput.value = String(autoPx);
-                sizeNote.textContent = "Auto · ~" + autoPx + " px (change to set exact width)";
-              }
-              markStickerLayoutCustomized();
-            };
-            reader.readAsDataURL(imageInput.files[0]);
-          });
-          imageField.appendChild(imageInput);
-          var imageNote = document.createElement("p");
-          imageNote.className = "reframe-slot-preview";
-          imageNote.textContent = slot.imageUrl ? "Custom image attached" : "No custom image";
-          imageField.appendChild(imageNote);
-          card.appendChild(imageField);
 
           var actions = document.createElement("div");
           actions.className = "reframe-slot-actions";
