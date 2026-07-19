@@ -33,7 +33,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/?v=130`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/?v=129`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoProcessor?.optimize, { timeout: 20000 });
 
     const result = await page.evaluate(async () => {
@@ -56,17 +56,15 @@ async function run() {
 
       const tag = "Raincoat indoor busy lowest shipping framed";
       const variants = await window.MeeshoProcessor.optimize(dataUrl, tag, {
-        borderColor: "#FF7900",
-        stickerTemplate: "classic_promo",
+        borderColor: "#6B7C3C",
+        stickerTemplate: "raincoat_promo",
       });
 
       const inrs = variants.map((v) => Number(v.estimatedShippingInr || v.shippingCharge || 0));
       const bytes = variants.map((v) => v.fileSizeBytes || 0);
       const paths = [...new Set(variants.map((v) => v.processingPath))];
       const maxSides = variants.map((v) => Math.max(v.width || 0, v.height || 0));
-      const bestStyle = variants[0]?.reframeMeta?.frameStyle || {};
-      const oliveForced = String(bestStyle.borderColor || "").toUpperCase() === "#6B7C3C";
-      const promoForced = bestStyle.stickerTemplate === "raincoat_promo";
+      const stickerCounts = variants.map((v) => v.reframeMeta?.frameStyle?.stickerLayout?.stickers?.length || 0);
 
       return {
         count: variants.length,
@@ -77,10 +75,9 @@ async function run() {
         maxSide: Math.max(...maxSides),
         paths,
         hasRaincoatPath: paths.includes("raincoat_framed"),
-        oliveForced,
-        promoForced,
         inrAtMost66: inrs.every((n) => n <= 66),
         maxSideAtMost1024: maxSides.every((n) => n <= 1024),
+        promoStickers: stickerCounts.some((n) => n >= 3),
         best: variants[0],
       };
     });
@@ -88,8 +85,6 @@ async function run() {
     const ok =
       result.count >= 12 &&
       result.hasRaincoatPath &&
-      result.oliveForced &&
-      result.promoForced &&
       result.inrAtMost66 &&
       result.maxSideAtMost1024 &&
       result.minInr <= 66;

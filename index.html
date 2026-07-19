@@ -885,7 +885,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=130"></script>
+  <script src="/own-api.js?v=129"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -2930,12 +2930,6 @@
         form.append("tagId", selected.dataset.id);
         form.append("tagName", selected.dataset.tag);
         var frame = getFrameSettingsFromUi();
-        if (isRaincoat) {
-          frame = {
-            borderColor: "#6B7C3C",
-            stickerTemplate: "raincoat_promo",
-          };
-        }
         form.append("frameBorderColor", frame.borderColor);
         form.append("frameStickerTemplate", frame.stickerTemplate);
         persistFrameDefaults();
