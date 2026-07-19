@@ -635,6 +635,12 @@
   const FRAME_LS_BORDER = "meesho_frame_border_color";
   const FRAME_LS_TEMPLATE = "meesho_frame_sticker_template";
   const FRAME_LS_PRESET = "meesho_frame_border_preset";
+  const BORDER_WIDTH_PRESETS = [
+    { id: "thin", name: "Thin border", scale: 0.55 },
+    { id: "standard", name: "Standard", scale: 1 },
+    { id: "thick", name: "Thick border", scale: 1.35 },
+  ];
+  const BORDER_WIDTH_PRESET_IDS = new Set(BORDER_WIDTH_PRESETS.map((p) => p.id));
   const BORDER_PRESETS = [
     { id: "classic_orange", name: "Classic Orange", color: "#FF7900" },
     { id: "meesho_red", name: "Sale Red", color: "#E53935" },
@@ -814,8 +820,32 @@
     return id;
   }
 
+  function normalizeBorderWidthPreset(input) {
+    const id = String(input || "standard").trim().toLowerCase();
+    return BORDER_WIDTH_PRESET_IDS.has(id) ? id : "standard";
+  }
+
+  function normalizeBorderWidthAdjust(input) {
+    const n = Number(input);
+    if (!Number.isFinite(n)) return 100;
+    return Math.min(140, Math.max(60, Math.round(n)));
+  }
+
+  function resolveBorderWidthScale(frameStyle) {
+    const style = frameStyle || {};
+    const preset = BORDER_WIDTH_PRESETS.find((p) => p.id === normalizeBorderWidthPreset(style.borderWidthPreset)) ||
+      BORDER_WIDTH_PRESETS.find((p) => p.id === "standard");
+    const adjust = normalizeBorderWidthAdjust(style.borderWidthAdjust ?? 100);
+    return Math.max(0.35, Math.min(1.75, preset.scale * (adjust / 100)));
+  }
+
   function defaultFrameStyle() {
-    return { borderColor: FRAME_DEFAULT_PURPLE, stickerTemplate: FRAME_DEFAULT_STICKER };
+    return {
+      borderColor: FRAME_DEFAULT_PURPLE,
+      stickerTemplate: FRAME_DEFAULT_STICKER,
+      borderWidthPreset: "standard",
+      borderWidthAdjust: 100,
+    };
   }
 
   function parseFrameStyle(fields) {
@@ -823,6 +853,8 @@
     const style = {
       borderColor: normalizeBorderColor(fields.frameBorderColor || fields.borderColor),
       stickerTemplate: normalizeStickerTemplate(fields.frameStickerTemplate || fields.stickerTemplate),
+      borderWidthPreset: normalizeBorderWidthPreset(fields.borderWidthPreset),
+      borderWidthAdjust: normalizeBorderWidthAdjust(fields.borderWidthAdjust ?? 100),
     };
     if (fields.stickerLayout) {
       style.stickerLayout = fields.stickerLayout;
@@ -1666,10 +1698,12 @@
     return String(profileId || "").startsWith("supplierden_");
   }
 
-  function supplierDenExactDims(spec) {
+  function supplierDenExactDims(spec, frameStyle) {
     const outerW = spec.outerW ?? SUPPLIERDEN_EXACT_OUTER_W;
     const outerH = spec.outerH ?? SUPPLIERDEN_EXACT_OUTER_H;
-    const border = spec.borderPx ?? SUPPLIERDEN_EXACT_BORDER_PX;
+    const baseBorder = spec.borderPx ?? SUPPLIERDEN_EXACT_BORDER_PX;
+    const widthScale = resolveBorderWidthScale(frameStyle);
+    const border = Math.max(4, Math.round(baseBorder * widthScale));
     return { outerW, outerH, border, photoW: outerW - border * 2, photoH: outerH - border * 2 };
   }
 
@@ -1706,8 +1740,8 @@
    * Tall dress ₹50 — fixed outer canvas (703×1024), thin border, centered subject + stickers.
    */
   function prepareSupplierDenExactFramedCanvas(img, spec, frameStyle) {
-    const { outerW, outerH, border, photoW, photoH } = supplierDenExactDims(spec);
     const style = { ...defaultFrameStyle(), ...(frameStyle || {}) };
+    const { outerW, outerH, border, photoW, photoH } = supplierDenExactDims(spec, style);
     const trimmed = prepareSupplierDenSubjectCanvas(img);
     const c = document.createElement("canvas");
     c.width = outerW;
@@ -2816,22 +2850,29 @@
     return isStudioWhiteBackground(img) ? profileStudio() : profileFramed();
   }
 
-  function framedBorderPx(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
-    let border = Math.max(FRAME_MIN_BORDER, Math.round(Math.min(w, h) * FRAME_BORDER_RATIO));
+  function framedBorderPx(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, widthScale = 1) {
+    const scale = Math.max(0.35, Math.min(1.75, Number(widthScale) || 1));
+    let border = Math.max(
+      Math.round(FRAME_MIN_BORDER * scale),
+      Math.round(Math.min(w, h) * FRAME_BORDER_RATIO * scale)
+    );
+    if (scale < 1) border = Math.max(10, border);
+    else border = Math.max(FRAME_MIN_BORDER, border);
     const maxSide = Math.max(w, h);
     if (maxSide + border * 2 > framedMaxSide) {
       const capped = Math.floor((framedMaxSide - maxSide) / 2);
-      if (capped >= 28) border = capped;
+      const minCap = scale < 1 ? 10 : 28;
+      if (capped >= minCap) border = capped;
     }
     return border;
   }
 
-  function framedOuterMaxSide(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
-    return Math.max(w, h) + framedBorderPx(w, h, framedMaxSide) * 2;
+  function framedOuterMaxSide(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, widthScale = 1) {
+    return Math.max(w, h) + framedBorderPx(w, h, framedMaxSide, widthScale) * 2;
   }
 
   /** Proportional downscale only — keeps aspect ratio, no crop; Meesho tiers on framed max side (~1280). */
-  function fitFramedPhotoDims(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
+  function fitFramedPhotoDims(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, widthScale = 1) {
     let nw = w;
     let nh = h;
     const max0 = Math.max(nw, nh);
@@ -2840,8 +2881,8 @@
       nw = Math.round(nw * scale);
       nh = Math.round(nh * scale);
     }
-    for (let i = 0; i < 12 && framedOuterMaxSide(nw, nh, framedMaxSide) > framedMaxSide; i++) {
-      const framed = framedOuterMaxSide(nw, nh, framedMaxSide);
+    for (let i = 0; i < 12 && framedOuterMaxSide(nw, nh, framedMaxSide, widthScale) > framedMaxSide; i++) {
+      const framed = framedOuterMaxSide(nw, nh, framedMaxSide, widthScale);
       const scale = (framedMaxSide - 1) / framed;
       nw = Math.max(1, Math.round(nw * scale));
       nh = Math.max(1, Math.round(nh * scale));
@@ -3719,11 +3760,12 @@
   /** Promo frame + stickers — photo scaled to Meesho framed cap. */
   function prepareFramedCanvas(img, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, frameStyle) {
     const style = { ...defaultFrameStyle(), ...(frameStyle || {}) };
-    const fitted = fitFramedPhotoDims(img.width, img.height, framedMaxSide);
+    const widthScale = resolveBorderWidthScale(style);
+    const fitted = fitFramedPhotoDims(img.width, img.height, framedMaxSide, widthScale);
     const w = fitted.w;
     const h = fitted.h;
 
-    const border = framedBorderPx(w, h, framedMaxSide);
+    const border = framedBorderPx(w, h, framedMaxSide, widthScale);
     const fw = w + border * 2;
     const fh = h + border * 2;
     const c = document.createElement("canvas");
@@ -3864,6 +3906,8 @@
     const out = {
       borderColor: style.borderColor,
       stickerTemplate: style.stickerTemplate,
+      borderWidthPreset: style.borderWidthPreset || "standard",
+      borderWidthAdjust: style.borderWidthAdjust ?? 100,
     };
     if (style.stickerLayout) {
       out.stickerLayout = cloneStickerLayout(style.stickerLayout, style.stickerTemplate);
@@ -3990,6 +4034,8 @@
       ? {
           borderColor: style.borderColor,
           stickerTemplate: style.stickerTemplate,
+          borderWidthPreset: style.borderWidthPreset || "standard",
+          borderWidthAdjust: style.borderWidthAdjust ?? 100,
           stickerLayout: null,
         }
       : null;
@@ -4012,6 +4058,8 @@
         ? {
             borderColor: style.borderColor,
             stickerTemplate: style.stickerTemplate,
+            borderWidthPreset: style.borderWidthPreset || "standard",
+            borderWidthAdjust: style.borderWidthAdjust ?? 100,
             stickerLayout: style.stickerLayout || null,
           }
         : null,
@@ -4705,6 +4753,7 @@
   };
   window.MeeshoFrameSettings = {
     BORDER_PRESETS,
+    BORDER_WIDTH_PRESETS,
     STICKER_TEMPLATES: STICKER_TEMPLATE_META,
     defaultFrameStyle,
     defaultStickerLayoutForTemplate,
@@ -4718,6 +4767,9 @@
     normalizeBorderColor,
     normalizeStickerTemplate,
     normalizeBorderPreset,
+    normalizeBorderWidthPreset,
+    normalizeBorderWidthAdjust,
+    resolveBorderWidthScale,
     hexToRgbComponents,
     STORAGE_KEYS: {
       border: FRAME_LS_BORDER,
