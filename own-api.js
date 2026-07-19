@@ -1874,16 +1874,27 @@
     return c;
   }
 
-  function resolveRaincoatFrameStyle(frameStyle) {
+  function isRaincoatProfileId(profileId) {
+    return String(profileId || "").startsWith("raincoat_");
+  }
+
+  function resolveRaincoatFrameStyle(frameStyle, options = {}) {
     const user = parseFrameStyle(frameStyle || {});
-    const stickerTemplate = normalizeStickerTemplate(user.stickerTemplate || "raincoat_promo");
-    const borderColor = user.borderColor
-      ? normalizeBorderColor(user.borderColor)
-      : RAINCOAT_DEFAULT_OLIVE;
+    const forceDefaults = !!options.forceDefaults;
+    const stickerTemplate = forceDefaults
+      ? "raincoat_promo"
+      : normalizeStickerTemplate(user.stickerTemplate || "raincoat_promo");
+    const borderColor = forceDefaults
+      ? RAINCOAT_DEFAULT_OLIVE
+      : user.borderColor
+        ? normalizeBorderColor(user.borderColor)
+        : RAINCOAT_DEFAULT_OLIVE;
     return {
       borderColor,
       stickerTemplate,
       stickerLayout: user.stickerLayout || defaultStickerLayoutForTemplate(stickerTemplate),
+      borderWidthPreset: user.borderWidthPreset || "standard",
+      borderWidthAdjust: user.borderWidthAdjust ?? 100,
     };
   }
 
@@ -1981,6 +1992,9 @@
         layoutSpec.framedMaxSide ?? 1024,
         flatlayFramedStyle(layoutSpec, frameStyle)
       );
+    }
+    if (type === "indoor_framed" || type === "indoor_capped_framed") {
+      return prepareRaincoatLayoutCanvas(img, layoutSpec, frameStyle);
     }
     return prepareCanvas(img, true);
   }
@@ -2088,7 +2102,7 @@
   }
 
   async function optimizeRaincoatLayoutsAll(img, profiles, maxVariants, frameStyle, onProgress) {
-    const styled = resolveRaincoatFrameStyle(frameStyle);
+    const styled = resolveRaincoatFrameStyle(frameStyle, { forceDefaults: true });
     const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
     const allVariants = [];
     let done = 0;
@@ -3335,6 +3349,18 @@
       return;
     }
 
+    if (template === "raincoat_promo") {
+      drawFramedOverlaysWithLayout(
+        ctx,
+        border,
+        photoW,
+        photoH,
+        template,
+        defaultStickerLayoutForTemplate(template)
+      );
+      return;
+    }
+
     if (template === "mega_sale") {
       const badge = renderMegaSaleBadge(scale * 1.08);
       ctx.drawImage(badge.canvas, border + photoW * 0.62, border + photoH * 0.04, badge.width, badge.height);
@@ -3923,18 +3949,27 @@
     if (meta.studioLayout) {
       const spec = findApparelLayoutSpec(meta.studioLayout, meta.profileId);
       if (spec) {
-        const supplierDen = String(meta.profileId || "").startsWith("supplierden_");
+        const supplierDen = isSupplierDenProfileId(meta.profileId);
+        const raincoat = isRaincoatProfileId(meta.profileId);
         if (supplierDen && spec.type === "exact_framed") {
           return prepareSupplierDenExactFramedCanvas(sourceImg, spec, mergedStyle);
         }
         if (layoutSpecIncludesFrame(spec)) {
+          if (raincoat) {
+            return prepareRaincoatLayoutCanvas(sourceImg, spec, mergedStyle);
+          }
           return supplierDen
             ? prepareSupplierDenLayoutCanvas(sourceImg, spec, mergedStyle)
             : prepareFlatlayLayoutCanvas(sourceImg, spec, mergedStyle);
         }
         const studioCanvas = supplierDen
           ? prepareSupplierDenLayoutCanvas(sourceImg, spec, null)
-          : prepareFlatlayLayoutCanvas(sourceImg, spec, null);
+          : raincoat
+            ? prepareRaincoatNativeSource(
+                sourceImg,
+                spec.type === "indoor_capped_framed" ? spec.capMaxSide ?? 1024 : null
+              )
+            : prepareFlatlayLayoutCanvas(sourceImg, spec, null);
         if (anchorW && anchorH) {
           const photo = prepareFramedPhotoCanvas(studioCanvas, spec.framedMaxSide ?? framedMaxSide);
           return prepareFramedCanvasAtSize(photo, anchorW, anchorH, mergedStyle, spec.framedMaxSide ?? framedMaxSide);
@@ -4456,7 +4491,13 @@
         if (String(meta.profileId || "").startsWith("supplierden_")) {
           return prepareSupplierDenLayoutCanvas(sourceImg, spec, style);
         }
-        if (String(meta.profileId || "").startsWith("raincoat_")) {
+        if (isRaincoatProfileId(meta.profileId)) {
+          if (meta.studioBase && meta.kind !== "framed_slab") {
+            return prepareRaincoatNativeSource(
+              sourceImg,
+              spec.type === "indoor_capped_framed" ? spec.capMaxSide ?? 1024 : null
+            );
+          }
           return prepareRaincoatLayoutCanvas(sourceImg, spec, style);
         }
         return prepareFlatlayLayoutCanvas(sourceImg, spec, style);
