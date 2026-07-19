@@ -35,15 +35,16 @@ async function run() {
   const page = await context.newPage();
 
   try {
-    await page.goto(`${BASE}/?v=108`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/?v=109`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.__MEESHO_OWN_API__ === true, { timeout: 20000 });
 
     const result = await page.evaluate(() => {
       var FS = window.MeeshoFrameSettings;
+      var MR = window.MeeshoReframe;
       var genPreset = document.getElementById("border-width-preset");
       var reframePreset = document.getElementById("reframe-border-width-preset");
       var reframeAdjust = document.getElementById("reframe-border-width-adjust");
-      if (!FS || !reframePreset || !reframeAdjust) return null;
+      if (!FS || !MR || !reframePreset || !reframeAdjust) return null;
       reframePreset.value = "thick";
       reframeAdjust.value = "120";
       reframeAdjust.dispatchEvent(new Event("input", { bubbles: true }));
@@ -51,12 +52,29 @@ async function run() {
         borderWidthPreset: FS.normalizeBorderWidthPreset(reframePreset.value),
         borderWidthAdjust: FS.normalizeBorderWidthAdjust(reframeAdjust.value),
       });
+      var meta = {
+        processingPath: "supplierden_match_50",
+        profileId: "supplierden_50",
+        tier: { anchorBytes: 45056, anchorInr: 50, anchorWidth: 703, anchorHeight: 1024 },
+      };
+      var variant = {
+        bytes: 52000,
+        width: 1280,
+        height: 1100,
+        processingPath: "supplierden_match_50",
+        profileId: "supplierden_50",
+      };
+      var rawInr = MR.estimateMeeshoInr(variant);
+      var lockedInr = MR.estimateReframeShippingInr(variant, meta);
       return {
         generationControlMissing: !genPreset,
         reframePreset: FS.normalizeBorderWidthPreset(reframePreset.value),
         reframeAdjust: FS.normalizeBorderWidthAdjust(reframeAdjust.value),
         scale,
         presets: FS.BORDER_WIDTH_PRESETS.map((p) => p.id),
+        rawInr,
+        lockedInr,
+        shippingLocked: lockedInr <= 50 && rawInr > lockedInr,
       };
     });
 
@@ -67,7 +85,8 @@ async function run() {
       result.reframePreset === "thick" &&
       result.reframeAdjust === 120 &&
       Math.abs(result.scale - expectedScale) < 0.001 &&
-      result.presets.includes("thin");
+      result.presets.includes("thin") &&
+      result.shippingLocked;
 
     if (!ok) {
       console.error("FAIL", result);

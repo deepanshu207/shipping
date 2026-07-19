@@ -772,7 +772,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=108"></script>
+  <script src="/own-api.js?v=109"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1028,6 +1028,10 @@
           tier.anchorBytes = result.fileSizeBytes;
           tier.preserveBytes = result.fileSizeBytes;
           tier.anchorInr = result.estimatedShippingInr;
+        }
+        if (!tier.anchorWidth && result.width) {
+          tier.anchorWidth = result.width;
+          tier.anchorHeight = result.height;
         }
         if (!tier.preserveKb) {
           tier.preserveKb = tier.slabKb || tier.targetKb || result.fileSizeKb;
@@ -1291,7 +1295,9 @@
           if (reframePreviewStatus) {
             var anchorInr =
               r.reframeMeta.tier && (r.reframeMeta.tier.anchorInr || r.estimatedShippingInr);
-            var currentInr = MR.estimateMeeshoInr(variant);
+            var currentInr = MR.estimateReframeShippingInr
+              ? MR.estimateReframeShippingInr(variant, r.reframeMeta)
+              : MR.estimateMeeshoInr(variant);
             var anchorKb =
               r.reframeMeta.tier && r.reframeMeta.tier.anchorBytes
                 ? MR.kb(r.reframeMeta.tier.anchorBytes)
@@ -1343,11 +1349,14 @@
         reframeIndex = -1;
       }
 
-      function openReframeEditor(index) {
+      async function openReframeEditor(index) {
         if (!MR || !lastUploadDataUrl) return;
         var r = lastResults[index];
         if (!r || !r.reframeMeta) return;
         ensureReframeAnchorMeta(r);
+        if (MR.hydrateReframeAnchorBlob) {
+          await MR.hydrateReframeAnchorBlob(r.reframeMeta, r.imageUrl);
+        }
         var meta = r.reframeMeta;
         reframeIndex = index;
         reframePreviewImg.src = r.imageUrl;
@@ -1402,7 +1411,9 @@
           );
           var imageUrl = await MR.blobToDataUrl(variant.blob);
           var fileSizeKb = MR.kb(variant.bytes);
-          var estimatedShippingInr = MR.estimateMeeshoInr(variant);
+          var estimatedShippingInr = MR.estimateReframeShippingInr
+            ? MR.estimateReframeShippingInr(variant, r.reframeMeta)
+            : MR.estimateMeeshoInr(variant);
           r.imageUrl = imageUrl;
           r.fileSizeKb = fileSizeKb;
           r.estimatedShippingInr = estimatedShippingInr;
