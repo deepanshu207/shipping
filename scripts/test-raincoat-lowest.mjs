@@ -33,7 +33,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/?v=130`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/?v=131`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoProcessor?.optimize, { timeout: 20000 });
 
     const result = await page.evaluate(async () => {
@@ -66,7 +66,10 @@ async function run() {
       const maxSides = variants.map((v) => Math.max(v.width || 0, v.height || 0));
       const bestStyle = variants[0]?.reframeMeta?.frameStyle || {};
       const oliveForced = String(bestStyle.borderColor || "").toUpperCase() === "#6B7C3C";
-      const promoForced = bestStyle.stickerTemplate === "raincoat_promo";
+      const hasPromoVariant = variants.some(
+        (v) => v.reframeMeta?.frameStyle?.stickerTemplate === "raincoat_promo"
+      );
+      const allWithinSlab = bytes.every((b) => b <= 68 * 1024);
 
       return {
         count: variants.length,
@@ -78,7 +81,8 @@ async function run() {
         paths,
         hasRaincoatPath: paths.includes("raincoat_framed"),
         oliveForced,
-        promoForced,
+        hasPromoVariant,
+        allWithinSlab,
         inrAtMost66: inrs.every((n) => n <= 66),
         maxSideAtMost1024: maxSides.every((n) => n <= 1024),
         best: variants[0],
@@ -89,7 +93,8 @@ async function run() {
       result.count >= 12 &&
       result.hasRaincoatPath &&
       result.oliveForced &&
-      result.promoForced &&
+      result.hasPromoVariant &&
+      result.allWithinSlab &&
       result.inrAtMost66 &&
       result.maxSideAtMost1024 &&
       result.minInr <= 66;

@@ -606,7 +606,8 @@
   ];
   /** Raincoat / indoor busy — framed + promo stickers, mid slabs targeting ~₹63 on Meesho. */
   const RAINCOAT_KB_TIERS = [
-    { slabKb: 60, label: "60KB · lowest try", lowest: true },
+    { slabKb: 55, label: "55KB · lowest try", lowest: true },
+    { slabKb: 60, label: "60KB · low band" },
     { slabKb: 63, label: "63KB · ₹63 match", recommended: true },
     { slabKb: 64, label: "64KB · ₹64 slab" },
     { slabKb: 66, label: "66KB · ₹66 backup" },
@@ -997,6 +998,14 @@
       }
       return Math.min(fileKb, 93);
     }
+    if (path === "raincoat_framed") {
+      if (maxSide > 0 && maxSide <= 1024) {
+        if (fileKb <= 68) return fileKb;
+        return Math.min(fileKb, 93);
+      }
+      if (maxSide > 1024 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 93);
+      return fileKb;
+    }
     if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
       return Math.min(fileKb, 93);
     }
@@ -1035,10 +1044,6 @@
     }
     if (path === "model_portrait" || path === "model_framed") {
       if (fileKb <= 65) return fileKb;
-    }
-    if (path === "raincoat_framed") {
-      if (maxSide > 0 && maxSide <= 1024 && fileKb >= 58 && fileKb <= 68) return fileKb;
-      if (fileKb <= 68) return fileKb;
     }
     if (path === "full_length_portrait" || path === "full_length_framed") {
       if (fileKb >= 37 && fileKb <= 44) return fileKb <= 40 ? 39 : 41;
@@ -2131,7 +2136,7 @@
       }
       releaseCanvas(canvas);
     }
-    return finalizeAutoVariants(allVariants, {
+    return finalizeRaincoatVariants(allVariants, {
       maxVariants,
       minVariants: 1,
     });
@@ -2408,6 +2413,56 @@
     const portraitBand = variants.filter((v) => Math.max(v.width, v.height) <= 1024);
     const pool = exact703.length > 0 ? exact703 : portraitBand.length > 0 ? portraitBand : variants;
     return finalizeAutoVariants(pool, options);
+  }
+
+  /** Raincoat — keep framed max side ≤1024; prefer olive + promo stickers in the ₹63 band. */
+  function finalizeRaincoatVariants(variants, options = {}) {
+    const maxVariants = options.maxVariants ?? RAINCOAT_MAX_VARIANTS;
+    const minVariants = options.minVariants ?? 1;
+    const capped = variants.filter((v) => Math.max(v.width || 0, v.height || 0) <= 1024);
+    const pool = capped.length > 0 ? capped : variants;
+    const deduped = dedupeAutoVariants(pool);
+
+    const inrOf = (v) => estimateMeeshoInr(v);
+    const priorityOf = (v) => v.flatlayPriority ?? v.reframeMeta?.flatlayPriority ?? 99;
+    const isPromo = (v) => v.reframeMeta?.frameStyle?.stickerTemplate === "raincoat_promo";
+    const isNoStickers = (v) =>
+      v.reframeMeta?.frameStyle?.stickerTemplate === "none" ||
+      String(v.profileId || "").includes("_ns");
+
+    const byCost = (a, b) =>
+      inrOf(a) - inrOf(b) ||
+      priorityOf(a) - priorityOf(b) ||
+      (a.bytes || 0) - (b.bytes || 0);
+
+    const promoInBand = deduped.filter((v) => isPromo(v) && inrOf(v) <= 66);
+    const sorted = deduped.slice().sort((a, b) => {
+      const promoBias = (v) => (isPromo(v) ? 0 : isNoStickers(v) ? 2 : 1);
+      return promoBias(a) - promoBias(b) || byCost(a, b);
+    });
+
+    let ordered = sorted;
+    if (promoInBand.length) {
+      const bestPromo = promoInBand.slice().sort((a, b) => {
+        const tierBias = (v) => (v.reframeMeta?.tier?.slabKb === 63 ? 0 : 1);
+        return tierBias(a) - tierBias(b) || byCost(a, b);
+      })[0];
+      ordered = [bestPromo, ...sorted.filter((v) => v !== bestPromo)];
+    }
+
+    const cappedList = ordered.slice(0, maxVariants);
+    const minCount = Math.min(minVariants, ordered.length);
+    const results =
+      cappedList.length >= minCount
+        ? cappedList
+        : ordered.slice(0, Math.max(minCount, cappedList.length));
+    results.forEach((v, i) => {
+      v.autoRank = i + 1;
+      v.autoBest = i === 0;
+      v.recommended = i < 3;
+      v.lowest = i === 0;
+    });
+    return results;
   }
 
   function pathOf(url) {
@@ -4386,9 +4441,11 @@
     };
     const blob = capBytes
       ? await compressToByteCap(canvas, capBytes, compressOpts)
-      : profile.studio || profile.collageFramed
-        ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true, profile.absMinQ)
-        : await compressBusyToSlab(canvas, tier.slabKb);
+      : profile.raincoat && tier.slabKb
+        ? await compressToByteCap(canvas, tier.slabKb * 1024, compressOpts)
+        : profile.studio || profile.collageFramed
+          ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true, profile.absMinQ)
+          : await compressBusyToSlab(canvas, tier.slabKb);
     const reportW = options.anchorWidth ?? canvas.width;
     const reportH = options.anchorHeight ?? canvas.height;
     const label = options.showMode
