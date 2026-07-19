@@ -4065,18 +4065,16 @@
   }
 
   function estimateReframeShippingInr(variant, meta) {
-    const anchorBytes = meta?.tier?.anchorBytes;
-    const anchorInr = meta?.tier?.anchorInr;
+    const tier = meta?.tier || {};
+    const anchorInr = tier.anchorInr ?? meta?.anchorEstimatedShippingInr ?? null;
     const inr = estimateMeeshoInr({
       bytes: variant.bytes,
-      width: meta?.tier?.anchorWidth ?? variant.width,
-      height: meta?.tier?.anchorHeight ?? variant.height,
-      processingPath: variant.processingPath ?? meta?.processingPath,
-      profileId: variant.profileId ?? meta?.profileId,
+      width: tier.anchorWidth ?? variant.width,
+      height: tier.anchorHeight ?? variant.height,
+      processingPath: meta?.processingPath ?? variant.processingPath,
+      profileId: meta?.profileId ?? variant.profileId,
     });
-    if (anchorBytes != null && anchorInr != null && variant.bytes <= anchorBytes) {
-      return Math.min(inr, anchorInr);
-    }
+    if (anchorInr != null) return Math.min(inr, anchorInr);
     return inr;
   }
 
@@ -4351,7 +4349,7 @@
     const framedMode = displayMode === "framed" || displayMode === "frame_only";
     const reframeOpts = {
       preserveBytes: capBytes,
-      allowDimensionDownscale: false,
+      allowDimensionDownscale: !!(anchorW && anchorH),
       anchorWidth: anchorW,
       anchorHeight: anchorH,
     };
@@ -4373,7 +4371,7 @@
           displayMode === "studio"
             ? prepareSupplierDenExactStudioCanvas(sourceImg, spec)
             : await buildReframeFramedCanvas(sourceImg, meta, style);
-        if (displayMode !== "studio") {
+        if (anchorW && anchorH) {
           canvas = lockReframeCanvasDimensions(canvas, meta);
         }
         const whiteRatio = Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
@@ -4406,6 +4404,9 @@
     }
 
     let canvas = resolveReframeBaseCanvas(sourceImg, meta);
+    if (anchorW && anchorH) {
+      canvas = lockReframeCanvasDimensions(canvas, meta);
+    }
     let whiteRatio =
       meta.whiteRatio ?? Math.max(measureNearWhiteRatio(canvas), measureWhiteRatio(canvas));
 
