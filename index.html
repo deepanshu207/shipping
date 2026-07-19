@@ -796,7 +796,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=118"></script>
+  <script src="/own-api.js?v=119"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1092,6 +1092,9 @@
         if (tier.anchorInr == null) {
           tier.anchorInr =
             meta.anchorEstimatedShippingInr ??
+            (reframeEditorAnchor && reframeEditorAnchor.estimatedShippingInr != null
+              ? reframeEditorAnchor.estimatedShippingInr
+              : null) ??
             (isResultCustomized(result) ? null : result.estimatedShippingInr) ??
             null;
         }
@@ -1101,6 +1104,19 @@
         }
         if (!tier.preserveKb) {
           tier.preserveKb = tier.slabKb || tier.targetKb || result.fileSizeKb || null;
+        }
+        persistReframeFrozenAnchors(meta);
+      }
+
+      function persistReframeFrozenAnchors(meta) {
+        if (!meta || !meta.tier) return;
+        var tier = meta.tier;
+        if (tier.anchorInr != null && meta.anchorEstimatedShippingInr == null) {
+          meta.anchorEstimatedShippingInr = tier.anchorInr;
+        }
+        if (tier.anchorBytes != null && meta.anchorFileSizeBytes == null) {
+          meta.anchorFileSizeBytes = tier.anchorBytes;
+          if (MR && MR.kb) meta.anchorFileSizeKb = MR.kb(tier.anchorBytes);
         }
       }
 
@@ -1129,6 +1145,7 @@
         if (!tier.preserveKb) {
           tier.preserveKb = tier.slabKb || tier.targetKb || result.fileSizeKb;
         }
+        persistReframeFrozenAnchors(meta);
         if (!meta.anchorImageUrl && result.imageUrl && !isResultCustomized(result)) {
           meta.anchorImageUrl = result.imageUrl;
           meta.anchorTagName = result.tagName;
@@ -1233,15 +1250,34 @@
       }
 
       function captureReframeEditorAnchor(result, meta) {
+        var tier = meta.tier || {};
         return {
           imageUrl: meta.anchorImageUrl || result.imageUrl,
           tagName: meta.anchorTagName || result.tagName,
-          fileSizeKb: meta.anchorFileSizeKb || result.fileSizeKb,
-          fileSizeBytes: meta.anchorFileSizeBytes || result.fileSizeBytes,
-          estimatedShippingInr: meta.anchorEstimatedShippingInr || result.estimatedShippingInr,
-          width: meta.tier && meta.tier.anchorWidth || result.width,
-          height: meta.tier && meta.tier.anchorHeight || result.height,
+          fileSizeKb:
+            meta.anchorFileSizeKb ||
+            (tier.anchorBytes && MR ? MR.kb(tier.anchorBytes) : null) ||
+            result.fileSizeKb,
+          fileSizeBytes:
+            meta.anchorFileSizeBytes || tier.anchorBytes || result.fileSizeBytes,
+          estimatedShippingInr:
+            meta.anchorEstimatedShippingInr ??
+            tier.anchorInr ??
+            (isResultCustomized(result) ? null : result.estimatedShippingInr),
+          width: tier.anchorWidth || result.width,
+          height: tier.anchorHeight || result.height,
         };
+      }
+
+      function lockReframeShippingInr(result, variant, meta) {
+        if (!MR) return variant && variant.estimatedShippingInr;
+        ensureReframeAnchorMeta(result);
+        var anchorInr = resolveReframeAnchorInr(meta || result.reframeMeta, result);
+        var inr = MR.estimateReframeShippingInr
+          ? MR.estimateReframeShippingInr(variant, meta || result.reframeMeta)
+          : MR.estimateMeeshoInr(variant);
+        if (anchorInr != null) return Math.min(inr, anchorInr);
+        return inr;
       }
 
       function resolveReframeAnchorInr(meta, result) {
@@ -1743,13 +1779,9 @@
           setReframePreviewUrl(imageUrl);
           if (reframePreviewStatus) {
             var anchorInr = resolveReframeAnchorInr(r.reframeMeta, r);
-            var currentInr = MR.estimateReframeShippingInr
-              ? MR.estimateReframeShippingInr(variant, r.reframeMeta)
-              : MR.estimateMeeshoInr(variant);
-            var anchorKb =
-              resolveReframeAnchorBytes(r.reframeMeta, r) != null
-                ? MR.kb(resolveReframeAnchorBytes(r.reframeMeta, r))
-                : null;
+            var currentInr = lockReframeShippingInr(r, variant, r.reframeMeta);
+            var anchorBytes = resolveReframeAnchorBytes(r.reframeMeta, r);
+            var anchorKb = anchorBytes != null ? MR.kb(anchorBytes) : null;
             var status =
               "Preview · ~₹" + currentInr + " · " + MR.kb(variant.bytes) + " KB";
             if (anchorInr != null && currentInr <= anchorInr) {
@@ -1916,9 +1948,7 @@
           );
           var imageUrl = await MR.blobToDataUrl(variant.blob);
           var fileSizeKb = MR.kb(variant.bytes);
-          var estimatedShippingInr = MR.estimateReframeShippingInr
-            ? MR.estimateReframeShippingInr(variant, r.reframeMeta)
-            : MR.estimateMeeshoInr(variant);
+          var estimatedShippingInr = lockReframeShippingInr(r, variant, metaForRender || r.reframeMeta);
           r.imageUrl = imageUrl;
           r.fileSizeKb = fileSizeKb;
           r.fileSizeBytes = variant.bytes;
@@ -1952,9 +1982,9 @@
               r.reframeMeta.tier = Object.assign({}, tier, {
                 targetKb: preserveKb,
                 preserveKb: preserveKb,
-                preserveBytes: anchorBytes,
-                anchorBytes: anchorBytes,
-                anchorInr: anchorInr,
+                preserveBytes: anchorBytes ?? tier.preserveBytes,
+                anchorBytes: anchorBytes ?? tier.anchorBytes,
+                anchorInr: anchorInr ?? tier.anchorInr,
               });
             } else {
               r.reframeMeta.kind = "framed_slab";
@@ -1962,9 +1992,9 @@
               r.reframeMeta.tier = Object.assign({}, tier, {
                 slabKb: preserveKb,
                 preserveKb: preserveKb,
-                preserveBytes: anchorBytes,
-                anchorBytes: anchorBytes,
-                anchorInr: anchorInr,
+                preserveBytes: anchorBytes ?? tier.preserveBytes,
+                anchorBytes: anchorBytes ?? tier.anchorBytes,
+                anchorInr: anchorInr ?? tier.anchorInr,
               });
             }
           }

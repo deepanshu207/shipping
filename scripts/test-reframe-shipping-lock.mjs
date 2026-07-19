@@ -34,7 +34,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/?v=118`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/?v=119`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoFrameSettings && window.MeeshoReframe, { timeout: 20000 });
 
     const result = await page.evaluate(async () => {
@@ -224,6 +224,30 @@ async function run() {
           ...baseline,
           stickerTemplate: "limited_time",
         }),
+        customizedMetaOnly: await (async () => {
+          const stripped = {
+            ...anchored,
+            tier: {
+              slabKb: 48,
+              preserveKb: 48,
+              anchorWidth: gen.width,
+              anchorHeight: gen.height,
+            },
+            anchorEstimatedShippingInr: anchorInr,
+            anchorFileSizeBytes: gen.bytes,
+          };
+          const v = await MR.renderCustomVariant(await loadImg(), stripped, "framed", {
+            ...baseline,
+            stickerLayout: customImageLayout,
+          });
+          const locked = MR.estimateReframeShippingInr(v, stripped);
+          return {
+            label: "customizedMetaOnly",
+            locked,
+            anchorInr,
+            shippingLocked: locked <= anchorInr,
+          };
+        })(),
       };
     });
 
@@ -240,6 +264,7 @@ async function run() {
       result.removedSticker,
       result.addedMulti,
       result.tightCustomImages,
+      result.customizedMetaOnly,
     ];
     const ok = checks.every((c) => c.shippingLocked);
 
