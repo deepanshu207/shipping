@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { parseFrameStyle, hexToRgb, normalizeStickerTemplate, defaultFrameStyle, resolveBorderWidthScale } from "./frame-style.js";
+import { parseFrameStyle, hexToRgb, normalizeStickerTemplate, defaultFrameStyle } from "./frame-style.js";
 
 const TIERS_BUSY_BG = [
   { slabKb: 91, label: "Lowest · may beat ₹93 on Meesho", lowest: true },
@@ -147,27 +147,22 @@ const STUDIO_CATEGORY_RE =
   /\b(bra|bras|lingerie|panty|panties|underwear|bikini|sports bra|feeding bra|shapewear|camisole|nighty|nightwear|blouse|petticoat)\b/i;
 const INDOOR_CATEGORY_RE = /\b(raincoat|rain coat|rainwear|men raincoat)\b/i;
 
-function framedBorderPx(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, widthScale = 1) {
-  const scale = Math.max(0.35, Math.min(1.75, Number(widthScale) || 1));
-  let border = Math.max(
-    Math.round(FRAME_MIN_BORDER * scale),
-    Math.round(Math.min(w, h) * FRAME_BORDER_RATIO * scale)
-  );
-  border = Math.max(10, border);
+function framedBorderPx(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
+  let border = Math.max(FRAME_MIN_BORDER, Math.round(Math.min(w, h) * FRAME_BORDER_RATIO));
   const maxSide = Math.max(w, h);
   if (maxSide + border * 2 > framedMaxSide) {
     const capped = Math.floor((framedMaxSide - maxSide) / 2);
-    if (capped >= 10) border = capped;
+    if (capped >= 28) border = capped;
   }
   return border;
 }
 
-function framedOuterMaxSide(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, widthScale = 1) {
-  return Math.max(w, h) + framedBorderPx(w, h, framedMaxSide, widthScale) * 2;
+function framedOuterMaxSide(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
+  return Math.max(w, h) + framedBorderPx(w, h, framedMaxSide) * 2;
 }
 
 /** Proportional downscale — framed max side ≤ cap (Meesho shipping tier). */
-function fitFramedPhotoDims(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, widthScale = 1) {
+function fitFramedPhotoDims(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE) {
   let nw = w;
   let nh = h;
   const max0 = Math.max(nw, nh);
@@ -176,8 +171,8 @@ function fitFramedPhotoDims(w, h, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, widthS
     nw = Math.round(nw * scale);
     nh = Math.round(nh * scale);
   }
-  for (let i = 0; i < 12 && framedOuterMaxSide(nw, nh, framedMaxSide, widthScale) > framedMaxSide; i++) {
-    const framed = framedOuterMaxSide(nw, nh, framedMaxSide, widthScale);
+  for (let i = 0; i < 12 && framedOuterMaxSide(nw, nh, framedMaxSide) > framedMaxSide; i++) {
+    const framed = framedOuterMaxSide(nw, nh, framedMaxSide);
     const scale = (framedMaxSide - 1) / framed;
     nw = Math.max(1, Math.round(nw * scale));
     nh = Math.max(1, Math.round(nh * scale));
@@ -413,8 +408,7 @@ function stickerCompositesForTemplate(templateId, border, width, height) {
 
 async function prepareFramedBuffer(buffer, width, height, framedMaxSide = MEESHO_FRAMED_MAX_SIDE, frameStyleInput) {
   const style = parseFrameStyle(frameStyleInput || {});
-  const widthScale = resolveBorderWidthScale(style);
-  const border = framedBorderPx(width, height, framedMaxSide, widthScale);
+  const border = framedBorderPx(width, height, framedMaxSide);
   const fw = width + border * 2;
   const fh = height + border * 2;
   const bg = hexToRgb(style.borderColor);
@@ -474,10 +468,7 @@ function isSupplierDenTagName(tagName) {
 async function prepareSupplierDenExactBuffer(imageBuffer, spec, frameStyleInput) {
   const outerW = spec.outerW ?? 703;
   const outerH = spec.outerH ?? 1024;
-  const style = parseFrameStyle(frameStyleInput || {});
-  const widthScale = resolveBorderWidthScale(style);
-  const baseBorder = spec.borderPx ?? 10;
-  const border = Math.max(4, Math.round(baseBorder * widthScale));
+  const border = spec.borderPx ?? 10;
   const margins = {
     top: spec.topMarginRatio ?? 0.15,
     bottom: spec.bottomMarginRatio ?? 0.05,
@@ -506,6 +497,7 @@ async function prepareSupplierDenExactBuffer(imageBuffer, spec, frameStyleInput)
   const innerDx = Math.round(sideM + (availW - dw) / 2);
   const innerDy = Math.round(topM + (availH - dh) / 2);
 
+  const style = parseFrameStyle(frameStyleInput || {});
   const bg = hexToRgb(style.borderColor);
   const subject = await sharp(trimmed).resize(dw, dh, { fit: "fill" }).toBuffer();
   const whitePlate = await sharp({
@@ -1016,8 +1008,7 @@ export async function prepareInput(imageBuffer, profile, frameStyleInput) {
     );
   } else {
     buffer = await sharp(buffer).flatten({ background: { r: 255, g: 255, b: 255 } }).toBuffer();
-    const widthScale = resolveBorderWidthScale(mergedFrameStyle);
-    const fitted = fitFramedPhotoDims(w, h, framedMaxSide, widthScale);
+    const fitted = fitFramedPhotoDims(w, h, framedMaxSide);
     if (fitted.w !== w || fitted.h !== h) {
       buffer = await sharp(buffer)
         .resize(fitted.w, fitted.h, { fit: "fill" })

@@ -125,12 +125,6 @@ class SPAHandler(SimpleHTTPRequestHandler):
                     "frameStickerTemplate": style.get("frameStickerTemplate")
                     or style.get("stickerTemplate")
                     or "limited_time",
-                    "frameBorderWidthPreset": style.get("frameBorderWidthPreset")
-                    or style.get("borderWidthPreset")
-                    or "standard",
-                    "frameBorderWidthAdjust": style.get("frameBorderWidthAdjust")
-                    or style.get("borderWidthAdjust")
-                    or "100",
                 },
             }
         ).encode("utf-8")
@@ -263,8 +257,6 @@ class SPAHandler(SimpleHTTPRequestHandler):
             frame_style = {
                 "frameBorderColor": form.get("frameBorderColor") or "#FF7900",
                 "frameStickerTemplate": form.get("frameStickerTemplate") or "classic_promo",
-                "frameBorderWidthPreset": form.get("frameBorderWidthPreset") or "standard",
-                "frameBorderWidthAdjust": form.get("frameBorderWidthAdjust") or "100",
             }
             MOCK_REQUESTS[request_id] = {
                 "created_at": time.time(),
