@@ -33,7 +33,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/?v=135`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/?v=136`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoProcessor?.optimize && window.MeeshoReframe, {
       timeout: 20000,
     });
@@ -69,8 +69,8 @@ async function run() {
 
       const tag = "Raincoat indoor busy lowest shipping framed";
       const variants = await MP.optimize(dataUrl, tag, {
-        borderColor: "#FF7900",
-        stickerTemplate: "classic_promo",
+        borderColor: "#556B2F",
+        stickerTemplate: "raincoat_promo",
       });
       const best = variants[0];
       const meta = best.reframeMeta;

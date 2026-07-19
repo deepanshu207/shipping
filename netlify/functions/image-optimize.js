@@ -413,30 +413,32 @@ function specialOfferBurstSvg(scale) {
 }
 
 function specialSaleSvg(scale) {
-  const w = 148 * scale;
-  const h = 52 * scale;
-  const pad = 8 * scale;
-  const ribbonH = 10 * scale;
-  const sizeW = w + pad * 2;
-  const sizeH = h + pad * 2 + ribbonH;
+  const spikes = 12;
+  const outer = 72 * scale;
+  const inner = 30 * scale;
+  const pad = 12 * scale;
+  const size = outer * 2 + pad * 2;
+  const center = size / 2;
+  let points = "";
+  for (let i = 0; i < spikes * 2; i++) {
+    const angle = (Math.PI * i) / spikes - Math.PI / 2;
+    const radius = i % 2 === 0 ? outer : inner;
+    const px = center + Math.cos(angle) * radius;
+    const py = center + Math.sin(angle) * radius;
+    points += `${px},${py} `;
+  }
   const ss = OVERLAY_SUPERSAMPLE;
-  const rx = 10 * scale;
-  const by = pad;
-  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(sizeW * ss)}" height="${Math.ceil(sizeH * ss)}" viewBox="0 0 ${Math.ceil(sizeW)} ${Math.ceil(sizeH)}">
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(size * ss)}" height="${Math.ceil(size * ss)}" viewBox="0 0 ${Math.ceil(size)} ${Math.ceil(size)}">
+    <polygon points="${points.trim()}" fill="url(#ssb)" stroke="#111827" stroke-width="${2.6 * scale}"/>
     <defs>
-      <linearGradient id="ssg" x1="0" y1="${by}" x2="0" y2="${by + h}">
+      <radialGradient id="ssb">
         <stop offset="0%" stop-color="#FFF59D"/>
-        <stop offset="50%" stop-color="#FFEB3B"/>
+        <stop offset="55%" stop-color="#FFEB3B"/>
         <stop offset="100%" stop-color="#FFC107"/>
-      </linearGradient>
-      <filter id="sss" x="-20%" y="-20%" width="140%" height="140%">
-        <feDropShadow dx="0" dy="${3 * scale}" stdDeviation="${3 * scale}" flood-color="rgba(0,0,0,0.35)"/>
-      </filter>
+      </radialGradient>
     </defs>
-    <rect x="${pad}" y="${by}" width="${w}" height="${h}" rx="${rx}" fill="url(#ssg)" stroke="#111827" stroke-width="${2.2 * scale}" filter="url(#sss)"/>
-    <text x="${pad + w / 2}" y="${by + h * 0.38}" fill="#111827" stroke="#FFFFFF" stroke-width="${1.1 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${12.5 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SPECIAL</text>
-    <text x="${pad + w / 2}" y="${by + h * 0.68}" fill="#111827" stroke="#FFFFFF" stroke-width="${1.15 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${13 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SALE</text>
-    <rect x="${pad + w * 0.12}" y="${by + h - 2 * scale}" width="${w * 0.76}" height="${ribbonH}" rx="${3 * scale}" fill="#D32F2F"/>
+    <text x="${center}" y="${center - 9 * scale}" fill="#111827" stroke="#FFFFFF" stroke-width="${1.1 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${12.5 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SPECIAL</text>
+    <text x="${center}" y="${center + 9 * scale}" fill="#111827" stroke="#FFFFFF" stroke-width="${1.15 * scale}" paint-order="stroke fill" font-family="Arial,Helvetica,sans-serif" font-size="${13 * scale}" font-weight="900" text-anchor="middle" dominant-baseline="middle">SALE</text>
   </svg>`);
 }
 
@@ -527,8 +529,7 @@ function stickerCompositesForTemplate(templateId, border, width, height) {
     const sale = specialSaleSvg(scale);
     const seal = bestSellerSealSvg(scale);
     const burstSize = 78 * scale * 2 + 28 * scale;
-    const saleW = 148 * scale + 16 * scale;
-    const saleH = 52 * scale + 16 * scale + 10 * scale;
+    const saleSize = 72 * scale * 2 + 24 * scale;
     const sealSize = 96 * scale + 20 * scale;
     composites.push({
       input: burst,
@@ -537,8 +538,8 @@ function stickerCompositesForTemplate(templateId, border, width, height) {
     });
     composites.push({
       input: sale,
-      left: Math.round(border + width * 0.24 - saleW / 2),
-      top: Math.round(border + height * 0.74 - saleH / 2),
+      left: Math.round(border + width * 0.24 - saleSize / 2),
+      top: Math.round(border + height * 0.74 - saleSize / 2),
     });
     composites.push({
       input: seal,
@@ -620,10 +621,11 @@ function isRaincoatLowestTagName(tagName) {
   );
 }
 
-function resolveRaincoatFrameStyle() {
+function resolveRaincoatFrameStyle(frameStyleInput) {
+  const user = parseFrameStyle(frameStyleInput || {});
   return {
-    borderColor: RAINCOAT_DEFAULT_OLIVE,
-    stickerTemplate: "raincoat_promo",
+    borderColor: user.borderColor || RAINCOAT_DEFAULT_OLIVE,
+    stickerTemplate: user.stickerTemplate || "raincoat_promo",
   };
 }
 
@@ -1186,11 +1188,11 @@ async function prepareRaincoatExactSquareBuffer(imageBuffer, layoutSpec, frameSt
   return { buffer, width: outerW, height: outerH, whiteRatio: 0 };
 }
 
-async function prepareRaincoatFramedBuffer(imageBuffer, layoutSpec) {
+async function prepareRaincoatFramedBuffer(imageBuffer, layoutSpec, frameStyleInput) {
   if (layoutSpec.type === "raincoat_exact_square") {
-    return prepareRaincoatExactSquareBuffer(imageBuffer, layoutSpec);
+    return prepareRaincoatExactSquareBuffer(imageBuffer, layoutSpec, frameStyleInput);
   }
-  const style = resolveRaincoatFrameStyle();
+  const style = resolveRaincoatFrameStyle(frameStyleInput);
   const native = await prepareRaincoatNativeBuffer(imageBuffer, layoutSpec.capMaxSide);
   const fitted = fitFramedPhotoDims(native.width, native.height, layoutSpec.framedMaxSide ?? 1024);
   let photo = native.buffer;
@@ -1200,10 +1202,10 @@ async function prepareRaincoatFramedBuffer(imageBuffer, layoutSpec) {
   return prepareFramedBuffer(photo, fitted.w, fitted.h, layoutSpec.framedMaxSide ?? 1024, style);
 }
 
-async function generateRaincoatVariants(imageBuffer) {
+async function generateRaincoatVariants(imageBuffer, frameStyleInput) {
   const built = [];
   for (const layoutSpec of RAINCOAT_LAYOUTS) {
-    const prepared = await prepareRaincoatFramedBuffer(imageBuffer, layoutSpec);
+    const prepared = await prepareRaincoatFramedBuffer(imageBuffer, layoutSpec, frameStyleInput);
     const profile = {
       id: `raincoat_${layoutSpec.layout}`,
       path: "raincoat_framed",
@@ -1412,7 +1414,7 @@ export async function generateAllVariants(imageBuffer, categoryName, frameStyleI
   const built = isSupplierDenTagName(categoryName)
     ? await generateSupplierDenVariants(imageBuffer, frameStyleInput, categoryName)
     : isRaincoatLowestTagName(categoryName)
-      ? await generateRaincoatVariants(imageBuffer)
+      ? await generateRaincoatVariants(imageBuffer, frameStyleInput)
       : await (async () => {
         const profile = resolveProcessingProfile(rotated, categoryName);
         if (profile.auto) {

@@ -24,8 +24,8 @@ const sample = await sharp(Buffer.from(channels), {
 
 const tag = "Raincoat indoor busy lowest shipping framed";
 const results = await generateAllVariants(sample, tag, {
-  frameBorderColor: "#FF7900",
-  frameStickerTemplate: "classic_promo",
+  frameBorderColor: "#556B2F",
+  frameStickerTemplate: "raincoat_promo",
 });
 
 const inrs = results.map((r) => Number(r.estimatedShippingInr || r.shippingCharge || 0));

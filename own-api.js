@@ -2127,7 +2127,7 @@
   }
 
   async function optimizeRaincoatLayoutsAll(img, profiles, maxVariants, frameStyle, onProgress) {
-    const styled = resolveRaincoatFrameStyle(frameStyle, { forceDefaults: true });
+    const styled = resolveRaincoatFrameStyle(frameStyle);
     const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
     const allVariants = [];
     let done = 0;
@@ -3467,53 +3467,7 @@
   }
 
   function renderSpecialSaleSticker(scale, texts = {}) {
-    const w = 148 * scale;
-    const h = 52 * scale;
-    const pad = 8 * scale;
-    const ribbonH = 10 * scale;
-    const sizeW = w + pad * 2;
-    const sizeH = h + pad * 2 + ribbonH;
-    const ss = OVERLAY_SUPERSAMPLE;
-    const c = document.createElement("canvas");
-    c.width = Math.ceil(sizeW * ss);
-    c.height = Math.ceil(sizeH * ss);
-    const ctx = c.getContext("2d");
-    ctx.scale(ss, ss);
-    ctx.shadowColor = "rgba(0,0,0,0.35)";
-    ctx.shadowBlur = 6 * scale;
-    ctx.shadowOffsetY = 3 * scale;
-    const rx = 10 * scale;
-    const by = pad;
-    ctx.beginPath();
-    ctx.roundRect(pad, by, w, h, rx);
-    const grad = ctx.createLinearGradient(pad, by, pad, by + h);
-    grad.addColorStop(0, "#FFF59D");
-    grad.addColorStop(0.5, "#FFEB3B");
-    grad.addColorStop(1, "#FFC107");
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.shadowColor = "transparent";
-    ctx.strokeStyle = "#111827";
-    ctx.lineWidth = 2.2 * scale;
-    ctx.stroke();
-    const line1 = String(texts.line1 || "SPECIAL").slice(0, 12);
-    const line2 = String(texts.line2 || "SALE").slice(0, 12);
-    drawStickerText(ctx, line1, pad + w / 2, by + h * 0.38, 12.5, scale, {
-      fill: "#111827",
-      stroke: "#FFFFFF",
-      strokeWidth: 1.1,
-    });
-    drawStickerText(ctx, line2, pad + w / 2, by + h * 0.68, 13, scale, {
-      fill: "#111827",
-      stroke: "#FFFFFF",
-      strokeWidth: 1.15,
-    });
-    const ribbonY = by + h - 2 * scale;
-    ctx.fillStyle = "#D32F2F";
-    ctx.beginPath();
-    ctx.roundRect(pad + w * 0.12, ribbonY, w * 0.76, ribbonH, 3 * scale);
-    ctx.fill();
-    return { canvas: c, width: sizeW, height: sizeH };
+    return renderSpecialSaleBurst(scale, texts);
   }
 
   function renderBestSellerSeal(scale, texts = {}) {
@@ -4963,11 +4917,7 @@
 
   async function optimizeAutoAll(img, frameStyle, onProgress, tagName) {
     if (shouldAutoRouteRaincoat(img, tagName)) {
-      return optimizeRaincoatAll(
-        img,
-        resolveRaincoatFrameStyle(frameStyle, { forceDefaults: true }),
-        onProgress
-      );
+      return optimizeRaincoatAll(img, frameStyle, onProgress);
     }
     const collage = isLingerieSplitCollage(img);
     const profiles = autoProfilesForImage(img).sort((a, b) => (a.autoPriority ?? 99) - (b.autoPriority ?? 99));

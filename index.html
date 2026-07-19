@@ -885,7 +885,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=135"></script>
+  <script src="/own-api.js?v=136"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -2444,7 +2444,7 @@
         if (framedNote) {
           if (isRaincoat) {
             framedNote.innerHTML =
-              "Raincoat mode uses a <b>square 1024² olive frame</b> (#556B2F) with <b>3 promo stickers</b> (SPECIAL OFFER + SPECIAL SALE + Best Seller) — matches competitor layout for ~₹63 shipping. Border/sticker UI is overridden for this run.";
+              "Your <b>border color</b> and <b>promotion sticker</b> selections above apply to all 24 raincoat square scenarios (1024²). Default is <b>olive frame</b> + <b>Raincoat promo</b> (3 stickers). Pick <b>Frame only</b> for border without stickers. <b>Tap any result</b> after generation to tweak further.";
           } else if (isTallOne) {
             framedNote.innerHTML =
               "Same <b>49 tall scenarios</b> as Tall ₹50 (703×1024 exact), but with a <b>single FREE DELIVERY sticker</b> only — no second promo badge. Border color still applies. <b>Tap any result</b> after generation to tweak.";
@@ -2501,6 +2501,16 @@
           if (btn.dataset.tallOne === "1" && stickerTemplate && FS) {
             stickerTemplate.value = "supplierden_one";
             updateTemplateDesc();
+          }
+          if (btn.dataset.raincoat === "1") {
+            if (borderPreset && FS) {
+              borderPreset.value = "olive";
+              setBorderFromPreset("olive");
+            }
+            if (stickerTemplate) {
+              stickerTemplate.value = "raincoat_promo";
+              updateTemplateDesc();
+            }
           }
           syncModeUI();
           setError("");
@@ -2934,12 +2944,6 @@
         form.append("tagId", selected.dataset.id);
         form.append("tagName", selected.dataset.tag);
         var frame = getFrameSettingsFromUi();
-        if (isRaincoat) {
-          frame = {
-            borderColor: "#556B2F",
-            stickerTemplate: "raincoat_promo",
-          };
-        }
         form.append("frameBorderColor", frame.borderColor);
         form.append("frameStickerTemplate", frame.stickerTemplate);
         persistFrameDefaults();
