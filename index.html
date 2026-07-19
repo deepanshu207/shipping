@@ -167,6 +167,16 @@
       box-shadow: 0 0 0 3px rgb(251 191 36 / 0.2);
     }
     .mode.selected.fulllength .mode-selected-pill { color: #b45309; }
+    .mode.raincoat .mode-tag { background: #ecfccb; color: #4d7c0f; }
+    .mode.selected.raincoat {
+      border-color: #65a30d;
+      box-shadow: 0 0 0 3px rgb(101 163 13 / 0.15);
+    }
+    .dark .mode.selected.raincoat {
+      border-color: #84cc16;
+      box-shadow: 0 0 0 3px rgb(132 204 22 / 0.2);
+    }
+    .mode.selected.raincoat .mode-selected-pill { color: #4d7c0f; }
     .mode.selected.flatlay .mode-selected-pill { color: #0369a1; }
     .mode-title { font-size: 0.92rem; font-weight: 800; margin: 0 0 0.3rem; line-height: 1.25; }
     .mode-for { font-size: 0.75rem; color: var(--muted); margin: 0; line-height: 1.35; }
@@ -640,6 +650,12 @@
         </summary>
         <div class="accordion-body">
           <div class="modes modes-more">
+        <button type="button" class="mode framed raincoat" data-id="mo_raincoat_low" data-tag="Raincoat indoor busy lowest shipping framed" data-name="Raincoat Lowest ₹" data-raincoat="1">
+          <p class="mode-title">Raincoat Lowest ₹</p>
+          <p class="mode-for"><b>For:</b> Indoor raincoat / busy background — olive frame + promo stickers</p>
+          <span class="mode-tag">24 scenarios · framed 960/1024 · targets ₹60–66</span>
+          <span class="mode-selected-pill">✓ Selected</span>
+        </button>
         <button type="button" class="mode framed" data-id="mo_indoor" data-tag="Indoor busy background" data-name="Framed Compress">
           <p class="mode-title">Framed Compress</p>
           <p class="mode-for"><b>For:</b> Indoor / busy background (raincoat)</p>
@@ -869,7 +885,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=128"></script>
+  <script src="/own-api.js?v=129"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -2878,6 +2894,7 @@
         var isFlatlay = selected && selected.dataset.flatlay === "1";
         var isModel = selected && selected.dataset.model === "1";
         var isFullLength = selected && selected.dataset.fulllength === "1";
+        var isRaincoat = selected && selected.dataset.raincoat === "1";
         var isTall50 = selected && selected.dataset.tall50 === "1";
         var isTallOne = selected && selected.dataset.tallOne === "1";
         lastUploadDataUrl = previewUrl;
@@ -2894,7 +2911,9 @@
                 ? "Model Photo — framed 1024 scenarios…"
                 : isFullLength
                   ? "Full-Length — fit + cap scenarios…"
-                  : isTallOne
+                  : isRaincoat
+                    ? "Raincoat — framed 960/1024 scenarios…"
+                    : isTallOne
                     ? "Tall 1 sticker — 703×1024 exact scenarios…"
                     : isTall50
                       ? "Tall — 703×1024 exact scenarios…"
