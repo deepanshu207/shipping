@@ -34,7 +34,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/?v=124`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/?v=125`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoFrameSettings && window.MeeshoReframe, { timeout: 20000 });
 
     const result = await page.evaluate(async () => {
@@ -341,6 +341,81 @@ async function run() {
             customLabel,
           };
         })(),
+        customIconAnchorStable: await (async () => {
+          const customSlot = {
+            type: "free_delivery",
+            x: 0.2,
+            y: 0.2,
+            text1: "FREE",
+            text2: "DEL",
+            imageUrl: stickerImg(),
+            sizePx: 120,
+          };
+          const customLayout = FS.normalizeStickerLayout(
+            { version: 2, stickers: [customSlot] },
+            "supplierden_match"
+          );
+          const revertedLayout = FS.normalizeStickerLayout(
+            {
+              version: 2,
+              stickers: [{ ...customSlot, imageUrl: "", type: "free_delivery", sizePx: 120 }],
+            },
+            "supplierden_match"
+          );
+          const resizedLayout = FS.normalizeStickerLayout(
+            {
+              version: 2,
+              stickers: [{ ...customSlot, sizePx: 96 }],
+            },
+            "supplierden_match"
+          );
+          const metaFrozen = {
+            ...anchored,
+            anchorFrozen: true,
+            anchorFileSizeBytes: gen.bytes,
+            anchorEstimatedShippingInr: anchorInr,
+            tier: {
+              ...anchored.tier,
+              anchorBytes: gen.bytes,
+              anchorInr,
+              preserveBytes: gen.bytes,
+            },
+          };
+          const customV = await MR.renderCustomVariant(await loadImg(), metaFrozen, "framed", {
+            ...baseline,
+            stickerLayout: customLayout,
+          });
+          const resizedV = await MR.renderCustomVariant(await loadImg(), metaFrozen, "framed", {
+            ...baseline,
+            stickerLayout: resizedLayout,
+          });
+          const revertedV = await MR.renderCustomVariant(await loadImg(), metaFrozen, "framed", {
+            ...baseline,
+            stickerLayout: revertedLayout,
+          });
+          MR.enforceReframeFrozenAnchors(metaFrozen);
+          const poisoned = {
+            ...metaFrozen,
+            tier: {
+              ...metaFrozen.tier,
+              anchorBytes: customV.bytes,
+              anchorInr: MR.estimateMeeshoInr(customV),
+            },
+          };
+          MR.enforceReframeFrozenAnchors(poisoned);
+          return {
+            lockedCustom: MR.estimateReframeShippingInr(customV, metaFrozen),
+            lockedResized: MR.estimateReframeShippingInr(resizedV, metaFrozen),
+            lockedReverted: MR.estimateReframeShippingInr(revertedV, metaFrozen),
+            shippingLockedCustom: MR.estimateReframeShippingInr(customV, metaFrozen) === anchorInr,
+            shippingLockedResized: MR.estimateReframeShippingInr(resizedV, metaFrozen) === anchorInr,
+            shippingLockedReverted: MR.estimateReframeShippingInr(revertedV, metaFrozen) === anchorInr,
+            anchorBytesRestored: poisoned.tier.anchorBytes === gen.bytes,
+            anchorInrRestored: poisoned.tier.anchorInr === anchorInr,
+            customWithinCap: customV.bytes <= gen.bytes,
+            resizedWithinCap: resizedV.bytes <= gen.bytes,
+          };
+        })(),
       };
     });
 
@@ -370,7 +445,12 @@ async function run() {
       result.hiddenKeepsSlots.shippingLocked &&
       result.iconPreviewApi.hasPreview &&
       result.iconPreviewApi.label === "Free delivery" &&
-      result.iconPreviewApi.customLabel === "Custom icon";
+      result.iconPreviewApi.customLabel === "Custom icon" &&
+      result.customIconAnchorStable.shippingLockedCustom &&
+      result.customIconAnchorStable.shippingLockedResized &&
+      result.customIconAnchorStable.shippingLockedReverted &&
+      result.customIconAnchorStable.anchorBytesRestored &&
+      result.customIconAnchorStable.anchorInrRestored;
 
     if (!ok) {
       console.error("FAIL", result);
