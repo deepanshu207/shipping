@@ -34,7 +34,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/?v=125`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/?v=126`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoFrameSettings && window.MeeshoReframe, { timeout: 20000 });
 
     const result = await page.evaluate(async () => {
@@ -197,6 +197,63 @@ async function run() {
         template: await lockedInr("template", "framed", { ...baseline, stickerTemplate: "mega_sale" }),
         frameOnly: await lockedInr("frameOnly", "frame_only", { ...baseline, stickerTemplate: "none" }),
         studio: await lockedInr("studio", "studio", baseline),
+        studioStickers: await (async () => {
+          const studioAnchored = {
+            ...anchored,
+            kind: "collage_studio",
+            studioBase: true,
+            tier: { ...anchored.tier, targetKb: 48, preserveKb: 48 },
+          };
+          const v = await MR.renderCustomVariant(await loadImg(), studioAnchored, "studio", {
+            ...baseline,
+            stickerLayout: heavyLayout,
+          });
+          const locked = MR.estimateReframeShippingInr(v, studioAnchored);
+          return {
+            label: "studioStickers",
+            locked,
+            anchorInr,
+            shippingLocked: locked === anchorInr,
+            bytesWithinCap: v.bytes <= gen.bytes,
+          };
+        })(),
+        studioCustomIcon: await (async () => {
+          const studioAnchored = {
+            ...anchored,
+            kind: "collage_studio",
+            studioBase: true,
+            tier: { ...anchored.tier, targetKb: 48, preserveKb: 48 },
+          };
+          const layout = FS.normalizeStickerLayout(
+            {
+              version: 2,
+              stickers: [
+                {
+                  type: "free_delivery",
+                  x: 0.22,
+                  y: 0.18,
+                  text1: "FREE",
+                  text2: "DEL",
+                  imageUrl: stickerImg(),
+                  sizePx: 108,
+                },
+              ],
+            },
+            "supplierden_match"
+          );
+          const v = await MR.renderCustomVariant(await loadImg(), studioAnchored, "studio", {
+            ...baseline,
+            stickerLayout: layout,
+          });
+          const locked = MR.estimateReframeShippingInr(v, studioAnchored);
+          return {
+            label: "studioCustomIcon",
+            locked,
+            anchorInr,
+            shippingLocked: locked === anchorInr,
+            bytesWithinCap: v.bytes <= gen.bytes,
+          };
+        })(),
         thick: await lockedInr("thick", "framed", {
           ...baseline,
           borderWidthPreset: "thick",
@@ -424,6 +481,8 @@ async function run() {
       result.template,
       result.frameOnly,
       result.studio,
+      result.studioStickers,
+      result.studioCustomIcon,
       result.thick,
       result.textPos,
       result.tightColor,

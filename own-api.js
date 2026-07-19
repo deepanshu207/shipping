@@ -3879,6 +3879,27 @@
     return c;
   }
 
+  async function applyReframeStickersOnCanvas(canvas, style) {
+    const merged = mergeFrameStyle(defaultFrameStyle(), style || {});
+    const template = normalizeStickerTemplate(merged.stickerTemplate);
+    if (template === "none" && !merged.stickerLayout) return canvas;
+    const ctx = canvas.getContext("2d");
+    const photoW = canvas.width;
+    const photoH = canvas.height;
+    if (merged.stickerLayout) {
+      const layout = await hydrateStickerLayoutImages(merged.stickerLayout, template);
+      drawFramedOverlaysWithLayout(ctx, 0, photoW, photoH, template, layout);
+    } else if (template !== "none") {
+      drawFramedOverlays(ctx, 0, photoW, photoH, merged);
+    }
+    return canvas;
+  }
+
+  async function buildReframeStudioCanvas(sourceImg, meta, style) {
+    const canvas = resolveReframeBaseCanvas(sourceImg, meta);
+    return applyReframeStickersOnCanvas(canvas, style);
+  }
+
   function layoutSpecIncludesFrame(spec) {
     return String(spec?.type || "").includes("framed");
   }
@@ -4473,10 +4494,13 @@
     if (isSupplierDenProfileId(meta.profileId) && meta.studioLayout) {
       const spec = findApparelLayoutSpec(meta.studioLayout, meta.profileId);
       if (spec?.type === "exact_framed") {
-        let canvas =
-          displayMode === "studio"
-            ? prepareSupplierDenExactStudioCanvas(sourceImg, spec)
-            : await buildReframeFramedCanvas(sourceImg, meta, style);
+        let canvas;
+        if (displayMode === "studio") {
+          const studioBase = prepareSupplierDenExactStudioCanvas(sourceImg, spec);
+          canvas = await applyReframeStickersOnCanvas(studioBase, style);
+        } else {
+          canvas = await buildReframeFramedCanvas(sourceImg, meta, style);
+        }
         if (anchorW && anchorH) {
           canvas = lockReframeCanvasDimensions(canvas, meta);
         }
@@ -4509,7 +4533,7 @@
       return buildVariantForTier(canvas, whiteRatio, profile, tier, reframeOpts);
     }
 
-    let canvas = resolveReframeBaseCanvas(sourceImg, meta);
+    let canvas = await buildReframeStudioCanvas(sourceImg, meta, style);
     if (anchorW && anchorH) {
       canvas = lockReframeCanvasDimensions(canvas, meta);
     }

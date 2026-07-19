@@ -807,6 +807,7 @@
           <button type="button" class="reframe-mode-btn" data-mode="studio" id="reframe-mode-studio">No frame (studio)</button>
         </div>
         <div id="reframe-frame-controls">
+          <div class="reframe-border-controls" id="reframe-border-controls">
           <details class="accordion" open>
             <summary>Border color</summary>
             <div class="accordion-body">
@@ -836,6 +837,8 @@
               <p class="reframe-note">Adjust border thickness after generation. Shipping stays locked to the original file size.</p>
             </div>
           </details>
+          </div>
+          <div class="reframe-sticker-controls" id="reframe-sticker-controls">
           <details class="accordion" open style="margin-top:0.5rem">
             <summary>Promotion sticker</summary>
             <div class="accordion-body">
@@ -854,6 +857,7 @@
               <button type="button" class="reframe-add-sticker" id="reframe-add-sticker">+ Add sticker</button>
             </div>
           </details>
+          </div>
         </div>
         </div>
         <div class="reframe-actions">
@@ -865,7 +869,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=125"></script>
+  <script src="/own-api.js?v=126"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -938,6 +942,8 @@
       var reframeStickerLayoutPanel = document.getElementById("reframe-sticker-layout");
       var reframeStickerSlotsEl = document.getElementById("reframe-sticker-slots");
       var reframeAddStickerBtn = document.getElementById("reframe-add-sticker");
+      var reframeBorderControls = document.getElementById("reframe-border-controls");
+      var reframeStickerControls = document.getElementById("reframe-sticker-controls");
       var reframeFrameControls = document.getElementById("reframe-frame-controls");
       var reframePreviewStatus = document.getElementById("reframe-preview-status");
       var reframeStickerSlots = [];
@@ -1631,7 +1637,7 @@
           borderWidthPreset: FS.normalizeBorderWidthPreset(reframeBorderWidthPreset && reframeBorderWidthPreset.value),
           borderWidthAdjust: FS.normalizeBorderWidthAdjust(reframeBorderWidthAdjust && reframeBorderWidthAdjust.value),
         };
-        if (reframeDisplayMode === "framed" && reframeStickerCustomized) {
+        if ((reframeDisplayMode === "framed" || reframeDisplayMode === "studio") && reframeStickerCustomized) {
           settings.stickerLayout = getStickerLayoutFromUi();
         }
         return settings;
@@ -2016,8 +2022,12 @@
 
       function syncReframeStickerLayoutLabels() {
         if (!FS) return;
+        var showStickers = reframeDisplayMode === "framed" || reframeDisplayMode === "studio";
         if (reframeStickerLayoutPanel) {
-          reframeStickerLayoutPanel.classList.toggle("hidden", reframeDisplayMode !== "framed");
+          reframeStickerLayoutPanel.classList.toggle("hidden", !showStickers);
+        }
+        if (reframeStickerControls) {
+          reframeStickerControls.classList.toggle("hidden", reframeDisplayMode === "frame_only");
         }
       }
 
@@ -2086,7 +2096,15 @@
         reframeModeFramed.classList.toggle("selected", framed);
         reframeModeFrameOnly.classList.toggle("selected", frameOnly);
         reframeModeStudio.classList.toggle("selected", studio);
-        reframeFrameControls.classList.toggle("hidden", studio);
+        if (reframeBorderControls) {
+          reframeBorderControls.classList.toggle("hidden", studio);
+        }
+        if (reframeStickerControls) {
+          reframeStickerControls.classList.toggle("hidden", frameOnly);
+        }
+        if (reframeFrameControls) {
+          reframeFrameControls.classList.remove("hidden");
+        }
         if (frameOnly && FS) {
           reframeStickerTemplate.value = "none";
           updateReframeTemplateDesc();
@@ -2250,7 +2268,8 @@
               borderWidthPreset: frame.borderWidthPreset || "standard",
               borderWidthAdjust: frame.borderWidthAdjust ?? 100,
               stickerLayout:
-                reframeDisplayMode === "framed" && reframeStickerCustomized
+                (reframeDisplayMode === "framed" || reframeDisplayMode === "studio") &&
+                reframeStickerCustomized
                   ? frame.stickerLayout || null
                   : null,
             };
