@@ -796,7 +796,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=116"></script>
+  <script src="/own-api.js?v=117"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1086,6 +1086,13 @@
           tier.preserveBytes = result.fileSizeBytes;
           tier.anchorInr = result.estimatedShippingInr;
         }
+        if (!tier.anchorBytes && meta.anchorFileSizeBytes) {
+          tier.anchorBytes = meta.anchorFileSizeBytes;
+          tier.preserveBytes = meta.anchorFileSizeBytes;
+        }
+        if (tier.anchorInr == null) {
+          tier.anchorInr = meta.anchorEstimatedShippingInr ?? result.estimatedShippingInr ?? null;
+        }
         if (!tier.anchorWidth && result.width) {
           tier.anchorWidth = result.width;
           tier.anchorHeight = result.height;
@@ -1190,6 +1197,34 @@
           width: meta.tier && meta.tier.anchorWidth || result.width,
           height: meta.tier && meta.tier.anchorHeight || result.height,
         };
+      }
+
+      function resolveReframeAnchorInr(meta, result) {
+        if (!meta) return null;
+        var tier = meta.tier || {};
+        if (tier.anchorInr != null) return tier.anchorInr;
+        if (meta.anchorEstimatedShippingInr != null) return meta.anchorEstimatedShippingInr;
+        if (reframeEditorAnchor && reframeEditorAnchor.estimatedShippingInr != null) {
+          return reframeEditorAnchor.estimatedShippingInr;
+        }
+        if (result && result.estimatedShippingInr != null && !isResultCustomized(result)) {
+          return result.estimatedShippingInr;
+        }
+        return null;
+      }
+
+      function resolveReframeAnchorBytes(meta, result) {
+        if (!meta) return null;
+        var tier = meta.tier || {};
+        if (tier.anchorBytes != null) return tier.anchorBytes;
+        if (meta.anchorFileSizeBytes != null) return meta.anchorFileSizeBytes;
+        if (reframeEditorAnchor && reframeEditorAnchor.fileSizeBytes != null) {
+          return reframeEditorAnchor.fileSizeBytes;
+        }
+        if (result && result.fileSizeBytes != null && !isResultCustomized(result)) {
+          return result.fileSizeBytes;
+        }
+        return null;
       }
 
       async function resolveReframeAnchorImageUrl(r, meta) {
@@ -1625,14 +1660,14 @@
       }
 
       function scheduleReframePreview() {
-        if (reframeIndex < 0 || reframeDisplayMode === "studio") return;
+        if (reframeIndex < 0) return;
         reframeResetPending = false;
         if (reframePreviewTimer) clearTimeout(reframePreviewTimer);
         reframePreviewTimer = setTimeout(updateReframePreview, 320);
       }
 
       async function updateReframePreview() {
-        if (!MR || reframeIndex < 0 || !lastUploadDataUrl || reframeDisplayMode === "studio") return;
+        if (!MR || reframeIndex < 0 || !lastUploadDataUrl) return;
         var token = ++reframePreviewToken;
         if (reframePreviewStatus) reframePreviewStatus.textContent = "Updating preview…";
         try {
@@ -1661,20 +1696,19 @@
           if (token !== reframePreviewToken) return;
           setReframePreviewUrl(imageUrl);
           if (reframePreviewStatus) {
-            var anchorInr =
-              r.reframeMeta.tier && (r.reframeMeta.tier.anchorInr || r.estimatedShippingInr);
+            var anchorInr = resolveReframeAnchorInr(r.reframeMeta, r);
             var currentInr = MR.estimateReframeShippingInr
               ? MR.estimateReframeShippingInr(variant, r.reframeMeta)
               : MR.estimateMeeshoInr(variant);
             var anchorKb =
-              r.reframeMeta.tier && r.reframeMeta.tier.anchorBytes
-                ? MR.kb(r.reframeMeta.tier.anchorBytes)
+              resolveReframeAnchorBytes(r.reframeMeta, r) != null
+                ? MR.kb(resolveReframeAnchorBytes(r.reframeMeta, r))
                 : null;
             var status =
               "Preview · ~₹" + currentInr + " · " + MR.kb(variant.bytes) + " KB";
-            if (anchorInr && currentInr <= anchorInr) {
+            if (anchorInr != null && currentInr <= anchorInr) {
               status += " · shipping locked";
-            } else if (anchorInr) {
+            } else if (anchorInr != null) {
               status += " · was ~₹" + anchorInr + " at generation";
             }
             if (anchorKb) status += " · cap " + anchorKb + " KB";
@@ -1851,8 +1885,8 @@
             ensureReframeAnchorMeta(r);
             var tier = r.reframeMeta.tier || {};
             var preserveKb = tier.preserveKb || tier.targetKb || tier.slabKb || fileSizeKb;
-            var anchorBytes = tier.anchorBytes || r.fileSizeBytes || null;
-            var anchorInr = tier.anchorInr || r.estimatedShippingInr || null;
+            var anchorBytes = resolveReframeAnchorBytes(r.reframeMeta, r);
+            var anchorInr = resolveReframeAnchorInr(r.reframeMeta, r);
             r.reframeMeta.frameStyle = {
               borderColor: frame.borderColor,
               stickerTemplate:
@@ -2580,6 +2614,7 @@
         reframeDisplayMode = "studio";
         reframeResetPending = false;
         syncReframeModeUi();
+        scheduleReframePreview();
       });
       reframeBorderColor.addEventListener("input", function () {
         syncReframeBorderUi(reframeBorderColor.value);
