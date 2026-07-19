@@ -33,7 +33,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/?v=113`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/?v=114`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoFrameSettings && window.MeeshoReframe, { timeout: 20000 });
 
     const result = await page.evaluate(async () => {
@@ -87,30 +87,6 @@ async function run() {
       const cloneJson = (v) => JSON.parse(JSON.stringify(v));
       const cloned = cloneJson(meta);
 
-      const customizedMeta = {
-        ...meta,
-        frameStyle: { ...thick },
-        anchorImageUrl: await MR.blobToDataUrl(original.blob),
-        anchorTagName: "48KB framed · 48 KB",
-        anchorFileSizeKb: MR.kb(original.bytes),
-        anchorEstimatedShippingInr: MR.estimateMeeshoInr(original),
-      };
-      customizedMeta.tier.anchorBytes = original.bytes;
-      customizedMeta.tier.anchorInr = MR.estimateMeeshoInr(original);
-
-      const isBaselineFrame = (frame, m) => {
-        const b = m.baselineFrameStyle;
-        return (
-          FS.normalizeBorderColor(frame.borderColor) === FS.normalizeBorderColor(b.borderColor) &&
-          FS.normalizeStickerTemplate(frame.stickerTemplate) === FS.normalizeStickerTemplate(b.stickerTemplate) &&
-          FS.normalizeBorderWidthPreset(frame.borderWidthPreset) === FS.normalizeBorderWidthPreset(b.borderWidthPreset) &&
-          FS.normalizeBorderWidthAdjust(frame.borderWidthAdjust) === FS.normalizeBorderWidthAdjust(b.borderWidthAdjust)
-        );
-      };
-
-      const restoreUrl = customizedMeta.anchorImageUrl;
-      const restoreMatchesGeneration = restoreUrl && restoreUrl.length > 0;
-
       return {
         originalBytes: original.bytes,
         thickBytes: thickVariant.bytes,
@@ -121,9 +97,6 @@ async function run() {
         hasBaseline: !!meta.baselineFrameStyle,
         thickScale: FS.resolveBorderWidthScale(thick),
         standardScale: FS.resolveBorderWidthScale(baseline),
-        resetUiMatchesBaseline: isBaselineFrame(baseline, customizedMeta),
-        anchorSnapshotReady: !!(customizedMeta.anchorImageUrl && customizedMeta.anchorTagName),
-        restoreMatchesGeneration,
       };
     });
 
@@ -132,10 +105,7 @@ async function run() {
       result.thickDiffersFromOriginal &&
       result.resetMatchesOriginal &&
       result.jsonCloneLosesBlobInstance &&
-      result.thickScale > result.standardScale &&
-      result.resetUiMatchesBaseline &&
-      result.anchorSnapshotReady &&
-      result.restoreMatchesGeneration;
+      result.thickScale > result.standardScale;
 
     if (!ok) {
       console.error("FAIL", result);

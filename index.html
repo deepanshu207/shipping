@@ -796,7 +796,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=113"></script>
+  <script src="/own-api.js?v=114"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1108,11 +1108,7 @@
       function updateResultCardAtIndex(index, result) {
         var card = resultsGrid.querySelector('[data-result-index="' + index + '"]');
         if (!card || !result) return;
-        var img = card.querySelector(".result-img img");
-        if (img) {
-          img.src = "";
-          img.src = result.imageUrl;
-        }
+        card.querySelector(".result-img img").src = result.imageUrl;
         card.querySelector(".result-label").textContent = result.tagName;
         card.querySelector(".result-meta").textContent =
           "Est. ~₹" + (result.estimatedShippingInr || result.fileSizeKb) +
@@ -1147,6 +1143,18 @@
         };
       }
 
+      function prepareMetaForReframeRender(meta) {
+        var metaForRender = cloneReframeMetaForRender(meta);
+        if (metaForRender && metaForRender.frameStyle && !reframeStickerCustomized) {
+          metaForRender.frameStyle = Object.assign({}, metaForRender.frameStyle, { stickerLayout: null });
+        }
+        if (metaForRender && reframeDisplayMode !== "studio" && metaForRender.baselineKind != null) {
+          metaForRender.kind = "framed_slab";
+          metaForRender.studioBase = false;
+        }
+        return metaForRender;
+      }
+
       function setReframePreviewError(message) {
         if (reframePreviewStatus) reframePreviewStatus.textContent = message;
       }
@@ -1174,13 +1182,37 @@
         );
       }
 
-      async function applyBaselineRestore(r, savedIndex) {
+      async function showReframeAnchorPreview(r) {
+        var meta = r.reframeMeta;
+        if (!meta) return;
+        var anchorUrl = meta.anchorImageUrl;
+        if (!anchorUrl) return;
+        if (MR && MR.hydrateReframeAnchorBlob) {
+          await MR.hydrateReframeAnchorBlob(meta, anchorUrl);
+        }
+        if (meta.anchorBlob && MR && MR.blobToDataUrl) {
+          anchorUrl = await MR.blobToDataUrl(meta.anchorBlob);
+        }
+        reframePreviewImg.src = anchorUrl;
+        if (reframePreviewStatus) {
+          var inr = meta.anchorEstimatedShippingInr || (meta.tier && meta.tier.anchorInr);
+          var kb =
+            meta.anchorFileSizeKb ||
+            (meta.tier && meta.tier.anchorBytes && MR ? MR.kb(meta.tier.anchorBytes) : null);
+          var status = "Preview · original generation";
+          if (inr) status += " · ~₹" + inr;
+          if (kb) status += " · " + kb + " KB · shipping locked";
+          reframePreviewStatus.textContent = status;
+        }
+      }
+
+      async function commitReframeBaseline(r, savedIndex) {
         ensureReframeAnchorMeta(r);
         var meta = r.reframeMeta;
         var baseline = meta.baselineFrameStyle;
         var anchorUrl = meta.anchorImageUrl;
-        if (!anchorUrl) {
-          throw new Error("Original image anchor is missing.");
+        if (!anchorUrl || !baseline) {
+          throw new Error("Original generation snapshot is missing.");
         }
         if (MR && MR.hydrateReframeAnchorBlob) {
           await MR.hydrateReframeAnchorBlob(meta, anchorUrl);
@@ -1505,10 +1537,12 @@
           false
         );
 
-        if (MR && MR.hydrateReframeAnchorBlob) {
-          await MR.hydrateReframeAnchorBlob(meta, meta.anchorImageUrl || r.imageUrl);
+        if (reframePreviewTimer) {
+          clearTimeout(reframePreviewTimer);
+          reframePreviewTimer = null;
         }
-        scheduleReframePreview();
+        reframePreviewToken++;
+        await showReframeAnchorPreview(r);
         if (reframePreviewStatus) {
           reframePreviewStatus.textContent = "Reset to original generation · tap Apply to save";
         }
@@ -1532,19 +1566,20 @@
         var token = ++reframePreviewToken;
         if (reframePreviewStatus) reframePreviewStatus.textContent = "Updating preview…";
         try {
-          await MR.loadMozjpeg();
           var r = lastResults[reframeIndex];
           if (!r || !r.reframeMeta) return;
+          if (isReframeUiAtBaseline(r.reframeMeta)) {
+            if (token !== reframePreviewToken) return;
+            await showReframeAnchorPreview(r);
+            return;
+          }
+          await MR.loadMozjpeg();
           if (MR.hydrateReframeAnchorBlob) {
             await MR.hydrateReframeAnchorBlob(r.reframeMeta, r.reframeMeta.anchorImageUrl || r.imageUrl);
           }
           var sourceImg = await loadImageFromDataUrl(lastUploadDataUrl);
           var frame = getReframeSettingsFromUi();
-          var metaForRender = cloneReframeMetaForRender(r.reframeMeta);
-          if (metaForRender && reframeDisplayMode !== "studio" && metaForRender.baselineKind != null) {
-            metaForRender.kind = "framed_slab";
-            metaForRender.studioBase = false;
-          }
+          var metaForRender = prepareMetaForReframeRender(r.reframeMeta);
           var variant = await MR.renderCustomVariant(
             sourceImg,
             metaForRender || r.reframeMeta,
@@ -1691,13 +1726,12 @@
         if (!MR || reframeIndex < 0 || !lastUploadDataUrl || reframeApplyBusy) return;
         var r = lastResults[reframeIndex];
         if (!r || !r.reframeMeta) return;
-        ensureReframeAnchorMeta(r);
-        var meta = r.reframeMeta;
         var savedIndex = reframeIndex;
         setReframeActionsBusy(true);
         try {
-          if (isReframeUiAtBaseline(meta)) {
-            await applyBaselineRestore(r, savedIndex);
+          ensureReframeAnchorMeta(r);
+          if (isReframeUiAtBaseline(r.reframeMeta)) {
+            await commitReframeBaseline(r, savedIndex);
             return;
           }
           await MR.loadMozjpeg();
@@ -1706,15 +1740,10 @@
           }
           var sourceImg = await loadImageFromDataUrl(lastUploadDataUrl);
           var frame = getReframeSettingsFromUi();
-          var metaForRender = cloneReframeMetaForRender(r.reframeMeta);
-          if (metaForRender) {
-            if (reframeDisplayMode === "studio") {
-              if (metaForRender.baselineKind != null) metaForRender.kind = metaForRender.baselineKind;
-              if (metaForRender.baselineStudioBase != null) metaForRender.studioBase = metaForRender.baselineStudioBase;
-            } else if (metaForRender.baselineKind != null) {
-              metaForRender.kind = "framed_slab";
-              metaForRender.studioBase = false;
-            }
+          var metaForRender = prepareMetaForReframeRender(r.reframeMeta);
+          if (metaForRender && reframeDisplayMode === "studio") {
+            if (metaForRender.baselineKind != null) metaForRender.kind = metaForRender.baselineKind;
+            if (metaForRender.baselineStudioBase != null) metaForRender.studioBase = metaForRender.baselineStudioBase;
           }
           var variant = await MR.renderCustomVariant(
             sourceImg,
