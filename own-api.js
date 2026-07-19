@@ -3499,6 +3499,47 @@
     return Math.round(rendered.width);
   }
 
+  const STICKER_ICON_PREVIEW_PX = 76;
+  const stickerIconPreviewCache = new Map();
+
+  function isStickerSlotCustomIcon(slot) {
+    return !!(slot && slot.imageUrl);
+  }
+
+  function stickerSlotIconLabel(slot) {
+    if (isStickerSlotCustomIcon(slot)) return "Custom icon";
+    const found = STICKER_ASSET_TYPES.find((t) => t.id === slot?.type);
+    return found ? found.name : "Sticker";
+  }
+
+  function renderStickerIconPreview(type, previewPx = STICKER_ICON_PREVIEW_PX) {
+    const key = String(type || "special_offer") + ":" + previewPx;
+    if (stickerIconPreviewCache.has(key)) return stickerIconPreviewCache.get(key);
+    const rendered = renderStickerAsset(type || "special_offer", 0.52);
+    const pad = 6;
+    const c = document.createElement("canvas");
+    c.width = previewPx;
+    c.height = previewPx;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillRect(0, 0, previewPx, previewPx);
+    const maxDim = Math.max(rendered.width, rendered.height, 1);
+    const fit = (previewPx - pad * 2) / maxDim;
+    const dw = rendered.width * fit;
+    const dh = rendered.height * fit;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(rendered.canvas, (previewPx - dw) / 2, (previewPx - dh) / 2, dw, dh);
+    const url = c.toDataURL("image/png");
+    stickerIconPreviewCache.set(key, url);
+    return url;
+  }
+
+  function stickerSlotPreviewUrl(slot, previewPx = STICKER_ICON_PREVIEW_PX) {
+    if (isStickerSlotCustomIcon(slot)) return slot.imageUrl;
+    return renderStickerIconPreview(slot?.type, previewPx);
+  }
+
   function newStickerSlotId() {
     return "st_" + Math.random().toString(16).slice(2, 10);
   }
@@ -5067,8 +5108,13 @@
     STICKER_SIZE_PX_MIN,
     STICKER_SIZE_PX_MAX,
     REFRAME_STICKER_REF_PHOTO_W,
+    STICKER_ICON_PREVIEW_PX,
     normalizeStickerSizePx,
     estimateStickerSlotWidthPx,
+    isStickerSlotCustomIcon,
+    stickerSlotIconLabel,
+    renderStickerIconPreview,
+    stickerSlotPreviewUrl,
     normalizeBorderColor,
     normalizeStickerTemplate,
     normalizeBorderPreset,

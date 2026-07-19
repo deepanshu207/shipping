@@ -34,7 +34,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/?v=123`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/?v=124`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoFrameSettings && window.MeeshoReframe, { timeout: 20000 });
 
     const result = await page.evaluate(async () => {
@@ -215,6 +215,18 @@ async function run() {
           ...baseline,
           stickerLayout: addedMulti,
         }),
+        iconTypeSwap: await lockedInr("iconTypeSwap", "framed", {
+          ...baseline,
+          stickerLayout: FS.normalizeStickerLayout(
+            {
+              version: 2,
+              stickers: heavyLayout.stickers.map((slot, i) =>
+                Object.assign({}, slot, { type: i === 0 ? "free_delivery" : i === 1 ? "hot_sale" : slot.type, imageUrl: "" })
+              ),
+            },
+            "supplierden_match"
+          ),
+        }),
         sizePxEdit: await lockedInr("sizePxEdit", "framed", {
           ...baseline,
           stickerLayout: FS.normalizeStickerLayout(
@@ -319,6 +331,16 @@ async function run() {
             shippingLocked: locked === anchorInr,
           };
         })(),
+        iconPreviewApi: await (async () => {
+          const freeUrl = FS.renderStickerIconPreview("free_delivery", 76);
+          const label = FS.stickerSlotIconLabel({ type: "free_delivery", imageUrl: "" });
+          const customLabel = FS.stickerSlotIconLabel({ type: "free_delivery", imageUrl: "data:image/png;base64,abc" });
+          return {
+            hasPreview: typeof freeUrl === "string" && freeUrl.indexOf("data:image") === 0,
+            label,
+            customLabel,
+          };
+        })(),
       };
     });
 
@@ -335,6 +357,7 @@ async function run() {
       result.removedSticker,
       result.addedMulti,
       result.sizePxEdit,
+      result.iconTypeSwap,
       result.customImageSizePx,
       result.hiddenStickers,
       result.tightCustomImages,
@@ -344,7 +367,10 @@ async function run() {
       checks.every((c) => c.shippingLocked) &&
       result.hiddenKeepsSlots.slotCount === 4 &&
       result.hiddenKeepsSlots.allHidden &&
-      result.hiddenKeepsSlots.shippingLocked;
+      result.hiddenKeepsSlots.shippingLocked &&
+      result.iconPreviewApi.hasPreview &&
+      result.iconPreviewApi.label === "Free delivery" &&
+      result.iconPreviewApi.customLabel === "Custom icon";
 
     if (!ok) {
       console.error("FAIL", result);
