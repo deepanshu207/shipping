@@ -796,7 +796,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=111"></script>
+  <script src="/own-api.js?v=112"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1083,14 +1083,25 @@
           meta.baselineKind = meta.kind;
           meta.baselineStudioBase = meta.studioBase;
         }
-        if (!meta.baselineFrameStyle && meta.frameStyle) {
-          meta.baselineFrameStyle = {
-            borderColor: meta.frameStyle.borderColor,
-            stickerTemplate: meta.frameStyle.stickerTemplate,
-            borderWidthPreset: meta.frameStyle.borderWidthPreset || "standard",
-            borderWidthAdjust: meta.frameStyle.borderWidthAdjust ?? 100,
-            stickerLayout: null,
-          };
+        if (!meta.baselineFrameStyle) {
+          if (meta.frameStyle) {
+            meta.baselineFrameStyle = {
+              borderColor: meta.frameStyle.borderColor,
+              stickerTemplate: meta.frameStyle.stickerTemplate,
+              borderWidthPreset: meta.frameStyle.borderWidthPreset || "standard",
+              borderWidthAdjust: meta.frameStyle.borderWidthAdjust ?? 100,
+              stickerLayout: null,
+            };
+          } else {
+            var genDefaults = getFrameSettingsFromUi();
+            meta.baselineFrameStyle = {
+              borderColor: genDefaults.borderColor || DEFAULT_BORDER_COLOR,
+              stickerTemplate: genDefaults.stickerTemplate || RECOMMENDED_STICKER,
+              borderWidthPreset: "standard",
+              borderWidthAdjust: 100,
+              stickerLayout: null,
+            };
+          }
         }
       }
 
@@ -1108,6 +1119,32 @@
 
       function cloneJson(value) {
         return value == null ? null : JSON.parse(JSON.stringify(value));
+      }
+
+      function cloneReframeMetaForRender(meta) {
+        if (!meta) return null;
+        return {
+          kind: meta.kind,
+          profileId: meta.profileId,
+          processingPath: meta.processingPath,
+          studioLayout: meta.studioLayout,
+          studioBase: meta.studioBase,
+          framedMaxSide: meta.framedMaxSide,
+          whiteRatio: meta.whiteRatio,
+          absMinQ: meta.absMinQ,
+          anchorBlob: meta.anchorBlob,
+          anchorImageUrl: meta.anchorImageUrl,
+          baselineKind: meta.baselineKind,
+          baselineStudioBase: meta.baselineStudioBase,
+          baselineDisplayMode: meta.baselineDisplayMode,
+          frameStyle: meta.frameStyle ? cloneJson(meta.frameStyle) : null,
+          baselineFrameStyle: meta.baselineFrameStyle ? cloneJson(meta.baselineFrameStyle) : null,
+          tier: meta.tier ? Object.assign({}, meta.tier) : null,
+        };
+      }
+
+      function setReframePreviewError(message) {
+        if (reframePreviewStatus) reframePreviewStatus.textContent = message;
       }
 
       function inferDisplayModeFromMeta(meta) {
@@ -1373,7 +1410,10 @@
         ensureReframeAnchorMeta(r);
         var meta = r.reframeMeta;
         var baseline = meta.baselineFrameStyle;
-        if (!baseline) return;
+        if (!baseline) {
+          setReframePreviewError("Could not reset — original settings missing.");
+          return;
+        }
 
         loadReframeUiFromFrameStyle(
           baseline,
@@ -1381,22 +1421,10 @@
           false
         );
 
-        var anchorUrl = meta.anchorImageUrl;
-        if (MR && MR.hydrateReframeAnchorBlob && anchorUrl) {
-          await MR.hydrateReframeAnchorBlob(meta, anchorUrl);
+        if (MR && MR.hydrateReframeAnchorBlob) {
+          await MR.hydrateReframeAnchorBlob(meta, meta.anchorImageUrl || r.imageUrl);
         }
-        if (meta.anchorBlob && MR && MR.blobToDataUrl) {
-          try {
-            anchorUrl = await MR.blobToDataUrl(meta.anchorBlob);
-          } catch {
-            /* keep anchorImageUrl */
-          }
-        }
-        if (anchorUrl) {
-          reframePreviewImg.src = anchorUrl;
-        } else {
-          scheduleReframePreview();
-        }
+        scheduleReframePreview();
         if (reframePreviewStatus) {
           reframePreviewStatus.textContent = "Reset to original generation · tap Apply to save";
         }
@@ -1423,9 +1451,22 @@
           await MR.loadMozjpeg();
           var r = lastResults[reframeIndex];
           if (!r || !r.reframeMeta) return;
+          if (MR.hydrateReframeAnchorBlob) {
+            await MR.hydrateReframeAnchorBlob(r.reframeMeta, r.reframeMeta.anchorImageUrl || r.imageUrl);
+          }
           var sourceImg = await loadImageFromDataUrl(lastUploadDataUrl);
           var frame = getReframeSettingsFromUi();
-          var variant = await MR.renderCustomVariant(sourceImg, r.reframeMeta, reframeDisplayMode, frame);
+          var metaForRender = cloneReframeMetaForRender(r.reframeMeta);
+          if (metaForRender && reframeDisplayMode !== "studio" && metaForRender.baselineKind != null) {
+            metaForRender.kind = "framed_slab";
+            metaForRender.studioBase = false;
+          }
+          var variant = await MR.renderCustomVariant(
+            sourceImg,
+            metaForRender || r.reframeMeta,
+            reframeDisplayMode,
+            frame
+          );
           if (token !== reframePreviewToken) return;
           var imageUrl = await MR.blobToDataUrl(variant.blob);
           if (token !== reframePreviewToken) return;
@@ -1451,8 +1492,8 @@
             reframePreviewStatus.textContent = status;
           }
         } catch (err) {
-          if (token === reframePreviewToken && reframePreviewStatus) {
-            reframePreviewStatus.textContent = "Preview failed — try Apply";
+          if (token === reframePreviewToken) {
+            setReframePreviewError((err && err.message) || "Preview failed — try Apply");
           }
         }
       }
@@ -1496,6 +1537,23 @@
 
       function cancelReframeEdit() {
         if (reframeApplyBusy) return;
+        if (reframeDraftSnapshot && reframeIndex >= 0 && lastResults[reframeIndex]) {
+          var r = lastResults[reframeIndex];
+          var snap = reframeDraftSnapshot;
+          r.imageUrl = snap.imageUrl;
+          r.tagName = snap.tagName;
+          r.fileSizeKb = snap.fileSizeKb;
+          r.estimatedShippingInr = snap.estimatedShippingInr;
+          r.shippingCharge = snap.shippingCharge;
+          r.width = snap.width;
+          r.height = snap.height;
+          r.fileSizeBytes = snap.fileSizeBytes;
+          if (r.reframeMeta) {
+            r.reframeMeta.frameStyle = cloneJson(snap.frameStyle);
+            if (snap.kind != null) r.reframeMeta.kind = snap.kind;
+            if (snap.studioBase != null) r.reframeMeta.studioBase = snap.studioBase;
+          }
+        }
         closeReframeEditor();
       }
 
@@ -1549,12 +1607,16 @@
         if (!MR || reframeIndex < 0 || !lastUploadDataUrl || reframeApplyBusy) return;
         var r = lastResults[reframeIndex];
         if (!r || !r.reframeMeta) return;
+        var savedIndex = reframeIndex;
         setReframeActionsBusy(true);
         try {
           await MR.loadMozjpeg();
+          if (MR.hydrateReframeAnchorBlob) {
+            await MR.hydrateReframeAnchorBlob(r.reframeMeta, r.reframeMeta.anchorImageUrl || r.imageUrl);
+          }
           var sourceImg = await loadImageFromDataUrl(lastUploadDataUrl);
           var frame = getReframeSettingsFromUi();
-          var metaForRender = cloneJson(r.reframeMeta);
+          var metaForRender = cloneReframeMetaForRender(r.reframeMeta);
           if (metaForRender) {
             if (reframeDisplayMode === "studio") {
               if (metaForRender.baselineKind != null) metaForRender.kind = metaForRender.baselineKind;
@@ -1577,6 +1639,7 @@
             : MR.estimateMeeshoInr(variant);
           r.imageUrl = imageUrl;
           r.fileSizeKb = fileSizeKb;
+          r.fileSizeBytes = variant.bytes;
           r.estimatedShippingInr = estimatedShippingInr;
           r.shippingCharge = String(estimatedShippingInr);
           r.width = variant.width;
@@ -1604,35 +1667,31 @@
                 ? metaForRender.baselineKind
                 : "collage_studio";
               r.reframeMeta.studioBase = true;
-              r.reframeMeta.tier = {
+              r.reframeMeta.tier = Object.assign({}, tier, {
                 targetKb: preserveKb,
                 preserveKb: preserveKb,
                 preserveBytes: anchorBytes,
                 anchorBytes: anchorBytes,
                 anchorInr: anchorInr,
-              };
+              });
             } else {
               r.reframeMeta.kind = "framed_slab";
               r.reframeMeta.studioBase = false;
-              r.reframeMeta.tier = {
+              r.reframeMeta.tier = Object.assign({}, tier, {
                 slabKb: preserveKb,
                 preserveKb: preserveKb,
                 preserveBytes: anchorBytes,
                 anchorBytes: anchorBytes,
                 anchorInr: anchorInr,
-              };
+              });
             }
           }
-          var card = resultsGrid.querySelector('[data-result-index="' + reframeIndex + '"]');
-          if (card) {
-            updateResultCardAtIndex(reframeIndex, r);
-          }
-          reframePreviewImg.src = imageUrl;
+          updateResultCardAtIndex(savedIndex, r);
           closeReframeEditor();
         } catch (err) {
-          setError(err.message || "Could not apply frame changes.");
+          setReframePreviewError((err && err.message) || "Could not apply frame changes.");
         } finally {
-          setReframeActionsBusy(false);
+          if (reframeIndex >= 0) setReframeActionsBusy(false);
         }
       }
 
