@@ -604,6 +604,70 @@
       tiers: FLATLAY_KB_TIERS_FRAMED,
     },
   ];
+  /** Raincoat / indoor busy — framed + promo stickers, mid slabs targeting ~₹63 on Meesho. */
+  const RAINCOAT_KB_TIERS = [
+    { slabKb: 60, label: "60KB · lowest try", lowest: true },
+    { slabKb: 63, label: "63KB · ₹63 match", recommended: true },
+    { slabKb: 64, label: "64KB · ₹64 slab" },
+    { slabKb: 66, label: "66KB · ₹66 backup" },
+  ];
+  const RAINCOAT_MAX_VARIANTS = 40;
+  const RAINCOAT_PROCESS_TIMEOUT_MS = 300000;
+  const RAINCOAT_DEFAULT_OLIVE = "#6B7C3C";
+  const RAINCOAT_LAYOUTS = [
+    {
+      layout: "rc_f1024",
+      type: "indoor_framed",
+      framedMaxSide: 1024,
+      priority: 0,
+      panelTag: "framed 1024 · promo",
+      tiers: RAINCOAT_KB_TIERS,
+    },
+    {
+      layout: "rc_f1024_ns",
+      type: "indoor_framed",
+      framedMaxSide: 1024,
+      noStickers: true,
+      priority: 2,
+      panelTag: "framed 1024 · no stickers",
+      tiers: RAINCOAT_KB_TIERS,
+    },
+    {
+      layout: "rc_f960",
+      type: "indoor_framed",
+      framedMaxSide: 960,
+      priority: 5,
+      panelTag: "framed 960 · promo",
+      tiers: RAINCOAT_KB_TIERS,
+    },
+    {
+      layout: "rc_f960_ns",
+      type: "indoor_framed",
+      framedMaxSide: 960,
+      noStickers: true,
+      priority: 8,
+      panelTag: "framed 960 · no stickers",
+      tiers: RAINCOAT_KB_TIERS,
+    },
+    {
+      layout: "rc_cap1024",
+      type: "indoor_capped_framed",
+      capMaxSide: 1024,
+      framedMaxSide: 1024,
+      priority: 10,
+      panelTag: "capped 1024 framed",
+      tiers: RAINCOAT_KB_TIERS,
+    },
+    {
+      layout: "rc_cap960",
+      type: "indoor_capped_framed",
+      capMaxSide: 960,
+      framedMaxSide: 960,
+      priority: 12,
+      panelTag: "capped 960 framed",
+      tiers: RAINCOAT_KB_TIERS,
+    },
+  ];
   /** Large framed files — same 1280px cap; Meesho may tier on dimensions not KB alone. */
   const TIERS_FRAMED_PRO = [
     { slabKb: 177, label: "Large file ~177 KB", lowest: true },
@@ -647,6 +711,7 @@
     { id: "royal_blue", name: "Royal Blue", color: "#1565C0" },
     { id: "emerald", name: "Emerald Green", color: "#059669" },
     { id: "purple", name: "Purple", color: "#7C3AED" },
+    { id: "olive", name: "Olive Green", color: "#6B7C3C" },
     { id: "black", name: "Black", color: "#111827" },
   ];
   const STICKER_TEMPLATE_META = [
@@ -667,6 +732,11 @@
     { id: "limited_time", name: "Limited Time", desc: "LIMITED TIME urgency tag" },
     { id: "flash_deal", name: "Flash Deal", desc: "FLASH DEAL star burst" },
     { id: "super_offer", name: "Super Offer", desc: "SUPER OFFER + 50% OFF" },
+    {
+      id: "raincoat_promo",
+      name: "Raincoat promo",
+      desc: "SPECIAL OFFER + HOT SALE + BEST CHOICE",
+    },
   ];
   const STICKER_TEMPLATE_IDS = new Set(STICKER_TEMPLATE_META.map((t) => t.id));
   const STICKER_TEMPLATE_ALIASES = { supplierden: "supplierden_match", supplierden_one_sticker: "supplierden_one" };
@@ -687,6 +757,7 @@
     "supplierden",
     "supplierden_heavy",
     "supplierden_match_50",
+    "raincoat_framed",
   ]);
   /** Meesho may tier on max framed side — pro sellers often cap near 1280px. */
   const MEESHO_FRAMED_MAX_SIDE = 1280;
@@ -965,6 +1036,10 @@
     if (path === "model_portrait" || path === "model_framed") {
       if (fileKb <= 65) return fileKb;
     }
+    if (path === "raincoat_framed") {
+      if (maxSide > 0 && maxSide <= 1024 && fileKb >= 58 && fileKb <= 68) return fileKb;
+      if (fileKb <= 68) return fileKb;
+    }
     if (path === "full_length_portrait" || path === "full_length_framed") {
       if (fileKb >= 37 && fileKb <= 44) return fileKb <= 40 ? 39 : 41;
       if (maxSide > 0 && maxSide <= 1024 && fileKb <= 65) return fileKb;
@@ -1058,6 +1133,18 @@
       modeName: "Full-Length",
       absMinQ: 22,
       fullLength: true,
+    };
+  }
+
+  function profileRaincoatLowest() {
+    return {
+      id: "raincoat_framed",
+      studio: false,
+      tiers: RAINCOAT_KB_TIERS,
+      path: "raincoat_framed",
+      modeName: "Raincoat Lowest ₹",
+      raincoat: true,
+      framedMaxSide: 1024,
     };
   }
 
@@ -1787,6 +1874,53 @@
     return c;
   }
 
+  function resolveRaincoatFrameStyle(frameStyle) {
+    const user = parseFrameStyle(frameStyle || {});
+    const stickerTemplate = normalizeStickerTemplate(user.stickerTemplate || "raincoat_promo");
+    const borderColor = user.borderColor
+      ? normalizeBorderColor(user.borderColor)
+      : RAINCOAT_DEFAULT_OLIVE;
+    return {
+      borderColor,
+      stickerTemplate,
+      stickerLayout: user.stickerLayout || defaultStickerLayoutForTemplate(stickerTemplate),
+    };
+  }
+
+  function prepareRaincoatNativeSource(img, capMaxSide) {
+    let w = img.width;
+    let h = img.height;
+    const cap = capMaxSide ? Number(capMaxSide) : 0;
+    const max0 = Math.max(w, h);
+    if (cap > 0 && max0 > cap) {
+      const scale = cap / max0;
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+    } else if (max0 > MAX_SIDE) {
+      const scale = MAX_SIDE / max0;
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+    }
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, w, h);
+    return c;
+  }
+
+  function prepareRaincoatLayoutCanvas(img, layoutSpec, frameStyle) {
+    const styled = resolveRaincoatFrameStyle(frameStyle);
+    const style = flatlayFramedStyle(layoutSpec, styled);
+    const source =
+      layoutSpec.type === "indoor_capped_framed"
+        ? prepareRaincoatNativeSource(img, layoutSpec.capMaxSide ?? 1024)
+        : prepareRaincoatNativeSource(img, null);
+    return prepareFramedCanvas(source, layoutSpec.framedMaxSide ?? 1024, style);
+  }
+
   function flatlayFramedStyle(layoutSpec, frameStyle) {
     if (layoutSpec.noStickers) {
       return mergeFrameStyle(frameStyle, { stickerTemplate: "none" });
@@ -1852,6 +1986,7 @@
   }
 
   function apparelProfileKey(profile) {
+    if (profile.raincoat) return "raincoat";
     if (profile.fullLength) return "full_length";
     if (profile.modelPhoto) return "model";
     return "flatlay";
@@ -1860,6 +1995,7 @@
   function apparelPathForLayout(profile, layoutSpec, isFramed) {
     const key = apparelProfileKey(profile);
     if (isFramed) {
+      if (key === "raincoat") return "raincoat_framed";
       if (key === "full_length") return "full_length_framed";
       if (key === "model") return "model_framed";
       return "flatlay_framed";
@@ -1873,7 +2009,7 @@
   function withFlatlayLayout(profile, layoutSpec) {
     const isFramed = String(layoutSpec.type || "").includes("framed");
     const key = apparelProfileKey(profile);
-    const labels = { full_length: "Full-length", model: "Model", flatlay: "Flat-lay" };
+    const labels = { raincoat: "Raincoat", full_length: "Full-length", model: "Model", flatlay: "Flat-lay" };
     return {
       ...profile,
       id: `${key}_${layoutSpec.layout}`,
@@ -1942,6 +2078,59 @@
       maxVariants,
       minVariants: 1,
     });
+  }
+
+  function raincoatProfilesForImage() {
+    const base = profileRaincoatLowest();
+    return RAINCOAT_LAYOUTS.map((layoutSpec) => withFlatlayLayout(base, layoutSpec)).sort(
+      (a, b) => (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99)
+    );
+  }
+
+  async function optimizeRaincoatLayoutsAll(img, profiles, maxVariants, frameStyle, onProgress) {
+    const styled = resolveRaincoatFrameStyle(frameStyle);
+    const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
+    const allVariants = [];
+    let done = 0;
+    for (const profile of profiles) {
+      const canvas = prepareRaincoatLayoutCanvas(img, profile.flatlaySpec, styled);
+      const whiteRatio = measureNearWhiteRatio(canvas);
+      for (const tier of profile.tiers) {
+        if (onProgress) {
+          onProgress(
+            10 + (done / totalSteps) * 85,
+            `Raincoat · ${profile.modeName} · ${tier.label}`
+          );
+        }
+        allVariants.push(
+          await buildVariantForTier(canvas, whiteRatio, profile, tier, {
+            showMode: true,
+            reframeMeta: buildReframeMeta(profile, tier, {
+              frameStyle: flatlayFramedStyle(profile.flatlaySpec, styled),
+              studioLayout: profile.studioLayout,
+              whiteRatio,
+            }),
+          })
+        );
+        done += 1;
+        await yieldToMain();
+      }
+      releaseCanvas(canvas);
+    }
+    return finalizeAutoVariants(allVariants, {
+      maxVariants,
+      minVariants: 1,
+    });
+  }
+
+  async function optimizeRaincoatAll(img, frameStyle, onProgress) {
+    return optimizeRaincoatLayoutsAll(
+      img,
+      raincoatProfilesForImage(),
+      RAINCOAT_MAX_VARIANTS,
+      frameStyle,
+      onProgress
+    );
   }
 
   async function optimizeFlatlayApparelAll(img, frameStyle, onProgress) {
@@ -2288,6 +2477,15 @@
     );
   }
 
+  function isRaincoatLowestTagName(tagName) {
+    const tag = String(tagName || "").toLowerCase();
+    return (
+      tag.includes("raincoat lowest") ||
+      tag.includes("raincoat indoor lowest") ||
+      (INDOOR_CATEGORY_RE.test(tag) && tag.includes("lowest"))
+    );
+  }
+
   function isSupplierDenOneStickerTagName(tagName) {
     const tag = String(tagName || "").toLowerCase();
     return tag.includes("one sticker") || tag.includes("1 sticker");
@@ -2311,6 +2509,7 @@
     if (isFlatlayTagName(tagName)) return FLATLAY_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     if (isModelPhotoTagName(tagName)) return MODEL_PHOTO_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     if (isFullLengthTagName(tagName)) return FULL_LENGTH_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
+    if (isRaincoatLowestTagName(tagName)) return RAINCOAT_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     if (isSupplierDenTagName(tagName)) return SUPPLIERDEN_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     return PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
   }
@@ -2795,6 +2994,9 @@
     ) {
       return { id: "full_length_all", fullLength: true, modeName: "Full-Length Lowest ₹" };
     }
+    if (isRaincoatLowestTagName(tag)) {
+      return { id: "raincoat_all", raincoat: true, modeName: "Raincoat Lowest ₹" };
+    }
     if (
       tag.includes("bra collage") ||
       tag.includes("multi-scenario") ||
@@ -3235,6 +3437,12 @@
       primary: { type: "super_offer", x: 0.71, y: 0.09, label: "Super offer badge" },
       secondary: { type: "flat_off", x: 0.1, y: 0.72, label: "50% off badge" },
     },
+    raincoat_promo: {
+      dual: true,
+      primary: { type: "special_offer", x: 0.18, y: 0.12, label: "Special offer badge" },
+      secondary: { type: "hot_sale", x: 0.22, y: 0.72, label: "Hot sale burst" },
+      extra: [{ type: "best_choice", x: 0.78, y: 0.72, label: "Best choice offer" }],
+    },
     mega_sale: {
       dual: false,
       primary: { type: "mega_sale", x: 0.68, y: 0.08, label: "Mega sale badge" },
@@ -3357,6 +3565,11 @@
           y: 0.72,
         })
       );
+    }
+    if (Array.isArray(defs.extra)) {
+      for (const slot of defs.extra) {
+        stickers.push(defaultStickerSlotFromDef(slot));
+      }
     }
     return stickers;
   }
@@ -4224,6 +4437,7 @@
       return SUPPLIERDEN_TALL_LAYOUTS.find((s) => s.layout === layout);
     }
     if (pid.startsWith("full_length_")) return FULL_LENGTH_LAYOUTS.find((s) => s.layout === layout);
+    if (pid.startsWith("raincoat_")) return RAINCOAT_LAYOUTS.find((s) => s.layout === layout);
     if (pid.startsWith("model_")) return MODEL_PHOTO_LAYOUTS.find((s) => s.layout === layout);
     if (pid.startsWith("flatlay_")) return FLATLAY_LAYOUTS.find((s) => s.layout === layout);
     return null;
@@ -4241,6 +4455,9 @@
           : null;
         if (String(meta.profileId || "").startsWith("supplierden_")) {
           return prepareSupplierDenLayoutCanvas(sourceImg, spec, style);
+        }
+        if (String(meta.profileId || "").startsWith("raincoat_")) {
+          return prepareRaincoatLayoutCanvas(sourceImg, spec, style);
         }
         return prepareFlatlayLayoutCanvas(sourceImg, spec, style);
       }
@@ -4508,6 +4725,9 @@
     if (profile.fullLength) {
       return optimizeFullLengthAll(img, frameStyle, onProgress);
     }
+    if (profile.raincoat) {
+      return optimizeRaincoatAll(img, frameStyle, onProgress);
+    }
     if (profile.supplierDenAll) {
       return optimizeSupplierDenAll(img, frameStyle, onProgress, tagName);
     }
@@ -4603,6 +4823,7 @@
     const isFlatlay = isFlatlayTagName(tagName);
     const isModelPhoto = isModelPhotoTagName(tagName);
     const isFullLength = isFullLengthTagName(tagName);
+    const isRaincoat = isRaincoatLowestTagName(tagName);
     const isSupplierDen = isSupplierDenTagName(tagName);
     const timeoutMs = isAuto
       ? AUTO_PROCESS_TIMEOUT_MS
@@ -4614,9 +4835,11 @@
             ? MODEL_PHOTO_PROCESS_TIMEOUT_MS
             : isFullLength
               ? FULL_LENGTH_PROCESS_TIMEOUT_MS
-              : isSupplierDen
-                ? SUPPLIERDEN_PROCESS_TIMEOUT_MS
-                : PROCESS_TIMEOUT_MS;
+              : isRaincoat
+                ? RAINCOAT_PROCESS_TIMEOUT_MS
+                : isSupplierDen
+                  ? SUPPLIERDEN_PROCESS_TIMEOUT_MS
+                  : PROCESS_TIMEOUT_MS;
     const deadline = Date.now() + timeoutMs;
     const checkCancelled = () => {
       const live = STORE.requests.get(id);
