@@ -869,7 +869,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=126"></script>
+  <script src="/own-api.js?v=127"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1345,7 +1345,13 @@
         if (metaForRender && metaForRender.frameStyle && !reframeStickerCustomized) {
           metaForRender.frameStyle = Object.assign({}, metaForRender.frameStyle, { stickerLayout: null });
         }
-        if (metaForRender && reframeDisplayMode !== "studio" && metaForRender.baselineKind != null) {
+        if (metaForRender && reframeDisplayMode === "studio") {
+          metaForRender.kind =
+            meta.baselineKind === "collage_studio" || meta.baselineKind === "studio"
+              ? meta.baselineKind
+              : "collage_studio";
+          metaForRender.studioBase = true;
+        } else if (metaForRender && reframeDisplayMode !== "studio" && metaForRender.baselineKind != null) {
           metaForRender.kind = "framed_slab";
           metaForRender.studioBase = false;
         }

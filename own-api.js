@@ -3896,7 +3896,15 @@
   }
 
   async function buildReframeStudioCanvas(sourceImg, meta, style) {
-    const canvas = resolveReframeBaseCanvas(sourceImg, meta);
+    const studioMeta = {
+      ...meta,
+      studioBase: true,
+      kind:
+        meta.kind === "framed_slab" || !meta.kind
+          ? "collage_studio"
+          : meta.kind,
+    };
+    const canvas = resolveReframeBaseCanvas(sourceImg, studioMeta);
     return applyReframeStickersOnCanvas(canvas, style);
   }
 

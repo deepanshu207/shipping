@@ -34,7 +34,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/?v=126`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/?v=127`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoFrameSettings && window.MeeshoReframe, { timeout: 20000 });
 
     const result = await page.evaluate(async () => {
@@ -215,6 +215,29 @@ async function run() {
             anchorInr,
             shippingLocked: locked === anchorInr,
             bytesWithinCap: v.bytes <= gen.bytes,
+          };
+        })(),
+        studioFramedSwitch: await (async () => {
+          const framedGen = await MR.renderCustomVariant(await loadImg(), anchored, "framed", baseline);
+          const studioAnchored = {
+            ...anchored,
+            kind: "framed_slab",
+            studioBase: false,
+            tier: { ...anchored.tier, slabKb: 48, preserveKb: 48 },
+          };
+          const v = await MR.renderCustomVariant(await loadImg(), studioAnchored, "studio", {
+            ...baseline,
+            stickerLayout: heavyLayout,
+          });
+          const locked = MR.estimateReframeShippingInr(v, studioAnchored);
+          return {
+            label: "studioFramedSwitch",
+            framedBytes: framedGen.bytes,
+            studioBytes: v.bytes,
+            locked,
+            anchorInr,
+            shippingLocked: locked === anchorInr,
+            studioNoBorder: v.width === framedGen.width || v.bytes <= framedGen.bytes,
           };
         })(),
         studioCustomIcon: await (async () => {
@@ -482,6 +505,7 @@ async function run() {
       result.frameOnly,
       result.studio,
       result.studioStickers,
+      result.studioFramedSwitch,
       result.studioCustomIcon,
       result.thick,
       result.textPos,
