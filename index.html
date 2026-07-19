@@ -293,9 +293,14 @@
     }
     .reframe-backdrop.hidden { display: none; }
     .reframe-panel {
-      width: min(100%, 520px); max-height: min(92vh, 720px); overflow: auto;
+      width: min(100%, 520px); max-height: min(92vh, 720px);
+      display: flex; flex-direction: column; overflow: hidden;
       background: var(--surface); border: 1px solid var(--border); border-radius: 1rem 1rem 0.75rem 0.75rem;
-      box-shadow: 0 20px 50px rgb(0 0 0 / 0.2); padding: 1rem;
+      box-shadow: 0 20px 50px rgb(0 0 0 / 0.2);
+    }
+    .reframe-panel-scroll {
+      flex: 1 1 auto; overflow: auto; -webkit-overflow-scrolling: touch;
+      padding: 1rem 1rem 0.5rem;
     }
     @media (min-width: 640px) {
       .reframe-backdrop { align-items: center; }
@@ -320,10 +325,27 @@
     }
     .reframe-mode-btn.selected { border-color: var(--emerald); background: #ecfdf5; color: var(--emerald-dark); }
     .dark .reframe-mode-btn.selected { background: rgb(5 150 105 / 0.15); }
-    .reframe-actions { display: flex; gap: 0.5rem; margin-top: 0.85rem; flex-wrap: wrap; }
+    .reframe-actions {
+      flex: 0 0 auto; display: flex; gap: 0.5rem; margin-top: 0;
+      flex-wrap: nowrap; padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+      border-top: 1px solid var(--border); background: var(--surface);
+      position: relative; z-index: 3;
+    }
+    .reframe-cancel, .reframe-reset {
+      flex: 0 0 auto; min-height: 2.75rem; min-width: 4.75rem;
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      border-radius: 0.65rem; padding: 0.65rem 0.85rem; font: inherit; font-weight: 800;
+      font-size: 0.82rem; cursor: pointer; touch-action: manipulation;
+    }
+    .reframe-cancel { color: var(--muted); }
+    .reframe-reset { color: var(--muted); }
+    .reframe-cancel:disabled, .reframe-reset:disabled, .reframe-apply:disabled {
+      opacity: 0.55; cursor: not-allowed;
+    }
     .reframe-apply {
-      flex: 1; min-width: 8rem; border: none; border-radius: 0.65rem; padding: 0.65rem 1rem;
-      background: var(--emerald); color: #fff; font: inherit; font-weight: 800; cursor: pointer;
+      flex: 1 1 auto; min-width: 0; min-height: 2.75rem; border: none; border-radius: 0.65rem;
+      padding: 0.65rem 1rem; background: var(--emerald); color: #fff;
+      font: inherit; font-weight: 800; font-size: 0.82rem; cursor: pointer; touch-action: manipulation;
     }
     .reframe-apply:disabled { opacity: 0.55; cursor: not-allowed; }
     .reframe-note { font-size: 0.72rem; color: var(--muted); margin: 0 0 0.65rem; line-height: 1.4; }
@@ -343,14 +365,13 @@
     #reframe-frame-controls input[type="range"].border-width-range { width: 100%; }
     .reframe-slot-preview { margin-top: 0.35rem; font-size: 0.7rem; color: var(--muted); }
     .reframe-slot-actions { display: flex; gap: 0.45rem; margin-top: 0.45rem; }
-    .reframe-slot-remove, .reframe-add-sticker, .reframe-reset {
+    .reframe-slot-remove, .reframe-add-sticker {
       border: 1px solid var(--border); background: var(--surface); color: var(--text);
       font: inherit; font-size: 0.78rem; font-weight: 800; padding: 0.45rem 0.7rem;
       border-radius: 0.55rem; cursor: pointer;
     }
     .reframe-slot-remove { color: #b91c1c; border-color: #fecaca; }
     .reframe-add-sticker { width: 100%; margin-top: 0.55rem; color: var(--emerald-dark); border-color: #a7f3d0; }
-    .reframe-reset { color: var(--muted); min-width: 5.5rem; }
     .reframe-preview-status { font-size: 0.72rem; color: var(--muted); min-height: 1rem; margin: 0.35rem 0 0; text-align: center; }
     .framed-settings { margin-top: 1.15rem; display: flex; flex-direction: column; gap: 0.65rem; }
     .framed-settings--inactive .accordion { opacity: 0.72; }
@@ -703,11 +724,12 @@
 
     <div class="reframe-backdrop hidden" id="reframe-backdrop" aria-hidden="true">
       <div class="reframe-panel" role="dialog" aria-labelledby="reframe-title">
+        <div class="reframe-panel-scroll">
         <div class="reframe-head">
           <h3 id="reframe-title">Customize frame</h3>
           <button type="button" class="reframe-close" id="reframe-close" aria-label="Close">×</button>
         </div>
-        <p class="reframe-note" id="reframe-note">Preview updates as you edit. Shipping is locked to the original file size from generation. Use <b>Reset</b> to restore the exact original image and all settings.</p>
+        <p class="reframe-note" id="reframe-note"><b>Apply</b> saves your edits. <b>Cancel</b> discards unsaved changes. <b>Reset</b> restores the exact original from generation (preview only until you Apply).</p>
         <div class="reframe-preview"><img id="reframe-preview-img" alt="Preview" /></div>
         <p class="reframe-preview-status" id="reframe-preview-status"></p>
         <div class="reframe-mode-row">
@@ -764,7 +786,9 @@
             </div>
           </details>
         </div>
+        </div>
         <div class="reframe-actions">
+          <button type="button" class="reframe-cancel" id="reframe-cancel">Cancel</button>
           <button type="button" class="reframe-reset" id="reframe-reset">Reset</button>
           <button type="button" class="reframe-apply" id="reframe-apply">Apply to this image</button>
         </div>
@@ -772,7 +796,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=110"></script>
+  <script src="/own-api.js?v=111"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -837,19 +861,22 @@
       var reframeStickerTemplate = document.getElementById("reframe-sticker-template");
       var reframeTemplateDesc = document.getElementById("reframe-template-desc");
       var reframeApply = document.getElementById("reframe-apply");
-      var reframeFrameControls = document.getElementById("reframe-frame-controls");
+      var reframeCancelBtn = document.getElementById("reframe-cancel");
+      var reframeResetBtn = document.getElementById("reframe-reset");
       var reframeModeFramed = document.getElementById("reframe-mode-framed");
       var reframeModeFrameOnly = document.getElementById("reframe-mode-frame-only");
       var reframeModeStudio = document.getElementById("reframe-mode-studio");
       var reframeStickerLayoutPanel = document.getElementById("reframe-sticker-layout");
       var reframeStickerSlotsEl = document.getElementById("reframe-sticker-slots");
       var reframeAddStickerBtn = document.getElementById("reframe-add-sticker");
-      var reframeResetBtn = document.getElementById("reframe-reset");
+      var reframeFrameControls = document.getElementById("reframe-frame-controls");
       var reframePreviewStatus = document.getElementById("reframe-preview-status");
       var reframeStickerSlots = [];
       var reframeStickerCustomized = false;
       var reframePreviewTimer = null;
       var reframePreviewToken = 0;
+      var reframeApplyBusy = false;
+      var reframeDraftSnapshot = null;
       var MR = window.MeeshoReframe;
       var RECOMMENDED_BORDER = "purple";
       var RECOMMENDED_STICKER = "limited_time";
@@ -1079,6 +1106,68 @@
         card.querySelector(".download").href = result.imageUrl;
       }
 
+      function cloneJson(value) {
+        return value == null ? null : JSON.parse(JSON.stringify(value));
+      }
+
+      function inferDisplayModeFromMeta(meta) {
+        if (!meta) return "framed";
+        if (meta.kind === "collage_studio" || meta.kind === "studio") return "studio";
+        if (meta.frameStyle && meta.frameStyle.stickerTemplate === "none") return "frame_only";
+        return "framed";
+      }
+
+      function setReframeActionsBusy(busy) {
+        reframeApplyBusy = !!busy;
+        if (reframeApply) {
+          reframeApply.disabled = busy;
+          reframeApply.textContent = busy ? "Applying…" : "Apply to this image";
+        }
+        if (reframeCancelBtn) reframeCancelBtn.disabled = busy;
+        if (reframeResetBtn) reframeResetBtn.disabled = busy;
+        if (reframeClose) reframeClose.disabled = busy;
+      }
+
+      function captureReframeDraft(result, meta) {
+        return {
+          imageUrl: result.imageUrl,
+          tagName: result.tagName,
+          fileSizeKb: result.fileSizeKb,
+          estimatedShippingInr: result.estimatedShippingInr,
+          shippingCharge: result.shippingCharge,
+          width: result.width,
+          height: result.height,
+          fileSizeBytes: result.fileSizeBytes,
+          displayMode: reframeDisplayMode,
+          stickerCustomized: reframeStickerCustomized,
+          frameStyle: cloneJson(meta.frameStyle),
+          kind: meta.kind,
+          studioBase: meta.studioBase,
+        };
+      }
+
+      function loadReframeUiFromFrameStyle(frameStyle, displayMode, stickerCustomized) {
+        var style = frameStyle || {};
+        reframeDisplayMode = displayMode || "framed";
+        reframeStickerCustomized = !!stickerCustomized;
+        syncReframeBorderUi(style.borderColor || DEFAULT_BORDER_COLOR);
+        setReframeBorderWidthUi(style.borderWidthPreset || "standard", style.borderWidthAdjust ?? 100);
+        reframeStickerTemplate.value = FS.normalizeStickerTemplate(
+          displayMode === "frame_only" ? "none" : (style.stickerTemplate || RECOMMENDED_STICKER)
+        );
+        updateReframeTemplateDesc();
+        if (reframeStickerCustomized && style.stickerLayout) {
+          setStickerLayoutToUi(style.stickerLayout, reframeStickerTemplate.value);
+        } else {
+          setStickerLayoutToUi(
+            FS.defaultStickerLayoutForTemplate(reframeStickerTemplate.value),
+            reframeStickerTemplate.value
+          );
+        }
+        syncReframeModeUi();
+        syncReframeStickerLayoutLabels();
+      }
+
       function markStickerLayoutCustomized() {
         reframeStickerCustomized = true;
         scheduleReframePreview();
@@ -1278,7 +1367,7 @@
       }
 
       async function resetReframeEdit() {
-        if (!FS || reframeIndex < 0) return;
+        if (!FS || reframeIndex < 0 || reframeApplyBusy) return;
         var r = lastResults[reframeIndex];
         if (!r || !r.reframeMeta) return;
         ensureReframeAnchorMeta(r);
@@ -1286,33 +1375,14 @@
         var baseline = meta.baselineFrameStyle;
         if (!baseline) return;
 
-        reframeStickerCustomized = false;
-        reframeDisplayMode = meta.baselineDisplayMode || inferBaselineDisplayMode(meta);
-
-        syncReframeBorderUi(baseline.borderColor || DEFAULT_BORDER_COLOR);
-        setReframeBorderWidthUi(baseline.borderWidthPreset || "standard", baseline.borderWidthAdjust ?? 100);
-        reframeStickerTemplate.value = FS.normalizeStickerTemplate(baseline.stickerTemplate || RECOMMENDED_STICKER);
-        updateReframeTemplateDesc();
-        setStickerLayoutToUi(
-          FS.defaultStickerLayoutForTemplate(reframeStickerTemplate.value),
-          reframeStickerTemplate.value
+        loadReframeUiFromFrameStyle(
+          baseline,
+          meta.baselineDisplayMode || inferBaselineDisplayMode(meta),
+          false
         );
 
-        meta.frameStyle = {
-          borderColor: baseline.borderColor,
-          stickerTemplate: baseline.stickerTemplate,
-          borderWidthPreset: baseline.borderWidthPreset || "standard",
-          borderWidthAdjust: baseline.borderWidthAdjust ?? 100,
-          stickerLayout: null,
-        };
-        if (meta.baselineKind != null) meta.kind = meta.baselineKind;
-        if (meta.baselineStudioBase != null) meta.studioBase = meta.baselineStudioBase;
-
-        syncReframeModeUi();
-        syncReframeStickerLayoutLabels();
-
-        var anchorUrl = meta.anchorImageUrl || r.imageUrl;
-        if (MR && MR.hydrateReframeAnchorBlob) {
+        var anchorUrl = meta.anchorImageUrl;
+        if (MR && MR.hydrateReframeAnchorBlob && anchorUrl) {
           await MR.hydrateReframeAnchorBlob(meta, anchorUrl);
         }
         if (meta.anchorBlob && MR && MR.blobToDataUrl) {
@@ -1322,24 +1392,13 @@
             /* keep anchorImageUrl */
           }
         }
-
-        reframePreviewImg.src = anchorUrl;
-        r.imageUrl = anchorUrl;
-        r.tagName = meta.anchorTagName || String(r.tagName || "").replace(/ · customized$/, "");
-        r.fileSizeKb = meta.anchorFileSizeKb || (meta.tier && meta.tier.anchorBytes && MR ? MR.kb(meta.tier.anchorBytes) : r.fileSizeKb);
-        r.estimatedShippingInr = meta.anchorEstimatedShippingInr || (meta.tier && meta.tier.anchorInr) || r.estimatedShippingInr;
-        r.shippingCharge = String(r.estimatedShippingInr);
-        if (meta.tier && meta.tier.anchorWidth) {
-          r.width = meta.tier.anchorWidth;
-          r.height = meta.tier.anchorHeight;
+        if (anchorUrl) {
+          reframePreviewImg.src = anchorUrl;
+        } else {
+          scheduleReframePreview();
         }
-        if (meta.tier && meta.tier.anchorBytes) {
-          r.fileSizeBytes = meta.tier.anchorBytes;
-        }
-
-        updateResultCardAtIndex(reframeIndex, r);
         if (reframePreviewStatus) {
-          reframePreviewStatus.textContent = "Restored to original generation · shipping locked";
+          reframePreviewStatus.textContent = "Reset to original generation · tap Apply to save";
         }
       }
 
@@ -1423,9 +1482,21 @@
       }
 
       function closeReframeEditor() {
+        if (reframePreviewTimer) {
+          clearTimeout(reframePreviewTimer);
+          reframePreviewTimer = null;
+        }
+        reframePreviewToken++;
         reframeBackdrop.classList.add("hidden");
         reframeBackdrop.setAttribute("aria-hidden", "true");
         reframeIndex = -1;
+        reframeDraftSnapshot = null;
+        setReframeActionsBusy(false);
+      }
+
+      function cancelReframeEdit() {
+        if (reframeApplyBusy) return;
+        closeReframeEditor();
       }
 
       async function openReframeEditor(index) {
@@ -1467,24 +1538,35 @@
         updateReframeTemplateDesc();
         syncReframeStickerLayoutLabels();
         syncReframeModeUi();
+        reframeDraftSnapshot = captureReframeDraft(r, meta);
+        setReframeActionsBusy(false);
         reframeBackdrop.classList.remove("hidden");
         reframeBackdrop.setAttribute("aria-hidden", "false");
         scheduleReframePreview();
       }
 
       async function applyReframeEdit() {
-        if (!MR || reframeIndex < 0 || !lastUploadDataUrl) return;
+        if (!MR || reframeIndex < 0 || !lastUploadDataUrl || reframeApplyBusy) return;
         var r = lastResults[reframeIndex];
         if (!r || !r.reframeMeta) return;
-        reframeApply.disabled = true;
-        reframeApply.textContent = "Applying…";
+        setReframeActionsBusy(true);
         try {
           await MR.loadMozjpeg();
           var sourceImg = await loadImageFromDataUrl(lastUploadDataUrl);
           var frame = getReframeSettingsFromUi();
+          var metaForRender = cloneJson(r.reframeMeta);
+          if (metaForRender) {
+            if (reframeDisplayMode === "studio") {
+              if (metaForRender.baselineKind != null) metaForRender.kind = metaForRender.baselineKind;
+              if (metaForRender.baselineStudioBase != null) metaForRender.studioBase = metaForRender.baselineStudioBase;
+            } else if (metaForRender.baselineKind != null) {
+              metaForRender.kind = "framed_slab";
+              metaForRender.studioBase = false;
+            }
+          }
           var variant = await MR.renderCustomVariant(
             sourceImg,
-            r.reframeMeta,
+            metaForRender || r.reframeMeta,
             reframeDisplayMode,
             frame
           );
@@ -1518,7 +1600,9 @@
                   : null,
             };
             if (reframeDisplayMode === "studio") {
-              r.reframeMeta.kind = "collage_studio";
+              r.reframeMeta.kind = metaForRender && metaForRender.baselineKind != null
+                ? metaForRender.baselineKind
+                : "collage_studio";
               r.reframeMeta.studioBase = true;
               r.reframeMeta.tier = {
                 targetKb: preserveKb,
@@ -1548,8 +1632,7 @@
         } catch (err) {
           setError(err.message || "Could not apply frame changes.");
         } finally {
-          reframeApply.disabled = false;
-          reframeApply.textContent = "Apply to this image";
+          setReframeActionsBusy(false);
         }
       }
 
@@ -2216,9 +2299,9 @@
 
       document.getElementById("btn-new").addEventListener("click", resetForm);
 
-      reframeClose.addEventListener("click", closeReframeEditor);
+      reframeClose.addEventListener("click", cancelReframeEdit);
       reframeBackdrop.addEventListener("click", function (e) {
-        if (e.target === reframeBackdrop) closeReframeEditor();
+        if (e.target === reframeBackdrop) cancelReframeEdit();
       });
       reframeModeFramed.addEventListener("click", function () {
         reframeDisplayMode = "framed";
@@ -2261,6 +2344,9 @@
       });
       if (reframeAddStickerBtn) {
         reframeAddStickerBtn.addEventListener("click", addReframeSticker);
+      }
+      if (reframeCancelBtn) {
+        reframeCancelBtn.addEventListener("click", cancelReframeEdit);
       }
       if (reframeResetBtn) {
         reframeResetBtn.addEventListener("click", function () {
