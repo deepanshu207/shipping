@@ -796,7 +796,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=114"></script>
+  <script src="/own-api.js?v=115"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -877,6 +877,7 @@
       var reframePreviewToken = 0;
       var reframeApplyBusy = false;
       var reframeDraftSnapshot = null;
+      var reframeResetPending = false;
       var MR = window.MeeshoReframe;
       var RECOMMENDED_BORDER = "purple";
       var RECOMMENDED_STICKER = "limited_time";
@@ -1073,10 +1074,13 @@
           tier.preserveKb = tier.slabKb || tier.targetKb || result.fileSizeKb;
         }
         if (!meta.anchorImageUrl && result.imageUrl) {
-          meta.anchorImageUrl = result.imageUrl;
-          meta.anchorTagName = result.tagName;
-          meta.anchorFileSizeKb = result.fileSizeKb;
-          meta.anchorEstimatedShippingInr = result.estimatedShippingInr;
+          var customized = String(result.tagName || "").indexOf("customized") >= 0;
+          if (!customized) {
+            meta.anchorImageUrl = result.imageUrl;
+            meta.anchorTagName = result.tagName;
+            meta.anchorFileSizeKb = result.fileSizeKb;
+            meta.anchorEstimatedShippingInr = result.estimatedShippingInr;
+          }
         }
         if (meta.baselineDisplayMode == null) {
           meta.baselineDisplayMode = inferBaselineDisplayMode(meta);
@@ -1108,7 +1112,11 @@
       function updateResultCardAtIndex(index, result) {
         var card = resultsGrid.querySelector('[data-result-index="' + index + '"]');
         if (!card || !result) return;
-        card.querySelector(".result-img img").src = result.imageUrl;
+        var img = card.querySelector(".result-img img");
+        if (img) {
+          img.src = "";
+          img.src = result.imageUrl;
+        }
         card.querySelector(".result-label").textContent = result.tagName;
         card.querySelector(".result-meta").textContent =
           "Est. ~₹" + (result.estimatedShippingInr || result.fileSizeKb) +
@@ -1162,24 +1170,29 @@
       function isReframeUiAtBaseline(meta) {
         if (!FS || !meta || !meta.baselineFrameStyle) return false;
         if (reframeStickerCustomized) return false;
-        var baseline = meta.baselineFrameStyle;
         var baselineMode = meta.baselineDisplayMode || inferBaselineDisplayMode(meta);
         if (reframeDisplayMode !== baselineMode) return false;
         var frame = getReframeSettingsFromUi();
-        var uiSticker = reframeDisplayMode === "frame_only"
-          ? "none"
-          : FS.normalizeStickerTemplate(frame.stickerTemplate);
-        var baselineSticker = baselineMode === "frame_only"
-          ? "none"
-          : FS.normalizeStickerTemplate(baseline.stickerTemplate);
+        if (reframeDisplayMode === "frame_only") {
+          frame = Object.assign({}, frame, { stickerTemplate: "none" });
+        }
+        if (MR && MR.isReframeBaselineFrameStyle) {
+          return MR.isReframeBaselineFrameStyle(frame, meta);
+        }
+        var baseline = meta.baselineFrameStyle;
         return (
           FS.normalizeBorderColor(frame.borderColor) === FS.normalizeBorderColor(baseline.borderColor) &&
-          uiSticker === baselineSticker &&
+          FS.normalizeStickerTemplate(frame.stickerTemplate) ===
+            FS.normalizeStickerTemplate(baseline.stickerTemplate) &&
           FS.normalizeBorderWidthPreset(frame.borderWidthPreset) ===
             FS.normalizeBorderWidthPreset(baseline.borderWidthPreset) &&
           FS.normalizeBorderWidthAdjust(frame.borderWidthAdjust) ===
             FS.normalizeBorderWidthAdjust(baseline.borderWidthAdjust)
         );
+      }
+
+      function shouldCommitReframeBaseline(meta) {
+        return reframeResetPending || isReframeUiAtBaseline(meta);
       }
 
       async function showReframeAnchorPreview(r) {
@@ -1259,6 +1272,7 @@
             anchorInr: anchorInr,
           });
         }
+        reframeResetPending = false;
         updateResultCardAtIndex(savedIndex, r);
         closeReframeEditor();
       }
@@ -1542,6 +1556,7 @@
           reframePreviewTimer = null;
         }
         reframePreviewToken++;
+        reframeResetPending = true;
         await showReframeAnchorPreview(r);
         if (reframePreviewStatus) {
           reframePreviewStatus.textContent = "Reset to original generation · tap Apply to save";
@@ -1557,6 +1572,7 @@
 
       function scheduleReframePreview() {
         if (reframeIndex < 0 || reframeDisplayMode === "studio") return;
+        reframeResetPending = false;
         if (reframePreviewTimer) clearTimeout(reframePreviewTimer);
         reframePreviewTimer = setTimeout(updateReframePreview, 320);
       }
@@ -1716,6 +1732,7 @@
         syncReframeStickerLayoutLabels();
         syncReframeModeUi();
         reframeDraftSnapshot = captureReframeDraft(r, meta);
+        reframeResetPending = false;
         setReframeActionsBusy(false);
         reframeBackdrop.classList.remove("hidden");
         reframeBackdrop.setAttribute("aria-hidden", "false");
@@ -1723,15 +1740,19 @@
       }
 
       async function applyReframeEdit() {
-        if (!MR || reframeIndex < 0 || !lastUploadDataUrl || reframeApplyBusy) return;
+        if (!MR || reframeIndex < 0 || reframeApplyBusy) return;
         var r = lastResults[reframeIndex];
         if (!r || !r.reframeMeta) return;
         var savedIndex = reframeIndex;
         setReframeActionsBusy(true);
         try {
           ensureReframeAnchorMeta(r);
-          if (isReframeUiAtBaseline(r.reframeMeta)) {
+          if (shouldCommitReframeBaseline(r.reframeMeta)) {
             await commitReframeBaseline(r, savedIndex);
+            return;
+          }
+          if (!lastUploadDataUrl) {
+            setReframePreviewError("Source photo missing — optimize again to apply frame edits.");
             return;
           }
           await MR.loadMozjpeg();
@@ -1805,6 +1826,7 @@
               });
             }
           }
+          reframeResetPending = false;
           updateResultCardAtIndex(savedIndex, r);
           closeReframeEditor();
         } catch (err) {
@@ -2493,6 +2515,7 @@
       });
       reframeModeStudio.addEventListener("click", function () {
         reframeDisplayMode = "studio";
+        reframeResetPending = false;
         syncReframeModeUi();
       });
       reframeBorderColor.addEventListener("input", function () {
