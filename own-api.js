@@ -2931,268 +2931,21 @@
     ctx.fillText(text, x, y);
   }
 
-  function renderSpecialOfferBadge(scale, texts = {}) {
-    const line1 = String(texts.line1 || "SPECIAL").slice(0, 14);
-    const line2 = String(texts.line2 || "OFFER").slice(0, 14);
-    const w = 92 * scale;
-    const h = 54 * scale;
-    const pad = 8 * scale;
-    const bw = w + pad * 2;
-    const bh = h + pad * 2;
-    const ss = OVERLAY_SUPERSAMPLE;
-    const c = document.createElement("canvas");
-    c.width = Math.ceil(bw * ss);
-    c.height = Math.ceil(bh * ss);
-    const ctx = c.getContext("2d");
-    ctx.scale(ss, ss);
-    ctx.translate(pad, pad);
-    ctx.rotate(-0.14);
-    roundRectPath(ctx, 0, 0, w, h, 7 * scale);
-    ctx.fillStyle = "#D32F2F";
-    ctx.fill();
-    ctx.strokeStyle = "#FFD600";
-    ctx.lineWidth = 3 * scale;
-    ctx.stroke();
-    const fontSize = 12.5 * scale;
-    ctx.font = `900 ${fontSize}px Arial,Helvetica,sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.lineJoin = "round";
-    ctx.lineWidth = 0.55 * scale;
-    ctx.strokeStyle = "#B71C1C";
-    ctx.fillStyle = "#FFD600";
-    ctx.strokeText(line1, w / 2, h * 0.34);
-    ctx.fillText(line1, w / 2, h * 0.34);
-    ctx.strokeText(line2, w / 2, h * 0.72);
-    ctx.fillText(line2, w / 2, h * 0.72);
-    return { canvas: c, width: bw, height: bh };
-  }
+  /** Shared compact sticker layout — same footprint/compression profile as FREE DELIVERY. */
+  const COMPACT_STICKER_META = {
+    free_delivery: { line1: "FREE", line2: "DELIVERY", accent: "#D32F2F" },
+    special_offer: { line1: "SPECIAL", line2: "OFFER", accent: "#D32F2F" },
+    hot_sale: { line1: "HOT", line2: "SALE", accent: "#E53935" },
+    best_choice: { line1: "BEST CHOICE", line2: "OFFER", accent: "#2E7D32" },
+    limited_time: { line1: "LIMITED", line2: "TIME", accent: "#4527A0" },
+    best_price: { line1: "BEST", line2: "PRICE", accent: "#C62828" },
+    flash_deal: { line1: "FLASH", line2: "DEAL", accent: "#D84315" },
+    super_offer: { line1: "SUPER", line2: "OFFER", accent: "#00897B" },
+    flat_off: { line1: "50%", line2: "OFF", accent: "#F57C00" },
+    mega_sale: { line1: "MEGA", line2: "SALE", accent: "#FF5722" },
+  };
 
-  function renderHotSaleBurst(scale, texts = {}) {
-    const line1 = String(texts.line1 || "HOT").slice(0, 10);
-    const line2 = String(texts.line2 || "SALE").slice(0, 10);
-    const line3 = String(texts.line3 || texts.line2 || "BIG SALE").slice(0, 12);
-    const spikes = 14;
-    const outer = 78 * scale;
-    const inner = 34 * scale;
-    const pad = 14 * scale;
-    const size = outer * 2 + pad * 2;
-    const center = size / 2;
-    const ss = OVERLAY_SUPERSAMPLE;
-    const c = document.createElement("canvas");
-    c.width = Math.ceil(size * ss);
-    c.height = Math.ceil(size * ss);
-    const ctx = c.getContext("2d");
-    ctx.scale(ss, ss);
-    ctx.translate(center, center);
-    ctx.beginPath();
-    for (let i = 0; i < spikes * 2; i++) {
-      const angle = (Math.PI * i) / spikes - Math.PI / 2;
-      const radius = i % 2 === 0 ? outer : inner;
-      const px = Math.cos(angle) * radius;
-      const py = Math.sin(angle) * radius;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    const grad = ctx.createRadialGradient(0, 0, inner * 0.2, 0, 0, outer);
-    grad.addColorStop(0, "#FFEB3B");
-    grad.addColorStop(0.55, "#FF9800");
-    grad.addColorStop(1, "#E53935");
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = "#B71C1C";
-    ctx.lineWidth = 2.4 * scale;
-    ctx.stroke();
-    drawStickerText(ctx, line1, 0, -14 * scale, 15, scale, { strokeWidth: 1.5 });
-    drawStickerText(ctx, line2, 0, 4 * scale, 13, scale, { strokeWidth: 1.45 });
-    drawStickerText(ctx, line3, 0, 22 * scale, 12, scale, { strokeWidth: 1.6 });
-    return { canvas: c, width: size, height: size };
-  }
-
-  function renderLimitedTimeBadge(scale, texts = {}) {
-    const line1 = String(texts.line1 || "LIMITED").slice(0, 12);
-    const line2 = String(texts.line2 || "TIME").slice(0, 12);
-    const w = 108 * scale;
-    const h = 48 * scale;
-    const pad = 8 * scale;
-    const bw = w + pad * 2;
-    const bh = h + pad * 2;
-    const ss = OVERLAY_SUPERSAMPLE;
-    const c = document.createElement("canvas");
-    c.width = Math.ceil(bw * ss);
-    c.height = Math.ceil(bh * ss);
-    const ctx = c.getContext("2d");
-    ctx.scale(ss, ss);
-    ctx.translate(pad, pad);
-    ctx.rotate(0.1);
-    roundRectPath(ctx, 0, 0, w, h, 8 * scale);
-    ctx.fillStyle = "#4527A0";
-    ctx.fill();
-    ctx.strokeStyle = "#FFD600";
-    ctx.lineWidth = 2.5 * scale;
-    ctx.stroke();
-    drawStickerText(ctx, line1, w / 2, h * 0.36, 11, scale, { fill: "#FFD600", stroke: "#311B92" });
-    drawStickerText(ctx, line2, w / 2, h * 0.72, 11, scale, { fill: "#FFFFFF", stroke: "#311B92" });
-    return { canvas: c, width: bw, height: bh };
-  }
-
-  function renderBestPriceRibbon(scale, texts = {}) {
-    const line1 = String(texts.line1 || "BEST PRICE").slice(0, 16);
-    const size = 130 * scale;
-    const ss = OVERLAY_SUPERSAMPLE;
-    const c = document.createElement("canvas");
-    c.width = Math.ceil(size * ss);
-    c.height = Math.ceil(size * ss);
-    const ctx = c.getContext("2d");
-    ctx.scale(ss, ss);
-    ctx.translate(size * 0.12, size * 0.38);
-    ctx.rotate(-0.55);
-    ctx.fillStyle = "#C62828";
-    ctx.fillRect(0, 0, size * 0.95, 34 * scale);
-    ctx.strokeStyle = "#FFD600";
-    ctx.lineWidth = 2 * scale;
-    ctx.strokeRect(0, 0, size * 0.95, 34 * scale);
-    drawStickerText(ctx, line1, size * 0.47, 17 * scale, 13, scale, { fill: "#FFD600", stroke: "#7F0000", strokeWidth: 1.2 });
-    return { canvas: c, width: size, height: size };
-  }
-
-  function renderMegaSaleBadge(scale, texts = {}) {
-    const line1 = String(texts.line1 || "MEGA").slice(0, 10);
-    const line2 = String(texts.line2 || "SALE").slice(0, 10);
-    const w = 118 * scale;
-    const h = 58 * scale;
-    const pad = 8 * scale;
-    const bw = w + pad * 2;
-    const bh = h + pad * 2;
-    const ss = OVERLAY_SUPERSAMPLE;
-    const c = document.createElement("canvas");
-    c.width = Math.ceil(bw * ss);
-    c.height = Math.ceil(bh * ss);
-    const ctx = c.getContext("2d");
-    ctx.scale(ss, ss);
-    ctx.translate(pad, pad);
-    ctx.rotate(-0.12);
-    roundRectPath(ctx, 0, 0, w, h, 8 * scale);
-    const g = ctx.createLinearGradient(0, 0, w, h);
-    g.addColorStop(0, "#FF5722");
-    g.addColorStop(1, "#D32F2F");
-    ctx.fillStyle = g;
-    ctx.fill();
-    ctx.strokeStyle = "#FFEB3B";
-    ctx.lineWidth = 3 * scale;
-    ctx.stroke();
-    drawStickerText(ctx, line1, w / 2, h * 0.35, 14, scale, { fill: "#FFEB3B", stroke: "#B71C1C" });
-    drawStickerText(ctx, line2, w / 2, h * 0.72, 14, scale, { fill: "#FFFFFF", stroke: "#B71C1C" });
-    return { canvas: c, width: bw, height: bh };
-  }
-
-  function renderFlashDealBurst(scale, texts = {}) {
-    const line1 = String(texts.line1 || "FLASH").slice(0, 10);
-    const line2 = String(texts.line2 || "DEAL").slice(0, 10);
-    const spikes = 12;
-    const outer = 72 * scale;
-    const inner = 30 * scale;
-    const pad = 12 * scale;
-    const size = outer * 2 + pad * 2;
-    const center = size / 2;
-    const ss = OVERLAY_SUPERSAMPLE;
-    const c = document.createElement("canvas");
-    c.width = Math.ceil(size * ss);
-    c.height = Math.ceil(size * ss);
-    const ctx = c.getContext("2d");
-    ctx.scale(ss, ss);
-    ctx.translate(center, center);
-    ctx.beginPath();
-    for (let i = 0; i < spikes * 2; i++) {
-      const angle = (Math.PI * i) / spikes - Math.PI / 2;
-      const radius = i % 2 === 0 ? outer : inner;
-      const px = Math.cos(angle) * radius;
-      const py = Math.sin(angle) * radius;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    const grad = ctx.createRadialGradient(0, 0, inner * 0.15, 0, 0, outer);
-    grad.addColorStop(0, "#FFEE58");
-    grad.addColorStop(0.6, "#FF7043");
-    grad.addColorStop(1, "#D84315");
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = "#BF360C";
-    ctx.lineWidth = 2.2 * scale;
-    ctx.stroke();
-    drawStickerText(ctx, line1, 0, -10 * scale, 12, scale, { strokeWidth: 1.4 });
-    drawStickerText(ctx, line2, 0, 8 * scale, 12, scale, { strokeWidth: 1.4 });
-    return { canvas: c, width: size, height: size };
-  }
-
-  function renderSuperOfferBadge(scale, texts = {}) {
-    const line1 = String(texts.line1 || "SUPER").slice(0, 10);
-    const line2 = String(texts.line2 || "OFFER").slice(0, 10);
-    const w = 96 * scale;
-    const h = 50 * scale;
-    const pad = 8 * scale;
-    const ss = OVERLAY_SUPERSAMPLE;
-    const c = document.createElement("canvas");
-    c.width = Math.ceil((w + pad * 2) * ss);
-    c.height = Math.ceil((h + pad * 2) * ss);
-    const ctx = c.getContext("2d");
-    ctx.scale(ss, ss);
-    ctx.translate(pad, pad);
-    roundRectPath(ctx, 0, 0, w, h, 7 * scale);
-    ctx.fillStyle = "#00897B";
-    ctx.fill();
-    ctx.strokeStyle = "#FFD600";
-    ctx.lineWidth = 2.5 * scale;
-    ctx.stroke();
-    drawStickerText(ctx, line1, w / 2, h * 0.34, 12, scale, { fill: "#FFD600", stroke: "#004D40" });
-    drawStickerText(ctx, line2, w / 2, h * 0.72, 12, scale, { fill: "#FFFFFF", stroke: "#004D40" });
-    return { canvas: c, width: w + pad * 2, height: h + pad * 2 };
-  }
-
-  function renderFlatOffBadge(scale, texts = {}) {
-    const line1 = String(texts.line1 || "50%").slice(0, 8);
-    const line2 = String(texts.line2 || "OFF").slice(0, 8);
-    const d = 72 * scale;
-    const ss = OVERLAY_SUPERSAMPLE;
-    const c = document.createElement("canvas");
-    c.width = Math.ceil(d * ss);
-    c.height = Math.ceil(d * ss);
-    const ctx = c.getContext("2d");
-    ctx.scale(ss, ss);
-    ctx.beginPath();
-    ctx.arc(d / 2, d / 2, d / 2 - 2 * scale, 0, Math.PI * 2);
-    ctx.fillStyle = "#F57C00";
-    ctx.fill();
-    ctx.strokeStyle = "#FFFFFF";
-    ctx.lineWidth = 2.5 * scale;
-    ctx.stroke();
-    drawStickerText(ctx, line1, d / 2, d / 2 - 6 * scale, 16, scale, { fill: "#FFFFFF", stroke: "#E65100", strokeWidth: 1.5 });
-    drawStickerText(ctx, line2, d / 2, d / 2 + 12 * scale, 11, scale, { fill: "#FFEB3B", stroke: "#E65100", strokeWidth: 1.2 });
-    return { canvas: c, width: d, height: d };
-  }
-
-  function renderFreeDeliverySticker(scale, texts = {}) {
-    const line1 = String(texts.line1 || "FREE").slice(0, 12);
-    const line2 = String(texts.line2 || "DELIVERY").slice(0, 12);
-    const truckW = 54 * scale;
-    const truckH = 34 * scale;
-    const textW = 92 * scale;
-    const textH = 52 * scale;
-    const gap = 6 * scale;
-    const pad = 10 * scale;
-    const bw = truckW + gap + textW + pad * 2;
-    const bh = Math.max(truckH, textH) + pad * 2;
-    const ss = OVERLAY_SUPERSAMPLE;
-    const c = document.createElement("canvas");
-    c.width = Math.ceil(bw * ss);
-    c.height = Math.ceil(bh * ss);
-    const ctx = c.getContext("2d");
-    ctx.scale(ss, ss);
-    ctx.translate(pad, pad);
-
-    const truckY = (bh - pad * 2 - truckH) / 2;
+  function drawFreeDeliveryTruckAccent(ctx, truckW, truckH, truckY, scale) {
     ctx.fillStyle = "#D32F2F";
     roundRectPath(ctx, 0, truckY + truckH * 0.42, truckW * 0.72, truckH * 0.34, 3 * scale);
     ctx.fill();
@@ -3203,8 +2956,42 @@
     ctx.arc(truckW * 0.2, truckY + truckH * 0.82, 5 * scale, 0, Math.PI * 2);
     ctx.arc(truckW * 0.58, truckY + truckH * 0.82, 5 * scale, 0, Math.PI * 2);
     ctx.fill();
+  }
 
-    const boxX = truckW + gap;
+  function drawCompactSolidAccent(ctx, accentW, accentH, accentY, scale, color) {
+    roundRectPath(ctx, accentW * 0.08, accentY, accentW * 0.84, accentH, 5 * scale);
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+
+  function renderCompactPromoSticker(scale, texts = {}, typeId = "special_offer") {
+    const meta = COMPACT_STICKER_META[typeId] || COMPACT_STICKER_META.special_offer;
+    const line1 = String(texts.line1 || meta.line1).slice(0, 12);
+    const line2 = String(texts.line2 || meta.line2).slice(0, 12);
+    const accentW = 54 * scale;
+    const accentH = 34 * scale;
+    const textW = 92 * scale;
+    const textH = 52 * scale;
+    const gap = 6 * scale;
+    const pad = 10 * scale;
+    const bw = accentW + gap + textW + pad * 2;
+    const bh = Math.max(accentH, textH) + pad * 2;
+    const ss = OVERLAY_SUPERSAMPLE;
+    const c = document.createElement("canvas");
+    c.width = Math.ceil(bw * ss);
+    c.height = Math.ceil(bh * ss);
+    const ctx = c.getContext("2d");
+    ctx.scale(ss, ss);
+    ctx.translate(pad, pad);
+
+    const accentY = (bh - pad * 2 - accentH) / 2;
+    if (typeId === "free_delivery") {
+      drawFreeDeliveryTruckAccent(ctx, accentW, accentH, accentY, scale);
+    } else {
+      drawCompactSolidAccent(ctx, accentW, accentH, accentY, scale, meta.accent);
+    }
+
+    const boxX = accentW + gap;
     const boxY = (bh - pad * 2 - textH) / 2;
     roundRectPath(ctx, boxX, boxY, textW, textH, 8 * scale);
     ctx.fillStyle = "#FFFFFF";
@@ -3223,46 +3010,44 @@
     return { canvas: c, width: bw, height: bh };
   }
 
+  function renderSpecialOfferBadge(scale, texts = {}) {
+    return renderCompactPromoSticker(scale, texts, "special_offer");
+  }
+
+  function renderHotSaleBurst(scale, texts = {}) {
+    return renderCompactPromoSticker(scale, texts, "hot_sale");
+  }
+
+  function renderLimitedTimeBadge(scale, texts = {}) {
+    return renderCompactPromoSticker(scale, texts, "limited_time");
+  }
+
+  function renderBestPriceRibbon(scale, texts = {}) {
+    return renderCompactPromoSticker(scale, texts, "best_price");
+  }
+
+  function renderMegaSaleBadge(scale, texts = {}) {
+    return renderCompactPromoSticker(scale, texts, "mega_sale");
+  }
+
+  function renderFlashDealBurst(scale, texts = {}) {
+    return renderCompactPromoSticker(scale, texts, "flash_deal");
+  }
+
+  function renderSuperOfferBadge(scale, texts = {}) {
+    return renderCompactPromoSticker(scale, texts, "super_offer");
+  }
+
+  function renderFlatOffBadge(scale, texts = {}) {
+    return renderCompactPromoSticker(scale, texts, "flat_off");
+  }
+
+  function renderFreeDeliverySticker(scale, texts = {}) {
+    return renderCompactPromoSticker(scale, texts, "free_delivery");
+  }
+
   function renderBestChoiceOfferBadge(scale, texts = {}) {
-    const line1 = String(texts.line1 || "BEST CHOICE").slice(0, 14);
-    const line2 = String(texts.line2 || "OFFER").slice(0, 12);
-    const d = 96 * scale;
-    const pad = 10 * scale;
-    const size = d + pad * 2;
-    const ss = OVERLAY_SUPERSAMPLE;
-    const c = document.createElement("canvas");
-    c.width = Math.ceil(size * ss);
-    c.height = Math.ceil(size * ss);
-    const ctx = c.getContext("2d");
-    ctx.scale(ss, ss);
-    const center = size / 2;
-
-    ctx.beginPath();
-    ctx.arc(center, center, d / 2, 0, Math.PI * 2);
-    const grad = ctx.createRadialGradient(center, center, d * 0.1, center, center, d / 2);
-    grad.addColorStop(0, "#FF7043");
-    grad.addColorStop(0.55, "#7B1FA2");
-    grad.addColorStop(1, "#4A148C");
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = "#FFD600";
-    ctx.lineWidth = 2.5 * scale;
-    ctx.stroke();
-
-    ctx.save();
-    ctx.translate(center, center - d * 0.18);
-    ctx.rotate(-0.08);
-    roundRectPath(ctx, -d * 0.42, -d * 0.12, d * 0.84, d * 0.24, 5 * scale);
-    ctx.fillStyle = "#2E7D32";
-    ctx.fill();
-    ctx.strokeStyle = "#A5D6A7";
-    ctx.lineWidth = 1.5 * scale;
-    ctx.stroke();
-    drawStickerText(ctx, line1, 0, 0, 9.5, scale, { fill: "#FFFFFF", stroke: "#1B5E20", strokeWidth: 1.1 });
-    ctx.restore();
-
-    drawStickerText(ctx, line2, center, center + d * 0.16, 12, scale, { fill: "#FFD600", stroke: "#4A148C", strokeWidth: 1.3 });
-    return { canvas: c, width: size, height: size };
+    return renderCompactPromoSticker(scale, texts, "best_choice");
   }
 
   function drawSupplierDenOneStickerOverlay(ctx, border, photoW, photoH) {
