@@ -114,7 +114,9 @@ class SPAHandler(SimpleHTTPRequestHandler):
         is_flatlay = "flat-lay" in str(tag_name or "").lower() or "flatlay" in str(tag_name or "").lower() or "apparel lowest" in str(tag_name or "").lower()
         is_model = "model photo" in str(tag_name or "").lower() or "model lowest" in str(tag_name or "").lower() or "on-person" in str(tag_name or "").lower()
         is_full_length = "full-length" in str(tag_name or "").lower() or "full length" in str(tag_name or "").lower() or "enlarged" in str(tag_name or "").lower() or "kaftan" in str(tag_name or "").lower()
-        timeout = 600 if is_auto or is_lingerie or is_flatlay or is_model or is_full_length else 180
+        tag_lower = str(tag_name or "").lower()
+        is_raincoat = "raincoat" in tag_lower and "lowest" in tag_lower
+        timeout = 600 if is_auto or is_lingerie or is_flatlay or is_model or is_full_length or is_raincoat else 180
         style = frame_style or {}
         payload = json.dumps(
             {
