@@ -4996,6 +4996,7 @@
     estimateMeeshoInr,
     estimateReframeShippingInr,
     hydrateReframeAnchorBlob,
+    isReframeBaselineFrameStyle,
     kb,
     loadMozjpeg,
   };
