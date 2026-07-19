@@ -34,7 +34,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/?v=122`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/?v=123`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoFrameSettings && window.MeeshoReframe, { timeout: 20000 });
 
     const result = await page.evaluate(async () => {
@@ -215,6 +215,38 @@ async function run() {
           ...baseline,
           stickerLayout: addedMulti,
         }),
+        sizePxEdit: await lockedInr("sizePxEdit", "framed", {
+          ...baseline,
+          stickerLayout: FS.normalizeStickerLayout(
+            {
+              version: 2,
+              stickers: heavyLayout.stickers.map((slot, i) =>
+                Object.assign({}, slot, { sizePx: i === 0 ? 96 : i === 1 ? 140 : slot.sizePx })
+              ),
+            },
+            "supplierden_match"
+          ),
+        }),
+        customImageSizePx: await lockedInr("customImageSizePx", "framed", {
+          ...baseline,
+          stickerLayout: FS.normalizeStickerLayout(
+            {
+              version: 2,
+              stickers: [
+                {
+                  type: "mega_sale",
+                  x: 0.2,
+                  y: 0.2,
+                  text1: "MEGA",
+                  text2: "SALE",
+                  imageUrl: stickerImg(),
+                  sizePx: 120,
+                },
+              ],
+            },
+            "supplierden_match"
+          ),
+        }),
         hiddenStickers: await lockedInr("hiddenStickers", "framed", {
           ...baseline,
           stickerLayout: FS.normalizeStickerLayout(
@@ -302,6 +334,8 @@ async function run() {
       result.customImages,
       result.removedSticker,
       result.addedMulti,
+      result.sizePxEdit,
+      result.customImageSizePx,
       result.hiddenStickers,
       result.tightCustomImages,
       result.customizedMetaOnly,
