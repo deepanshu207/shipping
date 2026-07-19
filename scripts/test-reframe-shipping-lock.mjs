@@ -34,7 +34,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/?v=119`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/?v=120`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoFrameSettings && window.MeeshoReframe, { timeout: 20000 });
 
     const result = await page.evaluate(async () => {
@@ -215,6 +215,31 @@ async function run() {
           ...baseline,
           stickerLayout: addedMulti,
         }),
+        hiddenStickers: await lockedInr("hiddenStickers", "framed", {
+          ...baseline,
+          stickerLayout: FS.normalizeStickerLayout(
+            {
+              version: 2,
+              stickers: addedMulti.stickers.map((slot, i) =>
+                Object.assign({}, slot, { hidden: i < 2 })
+              ),
+            },
+            "supplierden_match"
+          ),
+        }),
+        hiddenKeepsSlots: await (async () => {
+          const hiddenLayout = FS.normalizeStickerLayout(
+            {
+              version: 2,
+              stickers: addedMulti.stickers.map((slot) => Object.assign({}, slot, { hidden: true })),
+            },
+            "supplierden_match"
+          );
+          return {
+            slotCount: hiddenLayout.stickers.length,
+            allHidden: hiddenLayout.stickers.every((slot) => slot.hidden),
+          };
+        })(),
         tightCustomImages: await lockedInrTight("tightCustomImages", "framed", {
           ...baseline,
           stickerLayout: customImageLayout,
@@ -263,10 +288,14 @@ async function run() {
       result.customImages,
       result.removedSticker,
       result.addedMulti,
+      result.hiddenStickers,
       result.tightCustomImages,
       result.customizedMetaOnly,
     ];
-    const ok = checks.every((c) => c.shippingLocked);
+    const ok =
+      checks.every((c) => c.shippingLocked) &&
+      result.hiddenKeepsSlots.slotCount === 4 &&
+      result.hiddenKeepsSlots.allHidden;
 
     if (!ok) {
       console.error("FAIL", result);

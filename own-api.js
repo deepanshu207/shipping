@@ -3528,6 +3528,7 @@
       text2: String(s.text2 || "").slice(0, 16),
       imageUrl: String(s.imageUrl || ""),
       scale: Math.min(1.6, Math.max(0.45, Number(s.scale) || 1)),
+      hidden: !!s.hidden,
       _image: s._image || null,
     };
   }
@@ -3576,6 +3577,7 @@
         text2: slot.text2,
         imageUrl: slot.imageUrl,
         scale: slot.scale,
+        hidden: !!slot.hidden,
       })),
     };
   }
@@ -3640,7 +3642,7 @@
   }
 
   function drawStickerSlotOnPhoto(ctx, border, photoW, photoH, assetType, slotLayout, scale) {
-    if (!slotLayout) return;
+    if (!slotLayout || slotLayout.hidden) return;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     const slotScale = slotLayout.scale || 1;
