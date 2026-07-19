@@ -796,7 +796,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=115"></script>
+  <script src="/own-api.js?v=116"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -878,6 +878,8 @@
       var reframeApplyBusy = false;
       var reframeDraftSnapshot = null;
       var reframeResetPending = false;
+      var reframePendingPreviewUrl = null;
+      var reframeEditorAnchor = null;
       var MR = window.MeeshoReframe;
       var RECOMMENDED_BORDER = "purple";
       var RECOMMENDED_STICKER = "limited_time";
@@ -1057,8 +1059,26 @@
         return "framed";
       }
 
+      function isResultCustomized(result) {
+        return String(result && result.tagName || "").indexOf("customized") >= 0;
+      }
+
+      function freezeReframeGenerationAnchor(result) {
+        if (!result || !result.reframeMeta || !result.imageUrl) return;
+        var meta = result.reframeMeta;
+        if (meta.anchorFrozen) return;
+        if (isResultCustomized(result)) return;
+        meta.anchorImageUrl = result.imageUrl;
+        meta.anchorTagName = result.tagName;
+        meta.anchorFileSizeKb = result.fileSizeKb;
+        meta.anchorFileSizeBytes = result.fileSizeBytes;
+        meta.anchorEstimatedShippingInr = result.estimatedShippingInr;
+        meta.anchorFrozen = true;
+      }
+
       function ensureReframeAnchorMeta(result) {
         if (!result || !result.reframeMeta) return;
+        freezeReframeGenerationAnchor(result);
         var meta = result.reframeMeta;
         var tier = meta.tier || (meta.tier = {});
         if (!tier.anchorBytes && result.fileSizeBytes) {
@@ -1073,14 +1093,11 @@
         if (!tier.preserveKb) {
           tier.preserveKb = tier.slabKb || tier.targetKb || result.fileSizeKb;
         }
-        if (!meta.anchorImageUrl && result.imageUrl) {
-          var customized = String(result.tagName || "").indexOf("customized") >= 0;
-          if (!customized) {
-            meta.anchorImageUrl = result.imageUrl;
-            meta.anchorTagName = result.tagName;
-            meta.anchorFileSizeKb = result.fileSizeKb;
-            meta.anchorEstimatedShippingInr = result.estimatedShippingInr;
-          }
+        if (!meta.anchorImageUrl && result.imageUrl && !isResultCustomized(result)) {
+          meta.anchorImageUrl = result.imageUrl;
+          meta.anchorTagName = result.tagName;
+          meta.anchorFileSizeKb = result.fileSizeKb;
+          meta.anchorEstimatedShippingInr = result.estimatedShippingInr;
         }
         if (meta.baselineDisplayMode == null) {
           meta.baselineDisplayMode = inferBaselineDisplayMode(meta);
@@ -1163,6 +1180,42 @@
         return metaForRender;
       }
 
+      function captureReframeEditorAnchor(result, meta) {
+        return {
+          imageUrl: meta.anchorImageUrl || result.imageUrl,
+          tagName: meta.anchorTagName || result.tagName,
+          fileSizeKb: meta.anchorFileSizeKb || result.fileSizeKb,
+          fileSizeBytes: meta.anchorFileSizeBytes || result.fileSizeBytes,
+          estimatedShippingInr: meta.anchorEstimatedShippingInr || result.estimatedShippingInr,
+          width: meta.tier && meta.tier.anchorWidth || result.width,
+          height: meta.tier && meta.tier.anchorHeight || result.height,
+        };
+      }
+
+      async function resolveReframeAnchorImageUrl(r, meta) {
+        if (meta.anchorImageUrl) return meta.anchorImageUrl;
+        if (reframeEditorAnchor && reframeEditorAnchor.imageUrl) return reframeEditorAnchor.imageUrl;
+        if (reframePendingPreviewUrl) return reframePendingPreviewUrl;
+        if (reframePreviewImg && reframePreviewImg.src && reframePreviewImg.src.indexOf("data:") === 0) {
+          return reframePreviewImg.src;
+        }
+        if (MR && MR.hydrateReframeAnchorBlob) {
+          var hydrateUrl = meta.anchorImageUrl || (reframeEditorAnchor && reframeEditorAnchor.imageUrl) || r.imageUrl;
+          await MR.hydrateReframeAnchorBlob(meta, hydrateUrl);
+        }
+        if (meta.anchorBlob && MR && MR.blobToDataUrl) {
+          return MR.blobToDataUrl(meta.anchorBlob);
+        }
+        if (r.imageUrl && !isResultCustomized(r)) return r.imageUrl;
+        return null;
+      }
+
+      function setReframePreviewUrl(url) {
+        if (!url) return;
+        reframePendingPreviewUrl = url;
+        reframePreviewImg.src = url;
+      }
+
       function setReframePreviewError(message) {
         if (reframePreviewStatus) reframePreviewStatus.textContent = message;
       }
@@ -1198,20 +1251,18 @@
       async function showReframeAnchorPreview(r) {
         var meta = r.reframeMeta;
         if (!meta) return;
-        var anchorUrl = meta.anchorImageUrl;
+        var anchorUrl = await resolveReframeAnchorImageUrl(r, meta);
         if (!anchorUrl) return;
-        if (MR && MR.hydrateReframeAnchorBlob) {
-          await MR.hydrateReframeAnchorBlob(meta, anchorUrl);
-        }
-        if (meta.anchorBlob && MR && MR.blobToDataUrl) {
-          anchorUrl = await MR.blobToDataUrl(meta.anchorBlob);
-        }
-        reframePreviewImg.src = anchorUrl;
+        setReframePreviewUrl(anchorUrl);
         if (reframePreviewStatus) {
-          var inr = meta.anchorEstimatedShippingInr || (meta.tier && meta.tier.anchorInr);
+          var inr =
+            meta.anchorEstimatedShippingInr ||
+            (meta.tier && meta.tier.anchorInr) ||
+            (reframeEditorAnchor && reframeEditorAnchor.estimatedShippingInr);
           var kb =
             meta.anchorFileSizeKb ||
-            (meta.tier && meta.tier.anchorBytes && MR ? MR.kb(meta.tier.anchorBytes) : null);
+            (meta.tier && meta.tier.anchorBytes && MR ? MR.kb(meta.tier.anchorBytes) : null) ||
+            (reframeEditorAnchor && reframeEditorAnchor.fileSizeKb);
           var status = "Preview · original generation";
           if (inr) status += " · ~₹" + inr;
           if (kb) status += " · " + kb + " KB · shipping locked";
@@ -1223,27 +1274,30 @@
         ensureReframeAnchorMeta(r);
         var meta = r.reframeMeta;
         var baseline = meta.baselineFrameStyle;
-        var anchorUrl = meta.anchorImageUrl;
-        if (!anchorUrl || !baseline) {
-          throw new Error("Original generation snapshot is missing.");
+        var anchor = reframeEditorAnchor || captureReframeEditorAnchor(r, meta);
+        if (!baseline) {
+          throw new Error("Original generation settings are missing.");
         }
-        if (MR && MR.hydrateReframeAnchorBlob) {
-          await MR.hydrateReframeAnchorBlob(meta, anchorUrl);
-        }
-        var imageUrl = anchorUrl;
-        if (meta.anchorBlob && MR && MR.blobToDataUrl) {
-          imageUrl = await MR.blobToDataUrl(meta.anchorBlob);
+        var imageUrl =
+          reframePendingPreviewUrl ||
+          (reframePreviewImg && reframePreviewImg.src && reframePreviewImg.src.indexOf("data:") === 0
+            ? reframePreviewImg.src
+            : null) ||
+          (await resolveReframeAnchorImageUrl(r, meta));
+        if (!imageUrl) {
+          throw new Error("Original generation image is missing.");
         }
         r.imageUrl = imageUrl;
-        r.tagName = meta.anchorTagName || String(r.tagName || "").replace(/ · customized$/, "");
-        r.fileSizeKb =
-          meta.anchorFileSizeKb ||
-          (meta.tier && meta.tier.anchorBytes && MR ? MR.kb(meta.tier.anchorBytes) : r.fileSizeKb);
-        r.fileSizeBytes = (meta.tier && meta.tier.anchorBytes) || r.fileSizeBytes;
+        r.tagName = anchor.tagName || String(r.tagName || "").replace(/ · customized$/, "");
+        r.fileSizeKb = anchor.fileSizeKb || r.fileSizeKb;
+        r.fileSizeBytes = anchor.fileSizeBytes || (meta.tier && meta.tier.anchorBytes) || r.fileSizeBytes;
         r.estimatedShippingInr =
-          meta.anchorEstimatedShippingInr || (meta.tier && meta.tier.anchorInr) || r.estimatedShippingInr;
+          anchor.estimatedShippingInr || (meta.tier && meta.tier.anchorInr) || r.estimatedShippingInr;
         r.shippingCharge = String(r.estimatedShippingInr);
-        if (meta.tier && meta.tier.anchorWidth) {
+        if (anchor.width) {
+          r.width = anchor.width;
+          r.height = anchor.height;
+        } else if (meta.tier && meta.tier.anchorWidth) {
           r.width = meta.tier.anchorWidth;
           r.height = meta.tier.anchorHeight;
         }
@@ -1605,7 +1659,7 @@
           if (token !== reframePreviewToken) return;
           var imageUrl = await MR.blobToDataUrl(variant.blob);
           if (token !== reframePreviewToken) return;
-          reframePreviewImg.src = imageUrl;
+          setReframePreviewUrl(imageUrl);
           if (reframePreviewStatus) {
             var anchorInr =
               r.reframeMeta.tier && (r.reframeMeta.tier.anchorInr || r.estimatedShippingInr);
@@ -1667,6 +1721,9 @@
         reframeBackdrop.setAttribute("aria-hidden", "true");
         reframeIndex = -1;
         reframeDraftSnapshot = null;
+        reframeResetPending = false;
+        reframePendingPreviewUrl = null;
+        reframeEditorAnchor = null;
         setReframeActionsBusy(false);
       }
 
@@ -1701,8 +1758,10 @@
           await MR.hydrateReframeAnchorBlob(r.reframeMeta, r.reframeMeta.anchorImageUrl || r.imageUrl);
         }
         var meta = r.reframeMeta;
+        reframeEditorAnchor = captureReframeEditorAnchor(r, meta);
         reframeIndex = index;
-        reframePreviewImg.src = r.imageUrl;
+        reframePendingPreviewUrl = r.imageUrl;
+        setReframePreviewUrl(r.imageUrl);
         var isStudioKind = meta.kind === "collage_studio" || meta.kind === "studio";
         var stickerNone = meta.frameStyle && meta.frameStyle.stickerTemplate === "none";
         reframeDisplayMode = isStudioKind ? "studio" : stickerNone ? "frame_only" : "framed";
@@ -1748,6 +1807,9 @@
         try {
           ensureReframeAnchorMeta(r);
           if (shouldCommitReframeBaseline(r.reframeMeta)) {
+            if (!reframePendingPreviewUrl) {
+              await showReframeAnchorPreview(r);
+            }
             await commitReframeBaseline(r, savedIndex);
             return;
           }
@@ -1827,6 +1889,7 @@
             }
           }
           reframeResetPending = false;
+          reframePendingPreviewUrl = imageUrl;
           updateResultCardAtIndex(savedIndex, r);
           closeReframeEditor();
         } catch (err) {
@@ -2556,7 +2619,12 @@
           });
         });
       }
-      reframeApply.addEventListener("click", applyReframeEdit);
+      reframeApply.addEventListener("click", function () {
+        applyReframeEdit().catch(function (err) {
+          setReframePreviewError((err && err.message) || "Could not apply frame changes.");
+          setReframeActionsBusy(false);
+        });
+      });
 
       document.getElementById("theme-btn").addEventListener("click", function () {
         var dark = document.documentElement.classList.toggle("dark");
