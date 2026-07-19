@@ -809,7 +809,7 @@
           <details class="accordion reframe-sticker-layout" id="reframe-sticker-layout" open style="margin-top:0.5rem">
             <summary>Stickers — add, remove, move, text, image</summary>
             <div class="accordion-body">
-              <p class="reframe-note">Default: 2 stickers. Tap <b>−</b> to remove one, <b>+ Add sticker</b> for more (up to 5).</p>
+              <p class="reframe-note">Default: 2 stickers. Tap <b>−</b> to remove one, <b>+ Add sticker</b> for more (up to 5). <b>Hide sticker</b> keeps a nearly invisible ghost sticker so shipping stays locked like text/position edits.</p>
               <div id="reframe-sticker-slots"></div>
               <button type="button" class="reframe-add-sticker" id="reframe-add-sticker">+ Add sticker</button>
             </div>
@@ -825,7 +825,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=120"></script>
+  <script src="/own-api.js?v=121"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -1604,14 +1604,14 @@
           if (hidden && !badge) {
             badge = document.createElement("span");
             badge.className = "reframe-slot-hidden-badge";
-            badge.textContent = "Hidden";
+            badge.textContent = "Ghost hidden";
             titleEl.appendChild(badge);
           } else if (!hidden && badge) {
             badge.remove();
           }
         }
         if (hideBtn) {
-          hideBtn.textContent = hidden ? "Show sticker" : "Hide sticker";
+          hideBtn.textContent = hidden ? "Show sticker" : "Ghost hide";
           hideBtn.classList.toggle("is-hidden", hidden);
           hideBtn.setAttribute("aria-pressed", hidden ? "true" : "false");
         }
@@ -1632,7 +1632,7 @@
           if (slot.hidden) {
             var hiddenBadge = document.createElement("span");
             hiddenBadge.className = "reframe-slot-hidden-badge";
-            hiddenBadge.textContent = "Hidden";
+            hiddenBadge.textContent = "Ghost hidden";
             title.appendChild(hiddenBadge);
           }
           card.appendChild(title);
@@ -1738,7 +1738,7 @@
           var hideBtn = document.createElement("button");
           hideBtn.type = "button";
           hideBtn.className = "reframe-slot-hide" + (slot.hidden ? " is-hidden" : "");
-          hideBtn.textContent = slot.hidden ? "Show sticker" : "Hide sticker";
+          hideBtn.textContent = slot.hidden ? "Show sticker" : "Ghost hide";
           hideBtn.setAttribute("aria-pressed", slot.hidden ? "true" : "false");
           hideBtn.addEventListener("click", function () {
             slot.hidden = !slot.hidden;
@@ -1871,9 +1871,7 @@
               status +=
                 " · " +
                 hiddenStickers +
-                " sticker" +
-                (hiddenStickers === 1 ? "" : "s") +
-                " hidden";
+                " ghost-hidden (light)";
             }
             reframePreviewStatus.textContent = status;
           }

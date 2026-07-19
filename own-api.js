@@ -3471,6 +3471,13 @@
   ];
   const STICKER_ASSET_TYPE_IDS = new Set(STICKER_ASSET_TYPES.map((t) => t.id));
   const REFRAME_MAX_STICKERS = 5;
+  /** Nearly invisible draw — keeps sticker pixels for compression/shipping parity when user hides. */
+  const REFRAME_GHOST_STICKER_OPACITY = 0.05;
+
+  function resolveStickerSlotDrawOpacity(slot) {
+    if (!slot || !slot.hidden) return 1;
+    return REFRAME_GHOST_STICKER_OPACITY;
+  }
 
   function newStickerSlotId() {
     return "st_" + Math.random().toString(16).slice(2, 10);
@@ -3642,27 +3649,34 @@
   }
 
   function drawStickerSlotOnPhoto(ctx, border, photoW, photoH, assetType, slotLayout, scale) {
-    if (!slotLayout || slotLayout.hidden) return;
+    if (!slotLayout) return;
+    const opacity = resolveStickerSlotDrawOpacity(slotLayout);
+    ctx.save();
+    ctx.globalAlpha = opacity;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     const slotScale = slotLayout.scale || 1;
-    if (slotLayout._image) {
-      const maxW = photoW * 0.24 * slotScale;
-      const ratio = slotLayout._image.height / Math.max(1, slotLayout._image.width);
-      const drawW = maxW;
-      const drawH = maxW * ratio;
-      const x = border + photoW * slotLayout.x - drawW / 2;
-      const y = border + photoH * slotLayout.y - drawH / 2;
-      ctx.drawImage(slotLayout._image, x, y, drawW, drawH);
-      return;
+    try {
+      if (slotLayout._image) {
+        const maxW = photoW * 0.24 * slotScale;
+        const ratio = slotLayout._image.height / Math.max(1, slotLayout._image.width);
+        const drawW = maxW;
+        const drawH = maxW * ratio;
+        const x = border + photoW * slotLayout.x - drawW / 2;
+        const y = border + photoH * slotLayout.y - drawH / 2;
+        ctx.drawImage(slotLayout._image, x, y, drawW, drawH);
+        return;
+      }
+      const texts = {};
+      if (slotLayout.text1) texts.line1 = slotLayout.text1;
+      if (slotLayout.text2) texts.line2 = slotLayout.text2;
+      const rendered = renderStickerAsset(assetType, scale * slotScale, texts);
+      const x = border + photoW * slotLayout.x - rendered.width / 2;
+      const y = border + photoH * slotLayout.y - rendered.height / 2;
+      ctx.drawImage(rendered.canvas, x, y, rendered.width, rendered.height);
+    } finally {
+      ctx.restore();
     }
-    const texts = {};
-    if (slotLayout.text1) texts.line1 = slotLayout.text1;
-    if (slotLayout.text2) texts.line2 = slotLayout.text2;
-    const rendered = renderStickerAsset(assetType, scale * slotScale, texts);
-    const x = border + photoW * slotLayout.x - rendered.width / 2;
-    const y = border + photoH * slotLayout.y - rendered.height / 2;
-    ctx.drawImage(rendered.canvas, x, y, rendered.width, rendered.height);
   }
 
   function drawFramedOverlaysWithLayout(ctx, border, photoW, photoH, templateId, stickerLayout) {
@@ -4070,6 +4084,7 @@
   function isReframeHeavyStickerLayout(style) {
     const layout = style?.stickerLayout;
     if (!layout || !Array.isArray(layout.stickers) || !layout.stickers.length) return false;
+    // Include ghost-hidden stickers — they still draw at low opacity for shipping parity.
     if (layout.stickers.some((slot) => !!slot?.imageUrl)) return true;
     return layout.stickers.length > 2;
   }
