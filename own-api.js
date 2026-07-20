@@ -605,27 +605,70 @@
     },
   ];
   // ── GOWN CATEGORY ──────────────────────────────────────────────────────────
-  /** Gown / outdoor dress — teal frame + 3-sticker promo, 58–66 KB → ~₹63. */
+  /** Gown / outdoor dress — teal frame, 20–50 variants at multiple sizes + sticker configs. */
   const GOWN_DEFAULT_TEAL = "#06B6D4";
-  const GOWN_MAX_VARIANTS = 1;
-  const GOWN_PROCESS_TIMEOUT_MS = 180000;
+  const GOWN_MAX_VARIANTS = 50;
+  const GOWN_PROCESS_TIMEOUT_MS = 360000;
+  /** 7 KB slabs per layout; covers ~₹48–₹71 framed band. */
   const GOWN_KB_TIERS = [
-    { slabKb: 58, label: "58KB · low band", lowest: true },
-    { slabKb: 60, label: "60KB · target" },
-    { slabKb: 61, label: "61KB" },
-    { slabKb: 62, label: "62KB" },
-    { slabKb: 63, label: "63KB · ₹63 match", recommended: true },
-    { slabKb: 64, label: "64KB" },
-    { slabKb: 65, label: "65KB" },
-    { slabKb: 66, label: "66KB · backup" },
+    { slabKb: 48, label: "48KB · lowest try", lowest: true },
+    { slabKb: 52, label: "52KB" },
+    { slabKb: 56, label: "56KB" },
+    { slabKb: 60, label: "60KB", recommended: true },
+    { slabKb: 63, label: "63KB · ₹63 target" },
+    { slabKb: 66, label: "66KB" },
+    { slabKb: 71, label: "71KB · backup" },
   ];
   const GOWN_LAYOUTS = [
     {
-      layout: "gown_p1024",
+      layout: "gown_f1024",
       type: "native_framed",
       framedMaxSide: 1024,
       priority: 0,
-      panelTag: "portrait framed 1024 · gown promo",
+      panelTag: "framed 1024 · gown promo",
+      tiers: GOWN_KB_TIERS,
+    },
+    {
+      layout: "gown_f1024_ns",
+      type: "native_framed",
+      framedMaxSide: 1024,
+      noStickers: true,
+      priority: 2,
+      panelTag: "framed 1024 · no stickers",
+      tiers: GOWN_KB_TIERS,
+    },
+    {
+      layout: "gown_f960",
+      type: "native_framed",
+      framedMaxSide: 960,
+      priority: 4,
+      panelTag: "framed 960 · gown promo",
+      tiers: GOWN_KB_TIERS,
+    },
+    {
+      layout: "gown_f960_ns",
+      type: "native_framed",
+      framedMaxSide: 960,
+      noStickers: true,
+      priority: 6,
+      panelTag: "framed 960 · no stickers",
+      tiers: GOWN_KB_TIERS,
+    },
+    {
+      layout: "gown_f800",
+      type: "native_framed",
+      framedMaxSide: 800,
+      priority: 8,
+      panelTag: "framed 800 · gown promo",
+      tiers: GOWN_KB_TIERS,
+    },
+    {
+      layout: "gown_f800_ns",
+      type: "native_framed",
+      framedMaxSide: 800,
+      noStickers: true,
+      priority: 10,
+      panelTag: "framed 800 · no stickers",
       tiers: GOWN_KB_TIERS,
     },
   ];
@@ -709,7 +752,6 @@
     "framed_pro",
     "framed_low",
     "framed_mid",
-    "gown_framed",
     "framed_compact",
     "framed_mini",
     "flatlay_framed",
@@ -958,10 +1000,7 @@
       return Math.min(fileKb, 93);
     }
     if (path === "gown_framed") {
-      if (h > w && maxSide > 0 && maxSide <= 1024 && fileKb >= 58 && fileKb <= 66) return fileKb;
-      if (fileKb <= 68) return fileKb;
-      if (maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 66);
-      return Math.min(fileKb, 66);
+      return fileKb;
     }
     if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
       return Math.min(fileKb, 93);
@@ -2081,7 +2120,6 @@
         allVariants.push(
           await buildVariantForTier(canvas, whiteRatio, profile, tier, {
             showMode: true,
-            reframeHeavyLayout: true,
             reframeMeta: buildReframeMeta(profile, tier, {
               frameStyle: flatlayFramedStyle(profile.flatlaySpec, styled),
               studioLayout: profile.studioLayout,
@@ -2094,17 +2132,23 @@
       }
       releaseCanvas(canvas);
     }
-    // Return single best pick in 58–66 KB slab
-    const slabCapBytes = 68 * 1024;
-    const inSlab = allVariants.filter((v) => (v.bytes || 0) > 0 && (v.bytes || 0) <= slabCapBytes);
-    const pool = inSlab.length ? inSlab : allVariants;
-    pool.sort((a, b) => estimateMeeshoInr(a) - estimateMeeshoInr(b) || (a.bytes || 0) - (b.bytes || 0));
-    const results = pool.slice(0, GOWN_MAX_VARIANTS);
+    return finalizeGownVariants(allVariants);
+  }
+
+  function finalizeGownVariants(variants) {
+    const capped = variants.filter((v) => Math.max(v.width || 0, v.height || 0) <= MEESHO_FRAMED_MAX_SIDE);
+    const pool = capped.length ? capped : variants;
+    const deduped = dedupeAutoVariants(pool);
+    deduped.sort((a, b) =>
+      estimateMeeshoInr(a) - estimateMeeshoInr(b) ||
+      (a.bytes || 0) - (b.bytes || 0)
+    );
+    const results = deduped.slice(0, GOWN_MAX_VARIANTS);
     results.forEach((v, i) => {
       v.autoRank = i + 1;
       v.autoBest = i === 0;
-      v.recommended = true;
       v.lowest = i === 0;
+      v.recommended = i < 3;
     });
     return results;
   }
@@ -4302,9 +4346,11 @@
     };
     const blob = capBytes
       ? await compressToByteCap(canvas, capBytes, compressOpts)
-      : profile.studio || profile.collageFramed
-        ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true, profile.absMinQ)
-        : await compressBusyToSlab(canvas, tier.slabKb);
+      : profile.gown && tier.slabKb
+        ? await compressToByteCap(canvas, tier.slabKb * 1024, { ...compressOpts, reframeHeavyLayout: true })
+        : profile.studio || profile.collageFramed
+          ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true, profile.absMinQ)
+          : await compressBusyToSlab(canvas, tier.slabKb);
     const reportW = options.anchorWidth ?? canvas.width;
     const reportH = options.anchorHeight ?? canvas.height;
     const label = options.showMode

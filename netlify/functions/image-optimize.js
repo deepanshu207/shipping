@@ -63,24 +63,21 @@ const TIERS_SUPPLIERDEN_TALL = [
 // ── GOWN ───────────────────────────────────────────────────────────────────
 const GOWN_DEFAULT_TEAL = "#06B6D4";
 const GOWN_KB_TIERS = [
-  { slabKb: 58, label: "58KB · low band", lowest: true },
-  { slabKb: 60, label: "60KB · target" },
-  { slabKb: 61, label: "61KB" },
-  { slabKb: 62, label: "62KB" },
-  { slabKb: 63, label: "63KB · ₹63 match", recommended: true },
-  { slabKb: 64, label: "64KB" },
-  { slabKb: 65, label: "65KB" },
-  { slabKb: 66, label: "66KB · backup" },
+  { slabKb: 48, label: "48KB · lowest try", lowest: true },
+  { slabKb: 52, label: "52KB" },
+  { slabKb: 56, label: "56KB" },
+  { slabKb: 60, label: "60KB", recommended: true },
+  { slabKb: 63, label: "63KB · ₹63 target" },
+  { slabKb: 66, label: "66KB" },
+  { slabKb: 71, label: "71KB · backup" },
 ];
 const GOWN_LAYOUTS = [
-  {
-    layout: "gown_p1024",
-    type: "native_framed",
-    framedMaxSide: 1024,
-    priority: 0,
-    panelTag: "portrait framed 1024 · gown promo",
-    tiers: GOWN_KB_TIERS,
-  },
+  { layout: "gown_f1024",    type: "native_framed", framedMaxSide: 1024, priority: 0,  panelTag: "framed 1024 · gown promo",    tiers: GOWN_KB_TIERS },
+  { layout: "gown_f1024_ns", type: "native_framed", framedMaxSide: 1024, noStickers: true, priority: 2, panelTag: "framed 1024 · no stickers", tiers: GOWN_KB_TIERS },
+  { layout: "gown_f960",     type: "native_framed", framedMaxSide: 960,  priority: 4,  panelTag: "framed 960 · gown promo",     tiers: GOWN_KB_TIERS },
+  { layout: "gown_f960_ns",  type: "native_framed", framedMaxSide: 960,  noStickers: true, priority: 6, panelTag: "framed 960 · no stickers",  tiers: GOWN_KB_TIERS },
+  { layout: "gown_f800",     type: "native_framed", framedMaxSide: 800,  priority: 8,  panelTag: "framed 800 · gown promo",     tiers: GOWN_KB_TIERS },
+  { layout: "gown_f800_ns",  type: "native_framed", framedMaxSide: 800,  noStickers: true, priority: 10, panelTag: "framed 800 · no stickers", tiers: GOWN_KB_TIERS },
 ];
 // ── END GOWN ────────────────────────────────────────────────────────────────
 
@@ -523,10 +520,7 @@ function estimateMeeshoInr(item) {
     return Math.min(fileKb, 50);
   }
   if (path === "gown_framed") {
-    if (h > w && maxSide > 0 && maxSide <= 1024 && fileKb >= 58 && fileKb <= 66) return fileKb;
-    if (fileKb <= 68) return fileKb;
-    if (maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 66);
-    return Math.min(fileKb, 66);
+    return fileKb;
   }
   if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
     return Math.min(fileKb, 93);
@@ -1193,40 +1187,48 @@ async function generateAutoVariants(imageBuffer, categoryName, frameStyleInput) 
 }
 
 async function generateGownVariants(imageBuffer, frameStyleInput) {
-  const style = {
+  const userStyle = parseFrameStyle(frameStyleInput || {});
+  const baseStyle = {
     ...defaultFrameStyle(),
-    ...parseFrameStyle(frameStyleInput || {}),
-    borderColor: parseFrameStyle(frameStyleInput || {}).borderColor || GOWN_DEFAULT_TEAL,
-    stickerTemplate: parseFrameStyle(frameStyleInput || {}).stickerTemplate || "gown_promo",
+    ...userStyle,
+    borderColor: userStyle.borderColor || GOWN_DEFAULT_TEAL,
+    stickerTemplate: userStyle.stickerTemplate || "gown_promo",
   };
+
+  // Pre-rotate & cap source
+  let srcBuf = await sharp(imageBuffer).rotate().toBuffer();
+  let srcMeta = await sharp(srcBuf).metadata();
+  if (Math.max(srcMeta.width || 0, srcMeta.height || 0) > 2000) {
+    srcBuf = await sharp(srcBuf).resize(2000, 2000, { fit: "inside", withoutEnlargement: true }).toBuffer();
+    srcMeta = await sharp(srcBuf).metadata();
+  }
+
   const built = [];
   for (const layoutSpec of GOWN_LAYOUTS) {
+    const style = layoutSpec.noStickers
+      ? { ...baseStyle, stickerTemplate: "none" }
+      : baseStyle;
     const profile = {
       id: `gown_${layoutSpec.layout}`,
       path: "gown_framed",
       modeName: `Gown · ${layoutSpec.panelTag}`,
     };
-    let buffer = await sharp(imageBuffer).rotate().toBuffer();
-    let meta = await sharp(buffer).metadata();
-    let w = meta.width || 1;
-    let h = meta.height || 1;
-    if (Math.max(w, h) > 2000) {
-      buffer = await sharp(buffer).resize(2000, 2000, { fit: "inside", withoutEnlargement: true }).toBuffer();
-      meta = await sharp(buffer).metadata();
-      w = meta.width || w;
-      h = meta.height || h;
-    }
-    const fitted = fitFramedPhotoDims(w, h, layoutSpec.framedMaxSide ?? 1024);
+    const maxSide = layoutSpec.framedMaxSide ?? 1024;
+    let w = srcMeta.width || 1;
+    let h = srcMeta.height || 1;
+    let fitBuf = srcBuf;
+    const fitted = fitFramedPhotoDims(w, h, maxSide);
     if (fitted.w !== w || fitted.h !== h) {
-      buffer = await sharp(buffer).resize(fitted.w, fitted.h, { fit: "fill" }).toBuffer();
+      fitBuf = await sharp(srcBuf).resize(fitted.w, fitted.h, { fit: "fill" }).toBuffer();
     }
-    const framed = await prepareFramedBuffer(buffer, fitted.w, fitted.h, layoutSpec.framedMaxSide ?? 1024, style);
+    const framed = await prepareFramedBuffer(fitBuf, fitted.w, fitted.h, maxSide, style);
 
     for (const tier of GOWN_KB_TIERS) {
       let jpeg = await compressBusyToSlab(framed.buffer, tier.slabKb);
+      // Aggressive downscale if needed to hit slab
       if (jpeg.length > tier.slabKb * 1024) {
-        let factor = 0.94;
-        while (factor >= 0.60) {
+        let factor = 0.92;
+        while (factor >= 0.55) {
           const sm = await sharp(framed.buffer).resize(
             Math.max(1, Math.round(framed.width * factor)),
             Math.max(1, Math.round(framed.height * factor)),
@@ -1235,7 +1237,7 @@ async function generateGownVariants(imageBuffer, frameStyleInput) {
           const attempt = await compressBusyToSlab(sm, tier.slabKb);
           if (attempt.length <= tier.slabKb * 1024) { jpeg = attempt; break; }
           if (attempt.length < jpeg.length) jpeg = attempt;
-          factor -= 0.04;
+          factor -= 0.05;
         }
       }
       built.push({
@@ -1255,16 +1257,23 @@ async function generateGownVariants(imageBuffer, frameStyleInput) {
     }
   }
 
-  const slabCapBytes = 68 * 1024;
-  const inSlab = built.filter((b) => b.fileSizeBytes > 0 && b.fileSizeBytes <= slabCapBytes);
-  const pool = inSlab.length ? inSlab : built;
-  pool.sort((a, b) => estimateMeeshoInr(a) - estimateMeeshoInr(b) || a.fileSizeBytes - b.fileSizeBytes);
-  if (pool.length) {
-    pool[0].autoBest = true;
-    pool[0].recommended = true;
-    pool[0].lowest = true;
-  }
-  return pool.slice(0, 1);
+  // Sort by estimated shipping; dedupe by (fileSizeKb, dims)
+  built.sort((a, b) => estimateMeeshoInr(a) - estimateMeeshoInr(b) || a.fileSizeBytes - b.fileSizeBytes);
+  const seen = new Set();
+  const deduped = built.filter((b) => {
+    const key = `${b.fileSizeKb}-${b.width}x${b.height}-${b.profileId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const minEstimate = Math.min(...deduped.map((b) => estimateMeeshoInr(b)));
+  deduped.forEach((b, i) => {
+    b.autoRank = i + 1;
+    b.autoBest = i === 0;
+    b.lowest = estimateMeeshoInr(b) === minEstimate;
+    b.recommended = i < 3;
+  });
+  return deduped.slice(0, 42);
 }
 
 export async function generateAllVariants(imageBuffer, categoryName, frameStyleInput) {
