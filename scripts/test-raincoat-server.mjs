@@ -32,7 +32,8 @@ const inrs = results.map((r) => Number(r.estimatedShippingInr || r.shippingCharg
 const bytes = results.map((r) => r.fileSizeBytes || 0);
 const paths = [...new Set(results.map((r) => r.processingPath))];
 const maxSides = results.map((r) => Math.max(r.width || 0, r.height || 0));
-const isSquare1024 = results.some((r) => r.width === 1024 && r.height === 1024);
+const isPortraitFramed = results[0] && results[0].height > results[0].width;
+const notSquare = !(results[0]?.width === 1024 && results[0]?.height === 1024);
 
 const ok =
   results.length >= 20 &&
@@ -42,7 +43,8 @@ const ok =
   inrs.every((n) => n <= 66) &&
   bytes.every((b) => b <= 68 * 1024) &&
   maxSides.every((n) => n <= 1024) &&
-  isSquare1024;
+  isPortraitFramed &&
+  notSquare;
 
 if (!ok) {
   console.error("FAIL", {
@@ -52,7 +54,8 @@ if (!ok) {
     maxInr: Math.max(...inrs),
     maxBytes: Math.max(...bytes),
     maxSide: Math.max(...maxSides),
-    isSquare1024,
+    isPortraitFramed,
+    notSquare,
     bestDims: `${results[0]?.width}×${results[0]?.height}`,
     best: results[0],
   });
@@ -68,7 +71,8 @@ console.log(
     maxInr: Math.max(...inrs),
     maxBytes: Math.max(...bytes),
     maxSide: Math.max(...maxSides),
-    isSquare1024,
+    isPortraitFramed,
+    notSquare,
     bestDims: `${results[0]?.width}×${results[0]?.height}`,
   })
 );

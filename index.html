@@ -653,7 +653,7 @@
         <button type="button" class="mode framed raincoat" data-id="mo_raincoat_low" data-tag="Raincoat indoor busy lowest shipping framed" data-name="Raincoat Lowest ₹" data-raincoat="1">
           <p class="mode-title">Raincoat Lowest ₹</p>
           <p class="mode-for"><b>For:</b> Indoor raincoat / busy background — olive frame + promo stickers</p>
-          <span class="mode-tag">24 variants · olive frame + 3 promo stickers · ~₹63</span>
+          <span class="mode-tag">24 variants · portrait framed 1024 · ~₹63</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode framed" data-id="mo_indoor" data-tag="Indoor busy background" data-name="Framed Compress">
@@ -885,7 +885,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=137"></script>
+  <script src="/own-api.js?v=138"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -2444,7 +2444,7 @@
         if (framedNote) {
           if (isRaincoat) {
             framedNote.innerHTML =
-              "Your <b>border color</b> and <b>promotion sticker</b> selections above apply to all 24 raincoat square scenarios (1024²). Default is <b>olive frame</b> + <b>Raincoat promo</b> (3 stickers). Pick <b>Frame only</b> for border without stickers. Raincoat uses a <b>fixed thin frame</b> (~28px) matching the competitor screenshot — border width presets do not apply. <b>Tap any result</b> after generation to tweak further.";
+              "Your <b>border color</b> and <b>promotion sticker</b> selections above apply to all 24 raincoat portrait-framed scenarios (max side 1024). Default is <b>olive frame</b> + <b>Raincoat promo</b> (3 stickers). Pick <b>Frame only</b> for border without stickers. Output is <b>portrait framed</b> (tight border around the photo — not square pillarboxing). <b>Tap any result</b> after generation to tweak further.";
           } else if (isTallOne) {
             framedNote.innerHTML =
               "Same <b>49 tall scenarios</b> as Tall ₹50 (703×1024 exact), but with a <b>single FREE DELIVERY sticker</b> only — no second promo badge. Border color still applies. <b>Tap any result</b> after generation to tweak.";
@@ -2926,7 +2926,7 @@
                 : isFullLength
                   ? "Full-Length — fit + cap scenarios…"
                   : isRaincoat
-                    ? "Raincoat — square 1024² olive frame + promo stickers…"
+                    ? "Raincoat — portrait framed 1024 + promo stickers…"
                     : isTallOne
                     ? "Tall 1 sticker — 703×1024 exact scenarios…"
                     : isTall50

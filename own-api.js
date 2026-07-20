@@ -620,33 +620,28 @@
   const RAINCOAT_DEFAULT_OLIVE = "#556B2F";
   const RAINCOAT_LAYOUTS = [
     {
-      layout: "rc_sq1024",
-      type: "raincoat_exact_square",
-      outerW: 1024,
-      outerH: 1024,
-      borderPx: 28,
+      layout: "rc_f1024",
+      type: "indoor_framed",
+      framedMaxSide: 1024,
       priority: 0,
-      panelTag: "exact 1024² · screenshot match",
+      panelTag: "framed 1024 · promo",
       tiers: RAINCOAT_KB_TIERS,
     },
     {
-      layout: "rc_sq960",
-      type: "raincoat_exact_square",
-      outerW: 960,
-      outerH: 960,
-      borderPx: 26,
+      layout: "rc_f1024_ns",
+      type: "indoor_framed",
+      framedMaxSide: 1024,
+      noStickers: true,
       priority: 2,
-      panelTag: "exact 960² · screenshot",
+      panelTag: "framed 1024 · no stickers",
       tiers: RAINCOAT_KB_TIERS,
     },
     {
-      layout: "rc_sq900",
-      type: "raincoat_exact_square",
-      outerW: 900,
-      outerH: 900,
-      borderPx: 24,
-      priority: 4,
-      panelTag: "exact 900² · low band",
+      layout: "rc_f960",
+      type: "indoor_framed",
+      framedMaxSide: 960,
+      priority: 5,
+      panelTag: "framed 960 · promo",
       tiers: RAINCOAT_KB_TIERS,
     },
   ];
@@ -2439,16 +2434,13 @@
     return finalizeAutoVariants(pool, options);
   }
 
-  /** Raincoat — keep framed max side ≤1024; prefer exact 1024² square + olive promo in the ₹63 band. */
+  /** Raincoat — portrait framed max side ≤1024; prefer promo stickers in the ₹63 band. */
   function finalizeRaincoatVariants(variants, options = {}) {
     const maxVariants = options.maxVariants ?? RAINCOAT_MAX_VARIANTS;
     const minVariants = options.minVariants ?? 1;
-    const deduped = dedupeAutoVariants(variants);
-    const squareBand = deduped.filter(
-      (v) => v.width === v.height && Math.max(v.width || 0, v.height || 0) <= 1024
-    );
-    const capped = deduped.filter((v) => Math.max(v.width || 0, v.height || 0) <= 1024);
-    const pool = squareBand.length > 0 ? squareBand : capped.length > 0 ? capped : deduped;
+    const capped = variants.filter((v) => Math.max(v.width || 0, v.height || 0) <= 1024);
+    const pool = capped.length > 0 ? capped : variants;
+    const deduped = dedupeAutoVariants(pool);
 
     const inrOf = (v) => estimateMeeshoInr(v);
     const priorityOf = (v) => v.flatlayPriority ?? v.reframeMeta?.flatlayPriority ?? 99;
@@ -2456,30 +2448,32 @@
     const isNoStickers = (v) =>
       v.reframeMeta?.frameStyle?.stickerTemplate === "none" ||
       String(v.profileId || "").includes("_ns");
+    const isPortraitFramed = (v) => (v.height || 0) > (v.width || 0);
 
     const byCost = (a, b) =>
       inrOf(a) - inrOf(b) ||
       priorityOf(a) - priorityOf(b) ||
       (a.bytes || 0) - (b.bytes || 0);
-    const sq1024Bias = (v) => (v.width === 1024 && v.height === 1024 ? 0 : 1);
 
-    const promoInBand = pool.filter((v) => isPromo(v) && inrOf(v) <= 66);
-    const sorted = pool.slice().sort((a, b) => {
+    const promoInBand = deduped.filter((v) => isPromo(v) && inrOf(v) <= 66);
+    const sorted = deduped.slice().sort((a, b) => {
       const promoBias = (v) => (isPromo(v) ? 0 : isNoStickers(v) ? 2 : 1);
+      const portraitBias = (v) => (isPortraitFramed(v) ? 0 : 1);
       return (
         promoBias(a) - promoBias(b) ||
-        sq1024Bias(a) - sq1024Bias(b) ||
+        portraitBias(a) - portraitBias(b) ||
         byCost(a, b)
       );
     });
 
     let ordered = sorted;
     if (promoInBand.length) {
-      const sq1024Promo = promoInBand.filter((v) => v.width === 1024 && v.height === 1024);
-      const promoPool = sq1024Promo.length ? sq1024Promo : promoInBand;
+      const portraitPromo = promoInBand.filter((v) => isPortraitFramed(v));
+      const promoPool = portraitPromo.length ? portraitPromo : promoInBand;
       const bestPromo = promoPool.slice().sort((a, b) => {
         const tierBias = (v) => (v.reframeMeta?.tier?.slabKb === 63 ? 0 : 1);
-        return tierBias(a) - tierBias(b) || byCost(a, b);
+        const f1024Bias = (v) => (String(v.profileId || "").includes("rc_f1024") ? 0 : 1);
+        return f1024Bias(a) - f1024Bias(b) || tierBias(a) - tierBias(b) || byCost(a, b);
       })[0];
       ordered = [bestPromo, ...sorted.filter((v) => v !== bestPromo)];
     }

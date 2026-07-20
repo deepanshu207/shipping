@@ -75,33 +75,28 @@ const RAINCOAT_DEFAULT_OLIVE = "#556B2F";
 
 const RAINCOAT_LAYOUTS = [
   {
-    layout: "rc_sq1024",
-    type: "raincoat_exact_square",
-    outerW: 1024,
-    outerH: 1024,
-    borderPx: 28,
+    layout: "rc_f1024",
+    type: "indoor_framed",
+    framedMaxSide: 1024,
     priority: 0,
-    panelTag: "exact 1024² · screenshot match",
+    panelTag: "framed 1024 · promo",
     tiers: RAINCOAT_KB_TIERS,
   },
   {
-    layout: "rc_sq960",
-    type: "raincoat_exact_square",
-    outerW: 960,
-    outerH: 960,
-    borderPx: 26,
+    layout: "rc_f1024_ns",
+    type: "indoor_framed",
+    framedMaxSide: 1024,
+    noStickers: true,
     priority: 2,
-    panelTag: "exact 960² · screenshot",
+    panelTag: "framed 1024 · no stickers",
     tiers: RAINCOAT_KB_TIERS,
   },
   {
-    layout: "rc_sq900",
-    type: "raincoat_exact_square",
-    outerW: 900,
-    outerH: 900,
-    borderPx: 24,
-    priority: 4,
-    panelTag: "exact 900² · low band",
+    layout: "rc_f960",
+    type: "indoor_framed",
+    framedMaxSide: 960,
+    priority: 5,
+    panelTag: "framed 960 · promo",
     tiers: RAINCOAT_KB_TIERS,
   },
 ];
@@ -1234,22 +1229,24 @@ async function generateRaincoatVariants(imageBuffer, frameStyleInput) {
       });
     }
   }
-  const squareBand = built.filter((b) => b.width === b.height && Math.max(b.width, b.height) <= 1024);
-  const capped = built.filter((b) => Math.max(b.width, b.height) <= 1024);
-  const pool = squareBand.length ? squareBand : capped.length ? capped : built;
-  pool.sort(
-    (a, b) => {
-      const sq1024Bias = (v) => (v.width === 1024 && v.height === 1024 ? 0 : 1);
-      const tier63Bias = (v) => (kbFromBytes(v.fileSizeBytes) === 63 ? 0 : 1);
-      return (
-        sq1024Bias(a) - sq1024Bias(b) ||
-        tier63Bias(a) - tier63Bias(b) ||
-        estimateMeeshoInr(a) - estimateMeeshoInr(b) ||
-        (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99) ||
-        a.fileSizeBytes - b.fileSizeBytes
-      );
-    }
+  const portraitBand = built.filter(
+    (b) => (b.height || 0) > (b.width || 0) && Math.max(b.width, b.height) <= 1024
   );
+  const capped = built.filter((b) => Math.max(b.width, b.height) <= 1024);
+  const pool = portraitBand.length ? portraitBand : capped.length ? capped : built;
+  pool.sort((a, b) => {
+    const portraitBias = (v) => ((v.height || 0) > (v.width || 0) ? 0 : 1);
+    const f1024Bias = (v) => (String(v.profileId || "").includes("rc_f1024") ? 0 : 1);
+    const tier63Bias = (v) => (kbFromBytes(v.fileSizeBytes) === 63 ? 0 : 1);
+    return (
+      portraitBias(a) - portraitBias(b) ||
+      f1024Bias(a) - f1024Bias(b) ||
+      tier63Bias(a) - tier63Bias(b) ||
+      estimateMeeshoInr(a) - estimateMeeshoInr(b) ||
+      (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99) ||
+      a.fileSizeBytes - b.fileSizeBytes
+    );
+  });
   if (pool.length) {
     pool[0].autoBest = true;
     pool[0].recommended = true;
