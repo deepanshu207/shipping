@@ -33,7 +33,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/?v=140`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/?v=141`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoProcessor?.optimize, { timeout: 20000 });
 
     const result = await page.evaluate(async () => {
@@ -76,8 +76,7 @@ async function run() {
     });
 
     const ok =
-      result.count >= 20 &&
-      result.count <= 30 &&
+      result.count === 1 &&
       result.hasRaincoatPath &&
       result.oliveForced &&
       result.noHighBand &&

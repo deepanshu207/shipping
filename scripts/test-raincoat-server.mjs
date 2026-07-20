@@ -36,8 +36,7 @@ const isPortraitFramed = results[0] && results[0].height > results[0].width;
 const notSquare = !(results[0]?.width === 1024 && results[0]?.height === 1024);
 
 const ok =
-  results.length >= 20 &&
-  results.length <= 30 &&
+  results.length === 1 &&
   paths.includes("raincoat_framed") &&
   !paths.includes("framed_classic") &&
   inrs.every((n) => n <= 66) &&
@@ -45,7 +44,8 @@ const ok =
   bytes.every((b) => b <= 68 * 1024) &&
   maxSides.every((n) => n <= 1024) &&
   isPortraitFramed &&
-  notSquare;
+  notSquare &&
+  String(results[0]?.profileId || "").includes("rc_p1024");
 
 if (!ok) {
   console.error("FAIL", {

@@ -82,23 +82,6 @@ const RAINCOAT_LAYOUTS = [
     panelTag: "portrait framed 1024 · promo",
     tiers: RAINCOAT_KB_TIERS,
   },
-  {
-    layout: "rc_p1024_ns",
-    type: "indoor_framed",
-    framedMaxSide: 1024,
-    noStickers: true,
-    priority: 2,
-    panelTag: "portrait framed 1024 · no stickers",
-    tiers: RAINCOAT_KB_TIERS,
-  },
-  {
-    layout: "rc_p960",
-    type: "indoor_framed",
-    framedMaxSide: 960,
-    priority: 4,
-    panelTag: "portrait framed 960 · promo",
-    tiers: RAINCOAT_KB_TIERS,
-  },
 ];
 
 const SUPPLIERDEN_TALL_LAYOUTS = [
@@ -1118,7 +1101,7 @@ async function compressBusyToSlabCapped(buffer, slabKb, aggressive = false) {
   let best = await compressBusyToSlabOnce(buffer, slabKb);
   if (best.length <= capBytes) return best;
   let factor = 0.96;
-  const minFactor = aggressive ? 0.7 : 0.78;
+  const minFactor = aggressive ? 0.5 : 0.78;
   while (factor >= minFactor) {
     const meta = await sharp(buffer).metadata();
     const w = Math.max(1, Math.round((meta.width || 1) * factor));
@@ -1230,28 +1213,23 @@ async function generateRaincoatVariants(imageBuffer, frameStyleInput) {
     }
   }
   const slabCapBytes = 68 * 1024;
-  const inSlab = built.filter((b) => (b.fileSizeBytes || 0) <= slabCapBytes);
-  const capped = inSlab.filter((b) => Math.max(b.width, b.height) <= 1024);
-  const pool = capped.length ? capped : inSlab.length ? inSlab : built;
-  pool.sort((a, b) => {
-    const portraitBias = (v) => ((v.height || 0) > (v.width || 0) ? 0 : 1);
-    const p1024Bias = (v) => (String(v.profileId || "").includes("rc_p1024") ? 0 : 1);
-    const tier63Bias = (v) => (kbFromBytes(v.fileSizeBytes) === 63 ? 0 : 1);
-    return (
-      portraitBias(a) - portraitBias(b) ||
-      p1024Bias(a) - p1024Bias(b) ||
-      tier63Bias(a) - tier63Bias(b) ||
+  const inSlab = built.filter((b) => (b.fileSizeBytes || 0) > 0 && b.fileSizeBytes <= slabCapBytes);
+  const portraitCap = inSlab.filter(
+    (b) => (b.height || 0) > (b.width || 0) && Math.max(b.width, b.height) <= 1024
+  );
+  const promoP1024 = portraitCap.filter((b) => String(b.profileId || "").includes("rc_p1024"));
+  const pool = promoP1024.length ? promoP1024 : portraitCap.length ? portraitCap : inSlab;
+  if (!pool.length) return [];
+  pool.sort(
+    (a, b) =>
       estimateMeeshoInr(a) - estimateMeeshoInr(b) ||
-      (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99) ||
       a.fileSizeBytes - b.fileSizeBytes
-    );
-  });
-  if (pool.length) {
-    pool[0].autoBest = true;
-    pool[0].recommended = true;
-    pool[0].lowest = true;
-  }
-  return pool.slice(0, 24);
+  );
+  const best = pool[0];
+  best.autoBest = true;
+  best.recommended = true;
+  best.lowest = true;
+  return [best];
 }
 
 async function compressToTarget(buffer, targetBytes, minQ, whiteRatio, studio, absMinOverride) {

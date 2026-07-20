@@ -615,7 +615,7 @@
     { slabKb: 65, label: "65KB" },
     { slabKb: 66, label: "66KB · backup" },
   ];
-  const RAINCOAT_MAX_VARIANTS = 24;
+  const RAINCOAT_MAX_VARIANTS = 1;
   const RAINCOAT_PROCESS_TIMEOUT_MS = 300000;
   const RAINCOAT_DEFAULT_OLIVE = "#556B2F";
   const RAINCOAT_LAYOUTS = [
@@ -625,23 +625,6 @@
       framedMaxSide: 1024,
       priority: 0,
       panelTag: "portrait framed 1024 · promo",
-      tiers: RAINCOAT_KB_TIERS,
-    },
-    {
-      layout: "rc_p1024_ns",
-      type: "indoor_framed",
-      framedMaxSide: 1024,
-      noStickers: true,
-      priority: 2,
-      panelTag: "portrait framed 1024 · no stickers",
-      tiers: RAINCOAT_KB_TIERS,
-    },
-    {
-      layout: "rc_p960",
-      type: "indoor_framed",
-      framedMaxSide: 960,
-      priority: 4,
-      panelTag: "portrait framed 960 · promo",
       tiers: RAINCOAT_KB_TIERS,
     },
   ];
@@ -2441,65 +2424,33 @@
     return finalizeAutoVariants(pool, options);
   }
 
-  /** Raincoat — portrait framed max side ≤1024 @ 58–66 KB (~₹63); drop oversize slab misses. */
+  /** Raincoat — single portrait rc_p1024 pick in 58–66 KB slab (~₹63); never surface oversize. */
   function finalizeRaincoatVariants(variants, options = {}) {
     const maxVariants = options.maxVariants ?? RAINCOAT_MAX_VARIANTS;
     const minVariants = options.minVariants ?? 1;
     const slabCapBytes = 68 * 1024;
-    const inSlab = variants.filter((v) => (v.bytes || 0) <= slabCapBytes);
-    const capped = inSlab.filter((v) => Math.max(v.width || 0, v.height || 0) <= 1024);
-    const pool = capped.length > 0 ? capped : inSlab.length > 0 ? inSlab : variants;
-    const deduped = dedupeAutoVariants(pool);
+    const inSlab = variants.filter((v) => (v.bytes || 0) > 0 && (v.bytes || 0) <= slabCapBytes);
+    const portraitCap = inSlab.filter(
+      (v) => (v.height || 0) > (v.width || 0) && Math.max(v.width || 0, v.height || 0) <= 1024
+    );
+    const promoP1024 = portraitCap.filter(
+      (v) =>
+        String(v.profileId || "").includes("rc_p1024") &&
+        v.reframeMeta?.frameStyle?.stickerTemplate === "raincoat_promo"
+    );
+    const pool = promoP1024.length ? promoP1024 : portraitCap.length ? portraitCap : inSlab;
+    if (!pool.length) return [];
 
     const inrOf = (v) => estimateMeeshoInr(v);
-    const priorityOf = (v) => v.flatlayPriority ?? v.reframeMeta?.flatlayPriority ?? 99;
-    const isPromo = (v) => v.reframeMeta?.frameStyle?.stickerTemplate === "raincoat_promo";
-    const isNoStickers = (v) =>
-      v.reframeMeta?.frameStyle?.stickerTemplate === "none" ||
-      String(v.profileId || "").includes("_ns");
-    const isPortraitFramed = (v) => (v.height || 0) > (v.width || 0);
-
-    const byCost = (a, b) =>
-      inrOf(a) - inrOf(b) ||
-      priorityOf(a) - priorityOf(b) ||
-      (a.bytes || 0) - (b.bytes || 0);
-
-    const promoInBand = deduped.filter((v) => isPromo(v) && inrOf(v) <= 66);
-    const sorted = deduped.slice().sort((a, b) => {
-      const promoBias = (v) => (isPromo(v) ? 0 : isNoStickers(v) ? 2 : 1);
-      const portraitBias = (v) => (isPortraitFramed(v) ? 0 : 1);
-      return (
-        promoBias(a) - promoBias(b) ||
-        portraitBias(a) - portraitBias(b) ||
-        byCost(a, b)
-      );
-    });
-
-    let ordered = sorted;
-    if (promoInBand.length) {
-      const portraitPromo = promoInBand.filter(isPortraitFramed);
-      const promoPool = portraitPromo.length ? portraitPromo : promoInBand;
-      const bestPromo = promoPool.slice().sort((a, b) => {
-        const tierBias = (v) => (v.reframeMeta?.tier?.slabKb === 63 ? 0 : 1);
-        const p1024Bias = (v) => (String(v.profileId || "").includes("rc_p1024") ? 0 : 1);
-        return p1024Bias(a) - p1024Bias(b) || tierBias(a) - tierBias(b) || byCost(a, b);
-      })[0];
-      ordered = [bestPromo, ...sorted.filter((v) => v !== bestPromo)];
-    }
-
-    const cappedList = ordered.slice(0, maxVariants);
-    const minCount = Math.min(minVariants, ordered.length);
-    const results =
-      cappedList.length >= minCount
-        ? cappedList
-        : ordered.slice(0, Math.max(minCount, cappedList.length));
+    const best = pool.slice().sort((a, b) => inrOf(a) - inrOf(b) || (a.bytes || 0) - (b.bytes || 0))[0];
+    const results = [best].slice(0, maxVariants);
     results.forEach((v, i) => {
       v.autoRank = i + 1;
       v.autoBest = i === 0;
-      v.recommended = i < 3;
+      v.recommended = true;
       v.lowest = i === 0;
     });
-    return results;
+    return results.length >= minVariants ? results : results;
   }
 
   function pathOf(url) {
@@ -4396,8 +4347,8 @@
       return blob;
     }
 
-    const minFactor = opts.reframeHeavyLayout ? 0.74 : 0.82;
-    let factor = opts.reframeHeavyLayout ? 0.96 : 0.98;
+    const minFactor = opts.raincoatSlab ? 0.5 : opts.reframeHeavyLayout ? 0.74 : 0.82;
+    let factor = opts.raincoatSlab ? 0.94 : opts.reframeHeavyLayout ? 0.96 : 0.98;
     let fallback = blob;
     while (factor >= minFactor) {
       const scaled = scaleCanvas(canvas, factor);
@@ -4628,7 +4579,11 @@
     const blob = capBytes
       ? await compressToByteCap(canvas, capBytes, compressOpts)
       : profile.raincoat && tier.slabKb
-        ? await compressToByteCap(canvas, tier.slabKb * 1024, compressOpts)
+        ? await compressToByteCap(canvas, tier.slabKb * 1024, {
+            ...compressOpts,
+            reframeHeavyLayout: true,
+            raincoatSlab: true,
+          })
         : profile.studio || profile.collageFramed
           ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true, profile.absMinQ)
           : await compressBusyToSlab(canvas, tier.slabKb);
