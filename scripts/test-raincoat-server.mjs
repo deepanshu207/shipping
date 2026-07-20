@@ -32,8 +32,7 @@ const inrs = results.map((r) => Number(r.estimatedShippingInr || r.shippingCharg
 const bytes = results.map((r) => r.fileSizeBytes || 0);
 const paths = [...new Set(results.map((r) => r.processingPath))];
 const maxSides = results.map((r) => Math.max(r.width || 0, r.height || 0));
-const isPortraitFramed = results[0] && results[0].height > results[0].width;
-const notSquare = !(results[0]?.width === 1024 && results[0]?.height === 1024);
+const isSquare1024 = results[0]?.width === 1024 && results[0]?.height === 1024;
 
 const ok =
   results.length >= 20 &&
@@ -41,10 +40,10 @@ const ok =
   paths.includes("raincoat_framed") &&
   !paths.includes("framed_classic") &&
   inrs.every((n) => n <= 66) &&
+  inrs.every((n) => n >= 56) &&
   bytes.every((b) => b <= 68 * 1024) &&
   maxSides.every((n) => n <= 1024) &&
-  isPortraitFramed &&
-  notSquare;
+  isSquare1024;
 
 if (!ok) {
   console.error("FAIL", {
@@ -54,8 +53,7 @@ if (!ok) {
     maxInr: Math.max(...inrs),
     maxBytes: Math.max(...bytes),
     maxSide: Math.max(...maxSides),
-    isPortraitFramed,
-    notSquare,
+    isSquare1024,
     bestDims: `${results[0]?.width}×${results[0]?.height}`,
     best: results[0],
   });
@@ -71,8 +69,7 @@ console.log(
     maxInr: Math.max(...inrs),
     maxBytes: Math.max(...bytes),
     maxSide: Math.max(...maxSides),
-    isPortraitFramed,
-    notSquare,
+    isSquare1024,
     bestDims: `${results[0]?.width}×${results[0]?.height}`,
   })
 );

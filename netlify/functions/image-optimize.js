@@ -75,28 +75,34 @@ const RAINCOAT_DEFAULT_OLIVE = "#556B2F";
 
 const RAINCOAT_LAYOUTS = [
   {
-    layout: "rc_f1024",
-    type: "indoor_framed",
-    framedMaxSide: 1024,
+    layout: "rc_sq1024",
+    type: "raincoat_exact_square",
+    outerW: 1024,
+    outerH: 1024,
+    borderPx: 48,
     priority: 0,
-    panelTag: "framed 1024 · promo",
+    panelTag: "exact 1024² · cover · promo",
     tiers: RAINCOAT_KB_TIERS,
   },
   {
-    layout: "rc_f1024_ns",
-    type: "indoor_framed",
-    framedMaxSide: 1024,
+    layout: "rc_sq1024_ns",
+    type: "raincoat_exact_square",
+    outerW: 1024,
+    outerH: 1024,
+    borderPx: 48,
     noStickers: true,
     priority: 2,
-    panelTag: "framed 1024 · no stickers",
+    panelTag: "exact 1024² · no stickers",
     tiers: RAINCOAT_KB_TIERS,
   },
   {
-    layout: "rc_f960",
-    type: "indoor_framed",
-    framedMaxSide: 960,
-    priority: 5,
-    panelTag: "framed 960 · promo",
+    layout: "rc_sq960",
+    type: "raincoat_exact_square",
+    outerW: 960,
+    outerH: 960,
+    borderPx: 44,
+    priority: 4,
+    panelTag: "exact 960² · low band",
     tiers: RAINCOAT_KB_TIERS,
   },
 ];
@@ -1166,14 +1172,12 @@ async function prepareRaincoatExactSquareBuffer(imageBuffer, layoutSpec, frameSt
   const innerH = outerH - border * 2;
 
   const native = await prepareRaincoatNativeBuffer(imageBuffer, layoutSpec.capMaxSide);
-  const fitScale = Math.min(innerW / native.width, innerH / native.height);
-  const dw = Math.round(native.width * fitScale);
-  const dh = Math.round(native.height * fitScale);
-  const dx = border + Math.round((innerW - dw) / 2);
-  const dy = border + Math.round((innerH - dh) / 2);
-
+  const subject = await sharp(native.buffer)
+    .resize(innerW, innerH, { fit: "cover", position: "centre" })
+    .toBuffer();
+  const dx = border;
+  const dy = border;
   const bg = hexToRgb(style.borderColor);
-  const subject = await sharp(native.buffer).resize(dw, dh, { fit: "fill" }).toBuffer();
   const composites = [
     { input: subject, left: dx, top: dy },
     ...stickerCompositesForTemplate(style.stickerTemplate, border, innerW, innerH),
@@ -1229,18 +1233,13 @@ async function generateRaincoatVariants(imageBuffer, frameStyleInput) {
       });
     }
   }
-  const portraitBand = built.filter(
-    (b) => (b.height || 0) > (b.width || 0) && Math.max(b.width, b.height) <= 1024
-  );
   const capped = built.filter((b) => Math.max(b.width, b.height) <= 1024);
-  const pool = portraitBand.length ? portraitBand : capped.length ? capped : built;
+  const pool = capped.length ? capped : built;
   pool.sort((a, b) => {
-    const portraitBias = (v) => ((v.height || 0) > (v.width || 0) ? 0 : 1);
-    const f1024Bias = (v) => (String(v.profileId || "").includes("rc_f1024") ? 0 : 1);
+    const squareBias = (v) => (v.width === 1024 && v.height === 1024 ? 0 : 1);
     const tier63Bias = (v) => (kbFromBytes(v.fileSizeBytes) === 63 ? 0 : 1);
     return (
-      portraitBias(a) - portraitBias(b) ||
-      f1024Bias(a) - f1024Bias(b) ||
+      squareBias(a) - squareBias(b) ||
       tier63Bias(a) - tier63Bias(b) ||
       estimateMeeshoInr(a) - estimateMeeshoInr(b) ||
       (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99) ||
