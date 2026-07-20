@@ -168,6 +168,16 @@
     }
     .mode.selected.fulllength .mode-selected-pill { color: #b45309; }
     .mode.selected.flatlay .mode-selected-pill { color: #0369a1; }
+    .mode.gown .mode-tag { background: #ecfeff; color: #0e7490; }
+    .mode.selected.gown {
+      border-color: #06b6d4;
+      box-shadow: 0 0 0 3px rgb(6 182 212 / 0.18);
+    }
+    .dark .mode.selected.gown {
+      border-color: #22d3ee;
+      box-shadow: 0 0 0 3px rgb(34 211 238 / 0.2);
+    }
+    .mode.selected.gown .mode-selected-pill { color: #0e7490; }
     .mode-title { font-size: 0.92rem; font-weight: 800; margin: 0 0 0.3rem; line-height: 1.25; }
     .mode-for { font-size: 0.75rem; color: var(--muted); margin: 0; line-height: 1.35; }
     .mode-for b { color: var(--text); font-weight: 700; }
@@ -682,6 +692,12 @@
           <span class="mode-tag">10 scenarios · capped 1024/960 · targets ₹39–₹51 band</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
+        <button type="button" class="mode framed gown" data-id="mo_gown_low" data-tag="Gown outdoor dress lowest shipping framed" data-name="Gown Lowest ₹" data-gown="1">
+          <p class="mode-title">Gown Lowest ₹</p>
+          <p class="mode-for"><b>For:</b> Outdoor gown / dress — teal frame + Best Price · Flash Sale · Most Popular stickers (~₹63)</p>
+          <span class="mode-tag">1 pick · portrait framed · ~₹63</span>
+          <span class="mode-selected-pill">✓ Selected</span>
+        </button>
         <button type="button" class="mode framed tall50" data-id="mo_supplierden_50_one" data-tag="Tall dress kaftan ₹50 supplierden one sticker lowest shipping" data-name="Tall 1 sticker" data-tall50="1" data-tall-one="1">
           <p class="mode-title">Tall 1 sticker</p>
           <p class="mode-for"><b>For:</b> Full-length dress / kaftan — exact 703×1024 purple frame, FREE DELIVERY only (~₹50)</p>
@@ -869,7 +885,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=128"></script>
+  <script src="/own-api.js?v=142"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -2434,6 +2450,9 @@
           } else if (isCollage) {
             framedNote.innerHTML =
               "Generates <b>studio white</b> scenarios plus <b>framed copies</b> using your border color and sticker template.";
+          } else if (selected && selected.dataset.gown === "1") {
+            framedNote.innerHTML =
+              "Produces <b>one portrait-framed image</b> with a <b>teal border</b> + 3 promo stickers (Best Price · Flash Sale · Most Popular) targeting <b>~₹63</b> shipping. Change the border color above to customize. <b>Tap the result</b> after generation to tweak further.";
           } else if (selected && selected.dataset.auto === "1") {
             framedNote.innerHTML =
               "Border &amp; stickers apply to <b>framed variants</b> in this Auto run. Tap any result to change frame after generation.";
@@ -2480,6 +2499,10 @@
           selected = btn;
           if (btn.dataset.tallOne === "1" && stickerTemplate && FS) {
             stickerTemplate.value = "supplierden_one";
+            updateTemplateDesc();
+          }
+          if (btn.dataset.gown === "1" && stickerTemplate && FS) {
+            stickerTemplate.value = "gown_promo";
             updateTemplateDesc();
           }
           syncModeUI();
@@ -2878,6 +2901,7 @@
         var isFlatlay = selected && selected.dataset.flatlay === "1";
         var isModel = selected && selected.dataset.model === "1";
         var isFullLength = selected && selected.dataset.fulllength === "1";
+        var isGown = selected && selected.dataset.gown === "1";
         var isTall50 = selected && selected.dataset.tall50 === "1";
         var isTallOne = selected && selected.dataset.tallOne === "1";
         lastUploadDataUrl = previewUrl;
@@ -2894,7 +2918,9 @@
                 ? "Model Photo — framed 1024 scenarios…"
                 : isFullLength
                   ? "Full-Length — fit + cap scenarios…"
-                  : isTallOne
+                  : isGown
+                    ? "Gown — portrait framed + promo stickers…"
+                    : isTallOne
                     ? "Tall 1 sticker — 703×1024 exact scenarios…"
                     : isTall50
                       ? "Tall — 703×1024 exact scenarios…"

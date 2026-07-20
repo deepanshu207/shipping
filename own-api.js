@@ -604,6 +604,33 @@
       tiers: FLATLAY_KB_TIERS_FRAMED,
     },
   ];
+  // ── GOWN CATEGORY ──────────────────────────────────────────────────────────
+  /** Gown / outdoor dress — teal frame + 3-sticker promo, 58–66 KB → ~₹63. */
+  const GOWN_DEFAULT_TEAL = "#06B6D4";
+  const GOWN_MAX_VARIANTS = 1;
+  const GOWN_PROCESS_TIMEOUT_MS = 180000;
+  const GOWN_KB_TIERS = [
+    { slabKb: 58, label: "58KB · low band", lowest: true },
+    { slabKb: 60, label: "60KB · target" },
+    { slabKb: 61, label: "61KB" },
+    { slabKb: 62, label: "62KB" },
+    { slabKb: 63, label: "63KB · ₹63 match", recommended: true },
+    { slabKb: 64, label: "64KB" },
+    { slabKb: 65, label: "65KB" },
+    { slabKb: 66, label: "66KB · backup" },
+  ];
+  const GOWN_LAYOUTS = [
+    {
+      layout: "gown_p1024",
+      type: "native_framed",
+      framedMaxSide: 1024,
+      priority: 0,
+      panelTag: "portrait framed 1024 · gown promo",
+      tiers: GOWN_KB_TIERS,
+    },
+  ];
+  // ── END GOWN ────────────────────────────────────────────────────────────────
+
   /** Large framed files — same 1280px cap; Meesho may tier on dimensions not KB alone. */
   const TIERS_FRAMED_PRO = [
     { slabKb: 177, label: "Large file ~177 KB", lowest: true },
@@ -647,6 +674,8 @@
     { id: "royal_blue", name: "Royal Blue", color: "#1565C0" },
     { id: "emerald", name: "Emerald Green", color: "#059669" },
     { id: "purple", name: "Purple", color: "#7C3AED" },
+    { id: "olive", name: "Olive Green", color: "#556B2F" },
+    { id: "teal", name: "Teal", color: "#06B6D4" },
     { id: "black", name: "Black", color: "#111827" },
   ];
   const STICKER_TEMPLATE_META = [
@@ -667,6 +696,7 @@
     { id: "limited_time", name: "Limited Time", desc: "LIMITED TIME urgency tag" },
     { id: "flash_deal", name: "Flash Deal", desc: "FLASH DEAL star burst" },
     { id: "super_offer", name: "Super Offer", desc: "SUPER OFFER + 50% OFF" },
+    { id: "gown_promo", name: "Gown Promo", desc: "BEST PRICE + FLASH SALE + MOST POPULAR" },
   ];
   const STICKER_TEMPLATE_IDS = new Set(STICKER_TEMPLATE_META.map((t) => t.id));
   const STICKER_TEMPLATE_ALIASES = { supplierden: "supplierden_match", supplierden_one_sticker: "supplierden_one" };
@@ -679,6 +709,7 @@
     "framed_pro",
     "framed_low",
     "framed_mid",
+    "gown_framed",
     "framed_compact",
     "framed_mini",
     "flatlay_framed",
@@ -925,6 +956,12 @@
         if (fileKb === 52) return 146;
       }
       return Math.min(fileKb, 93);
+    }
+    if (path === "gown_framed") {
+      if (h > w && maxSide > 0 && maxSide <= 1024 && fileKb >= 58 && fileKb <= 66) return fileKb;
+      if (fileKb <= 68) return fileKb;
+      if (maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 66);
+      return Math.min(fileKb, 66);
     }
     if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
       return Math.min(fileKb, 93);
@@ -1977,6 +2014,103 @@
     );
   }
 
+  // ── GOWN OPTIMIZER ──────────────────────────────────────────────────────────
+
+  function isGownTagName(tagName) {
+    const tag = String(tagName || "").toLowerCase();
+    return (
+      (tag.includes("gown") && tag.includes("lowest")) ||
+      tag.includes("gown outdoor") ||
+      tag.includes("gown framed")
+    );
+  }
+
+  function resolveGownFrameStyle(frameStyle) {
+    const user = parseFrameStyle(frameStyle || {});
+    return {
+      borderColor: user.borderColor || GOWN_DEFAULT_TEAL,
+      stickerTemplate: normalizeStickerTemplate(user.stickerTemplate || "gown_promo"),
+      stickerLayout: user.stickerLayout || defaultStickerLayoutForTemplate("gown_promo"),
+      borderWidthPreset: user.borderWidthPreset || "standard",
+      borderWidthAdjust: user.borderWidthAdjust ?? 100,
+    };
+  }
+
+  function profileGownLowest() {
+    return {
+      id: "gown_framed",
+      studio: false,
+      tiers: GOWN_KB_TIERS,
+      path: "gown_framed",
+      modeName: "Gown Lowest ₹",
+      gown: true,
+      framedMaxSide: 1024,
+    };
+  }
+
+  function gownProfilesForImage() {
+    return GOWN_LAYOUTS.map((layoutSpec) => ({
+      ...profileGownLowest(),
+      id: `gown_${layoutSpec.layout}`,
+      modeName: `Gown · ${layoutSpec.panelTag || layoutSpec.layout}`,
+      studio: false,
+      collageFramed: false,
+      flatlaySpec: layoutSpec,
+      flatlayPriority: layoutSpec.priority ?? 0,
+      framedMaxSide: layoutSpec.framedMaxSide ?? 1024,
+      tiers: layoutSpec.tiers,
+    }));
+  }
+
+  async function optimizeGownAll(img, frameStyle, onProgress) {
+    const styled = resolveGownFrameStyle(frameStyle);
+    const profiles = gownProfilesForImage();
+    const totalSteps = profiles.reduce((sum, p) => sum + p.tiers.length, 0);
+    const allVariants = [];
+    let done = 0;
+    for (const profile of profiles) {
+      const canvas = prepareFlatlayLayoutCanvas(img, profile.flatlaySpec, styled);
+      const whiteRatio = measureNearWhiteRatio(canvas);
+      for (const tier of profile.tiers) {
+        if (onProgress) {
+          onProgress(
+            10 + (done / totalSteps) * 85,
+            `Gown · ${profile.modeName} · ${tier.label}`
+          );
+        }
+        allVariants.push(
+          await buildVariantForTier(canvas, whiteRatio, profile, tier, {
+            showMode: true,
+            reframeHeavyLayout: true,
+            reframeMeta: buildReframeMeta(profile, tier, {
+              frameStyle: flatlayFramedStyle(profile.flatlaySpec, styled),
+              studioLayout: profile.studioLayout,
+              whiteRatio,
+            }),
+          })
+        );
+        done += 1;
+        await yieldToMain();
+      }
+      releaseCanvas(canvas);
+    }
+    // Return single best pick in 58–66 KB slab
+    const slabCapBytes = 68 * 1024;
+    const inSlab = allVariants.filter((v) => (v.bytes || 0) > 0 && (v.bytes || 0) <= slabCapBytes);
+    const pool = inSlab.length ? inSlab : allVariants;
+    pool.sort((a, b) => estimateMeeshoInr(a) - estimateMeeshoInr(b) || (a.bytes || 0) - (b.bytes || 0));
+    const results = pool.slice(0, GOWN_MAX_VARIANTS);
+    results.forEach((v, i) => {
+      v.autoRank = i + 1;
+      v.autoBest = i === 0;
+      v.recommended = true;
+      v.lowest = i === 0;
+    });
+    return results;
+  }
+
+  // ── END GOWN OPTIMIZER ──────────────────────────────────────────────────────
+
   function contentBoundsFromCanvas(canvas) {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     const { width, height } = canvas;
@@ -2311,6 +2445,7 @@
     if (isFlatlayTagName(tagName)) return FLATLAY_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     if (isModelPhotoTagName(tagName)) return MODEL_PHOTO_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     if (isFullLengthTagName(tagName)) return FULL_LENGTH_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
+    if (isGownTagName(tagName)) return GOWN_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     if (isSupplierDenTagName(tagName)) return SUPPLIERDEN_PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
     return PROCESS_TIMEOUT_MS + STALE_BUFFER_MS;
   }
@@ -2795,6 +2930,9 @@
     ) {
       return { id: "full_length_all", fullLength: true, modeName: "Full-Length Lowest ₹" };
     }
+    if (isGownTagName(tag)) {
+      return { id: "gown_all", gown: true, modeName: "Gown Lowest ₹" };
+    }
     if (
       tag.includes("bra collage") ||
       tag.includes("multi-scenario") ||
@@ -2940,9 +3078,11 @@
     limited_time: { line1: "LIMITED", line2: "TIME", accent: "#4527A0" },
     best_price: { line1: "BEST", line2: "PRICE", accent: "#C62828" },
     flash_deal: { line1: "FLASH", line2: "DEAL", accent: "#D84315" },
+    flash_sale: { line1: "FLASH", line2: "SALE", accent: "#E53935" },
     super_offer: { line1: "SUPER", line2: "OFFER", accent: "#00897B" },
     flat_off: { line1: "50%", line2: "OFF", accent: "#F57C00" },
     mega_sale: { line1: "MEGA", line2: "SALE", accent: "#FF5722" },
+    most_popular: { line1: "MOST", line2: "POPULAR", accent: "#D32F2F" },
   };
 
   function drawFreeDeliveryTruckAccent(ctx, truckW, truckH, truckY, scale) {
@@ -3040,6 +3180,14 @@
 
   function renderFlatOffBadge(scale, texts = {}) {
     return renderCompactPromoSticker(scale, texts, "flat_off");
+  }
+
+  function renderFlashSaleBadge(scale, texts = {}) {
+    return renderCompactPromoSticker(scale, texts, "flash_sale");
+  }
+
+  function renderMostPopularBadge(scale, texts = {}) {
+    return renderCompactPromoSticker(scale, texts, "most_popular");
   }
 
   function renderFreeDeliverySticker(scale, texts = {}) {
@@ -3195,6 +3343,16 @@
       return;
     }
 
+    if (template === "gown_promo") {
+      const ribbon = renderBestPriceRibbon(scale);
+      ctx.drawImage(ribbon.canvas, border + photoW * 0.02, border + photoH * 0.03, ribbon.width * 0.9, ribbon.height * 0.9);
+      const flash = renderFlashSaleBadge(scale * 0.88);
+      ctx.drawImage(flash.canvas, border + photoW - flash.width * 0.88 - photoW * 0.02, border + photoH * 0.03, flash.width * 0.88, flash.height * 0.88);
+      const popular = renderMostPopularBadge(scale * 0.85);
+      ctx.drawImage(popular.canvas, border + photoW * 0.02, border + photoH * 0.6, popular.width * 0.85, popular.height * 0.85);
+      return;
+    }
+
     drawClassicPromoOverlays(ctx, border, photoW, photoH);
   }
 
@@ -3240,6 +3398,11 @@
       primary: { type: "mega_sale", x: 0.68, y: 0.08, label: "Mega sale badge" },
       secondary: null,
     },
+    gown_promo: {
+      dual: true,
+      primary: { type: "best_price", x: 0.08, y: 0.06, label: "Best price ribbon" },
+      secondary: { type: "most_popular", x: 0.08, y: 0.62, label: "Most popular badge" },
+    },
   };
 
   const STICKER_ASSET_TYPES = [
@@ -3253,6 +3416,7 @@
     { id: "super_offer", name: "Super offer" },
     { id: "flat_off", name: "50% off badge" },
     { id: "mega_sale", name: "Mega sale" },
+    { id: "most_popular", name: "Most popular badge" },
   ];
   const STICKER_ASSET_TYPE_IDS = new Set(STICKER_ASSET_TYPES.map((t) => t.id));
   const REFRAME_MAX_STICKERS = 5;
@@ -4507,6 +4671,9 @@
     }
     if (profile.fullLength) {
       return optimizeFullLengthAll(img, frameStyle, onProgress);
+    }
+    if (profile.gown) {
+      return optimizeGownAll(img, frameStyle, onProgress);
     }
     if (profile.supplierDenAll) {
       return optimizeSupplierDenAll(img, frameStyle, onProgress, tagName);
