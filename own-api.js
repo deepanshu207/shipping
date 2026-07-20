@@ -609,7 +609,11 @@
   const GOWN_DEFAULT_TEAL = "#06B6D4";
   const GOWN_MAX_VARIANTS = 50;
   const GOWN_PROCESS_TIMEOUT_MS = 360000;
-  /** 7 KB slabs per layout; covers ~₹48–₹71 framed band. */
+  /**
+   * 7 slabs × 6 layouts = 42 variants. All layouts cap the canvas ≤800px —
+   * the size the user confirmed gives ~₹63 actual Meesho shipping.
+   * Larger canvases (1024/960) fail to compress small enough for complex outdoor photos.
+   */
   const GOWN_KB_TIERS = [
     { slabKb: 48, label: "48KB · lowest try", lowest: true },
     { slabKb: 52, label: "52KB" },
@@ -617,58 +621,67 @@
     { slabKb: 60, label: "60KB", recommended: true },
     { slabKb: 63, label: "63KB · ₹63 target" },
     { slabKb: 66, label: "66KB" },
-    { slabKb: 71, label: "71KB · backup" },
+    { slabKb: 71, label: "71KB" },
   ];
   const GOWN_LAYOUTS = [
+    // ≤480px — smallest canvas, easiest to hit low KB, best chance at ₹48–56
     {
-      layout: "gown_f1024",
-      type: "native_framed",
-      framedMaxSide: 1024,
+      layout: "gown_s480_ns",
+      type: "native_capped_framed",
+      capMaxSide: 420,
+      framedMaxSide: 480,
+      noStickers: true,
       priority: 0,
-      panelTag: "framed 1024 · gown promo",
+      panelTag: "framed 480 · no stickers",
       tiers: GOWN_KB_TIERS,
     },
     {
-      layout: "gown_f1024_ns",
-      type: "native_framed",
-      framedMaxSide: 1024,
+      layout: "gown_s480",
+      type: "native_capped_framed",
+      capMaxSide: 420,
+      framedMaxSide: 480,
+      priority: 1,
+      panelTag: "framed 480 · gown promo",
+      tiers: GOWN_KB_TIERS,
+    },
+    // ≤640px — small canvas
+    {
+      layout: "gown_s640_ns",
+      type: "native_capped_framed",
+      capMaxSide: 580,
+      framedMaxSide: 640,
       noStickers: true,
       priority: 2,
-      panelTag: "framed 1024 · no stickers",
+      panelTag: "framed 640 · no stickers",
       tiers: GOWN_KB_TIERS,
     },
     {
-      layout: "gown_f960",
-      type: "native_framed",
-      framedMaxSide: 960,
+      layout: "gown_s640",
+      type: "native_capped_framed",
+      capMaxSide: 580,
+      framedMaxSide: 640,
+      priority: 3,
+      panelTag: "framed 640 · gown promo",
+      tiers: GOWN_KB_TIERS,
+    },
+    // ≤800px — confirmed working (~₹63 on actual Meesho per user feedback)
+    {
+      layout: "gown_s800_ns",
+      type: "native_capped_framed",
+      capMaxSide: 740,
+      framedMaxSide: 800,
+      noStickers: true,
       priority: 4,
-      panelTag: "framed 960 · gown promo",
-      tiers: GOWN_KB_TIERS,
-    },
-    {
-      layout: "gown_f960_ns",
-      type: "native_framed",
-      framedMaxSide: 960,
-      noStickers: true,
-      priority: 6,
-      panelTag: "framed 960 · no stickers",
-      tiers: GOWN_KB_TIERS,
-    },
-    {
-      layout: "gown_f800",
-      type: "native_framed",
-      framedMaxSide: 800,
-      priority: 8,
-      panelTag: "framed 800 · gown promo",
-      tiers: GOWN_KB_TIERS,
-    },
-    {
-      layout: "gown_f800_ns",
-      type: "native_framed",
-      framedMaxSide: 800,
-      noStickers: true,
-      priority: 10,
       panelTag: "framed 800 · no stickers",
+      tiers: GOWN_KB_TIERS,
+    },
+    {
+      layout: "gown_s800",
+      type: "native_capped_framed",
+      capMaxSide: 740,
+      framedMaxSide: 800,
+      priority: 5,
+      panelTag: "framed 800 · gown promo",
       tiers: GOWN_KB_TIERS,
     },
   ];
@@ -1000,7 +1013,11 @@
       return Math.min(fileKb, 93);
     }
     if (path === "gown_framed") {
-      return fileKb;
+      // Small canvas (≤800px): honest estimate — user confirmed ~₹63 at this size
+      if (maxSide > 0 && maxSide <= 800) return fileKb;
+      // Larger canvas: Meesho charges higher minimum regardless of file size
+      if (maxSide <= 960) return Math.max(fileKb, 71);
+      return Math.max(fileKb, 93);
     }
     if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
       return Math.min(fileKb, 93);

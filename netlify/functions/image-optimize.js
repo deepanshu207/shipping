@@ -69,15 +69,17 @@ const GOWN_KB_TIERS = [
   { slabKb: 60, label: "60KB", recommended: true },
   { slabKb: 63, label: "63KB · ₹63 target" },
   { slabKb: 66, label: "66KB" },
-  { slabKb: 71, label: "71KB · backup" },
+  { slabKb: 71, label: "71KB" },
 ];
+// All layouts ≤800px — user confirmed this size range gives ~₹63 actual Meesho shipping.
+// Larger canvases (960/1024) can't compress small enough for complex outdoor photos.
 const GOWN_LAYOUTS = [
-  { layout: "gown_f1024",    type: "native_framed", framedMaxSide: 1024, priority: 0,  panelTag: "framed 1024 · gown promo",    tiers: GOWN_KB_TIERS },
-  { layout: "gown_f1024_ns", type: "native_framed", framedMaxSide: 1024, noStickers: true, priority: 2, panelTag: "framed 1024 · no stickers", tiers: GOWN_KB_TIERS },
-  { layout: "gown_f960",     type: "native_framed", framedMaxSide: 960,  priority: 4,  panelTag: "framed 960 · gown promo",     tiers: GOWN_KB_TIERS },
-  { layout: "gown_f960_ns",  type: "native_framed", framedMaxSide: 960,  noStickers: true, priority: 6, panelTag: "framed 960 · no stickers",  tiers: GOWN_KB_TIERS },
-  { layout: "gown_f800",     type: "native_framed", framedMaxSide: 800,  priority: 8,  panelTag: "framed 800 · gown promo",     tiers: GOWN_KB_TIERS },
-  { layout: "gown_f800_ns",  type: "native_framed", framedMaxSide: 800,  noStickers: true, priority: 10, panelTag: "framed 800 · no stickers", tiers: GOWN_KB_TIERS },
+  { layout: "gown_s480_ns", framedMaxSide: 480, noStickers: true, priority: 0,  panelTag: "framed 480 · no stickers",  tiers: GOWN_KB_TIERS },
+  { layout: "gown_s480",    framedMaxSide: 480,                   priority: 1,  panelTag: "framed 480 · gown promo",   tiers: GOWN_KB_TIERS },
+  { layout: "gown_s640_ns", framedMaxSide: 640, noStickers: true, priority: 2,  panelTag: "framed 640 · no stickers",  tiers: GOWN_KB_TIERS },
+  { layout: "gown_s640",    framedMaxSide: 640,                   priority: 3,  panelTag: "framed 640 · gown promo",   tiers: GOWN_KB_TIERS },
+  { layout: "gown_s800_ns", framedMaxSide: 800, noStickers: true, priority: 4,  panelTag: "framed 800 · no stickers",  tiers: GOWN_KB_TIERS },
+  { layout: "gown_s800",    framedMaxSide: 800,                   priority: 5,  panelTag: "framed 800 · gown promo",   tiers: GOWN_KB_TIERS },
 ];
 // ── END GOWN ────────────────────────────────────────────────────────────────
 
@@ -520,7 +522,9 @@ function estimateMeeshoInr(item) {
     return Math.min(fileKb, 50);
   }
   if (path === "gown_framed") {
-    return fileKb;
+    if (maxSide > 0 && maxSide <= 800) return fileKb;
+    if (maxSide <= 960) return Math.max(fileKb, 71);
+    return Math.max(fileKb, 93);
   }
   if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
     return Math.min(fileKb, 93);
