@@ -79,7 +79,7 @@ const RAINCOAT_LAYOUTS = [
     type: "raincoat_exact_square",
     outerW: 1024,
     outerH: 1024,
-    borderPx: 48,
+    borderPx: 28,
     priority: 0,
     panelTag: "exact 1024² · screenshot match",
     tiers: RAINCOAT_KB_TIERS,
@@ -89,7 +89,7 @@ const RAINCOAT_LAYOUTS = [
     type: "raincoat_exact_square",
     outerW: 960,
     outerH: 960,
-    borderPx: 44,
+    borderPx: 26,
     priority: 2,
     panelTag: "exact 960² · screenshot",
     tiers: RAINCOAT_KB_TIERS,
@@ -99,7 +99,7 @@ const RAINCOAT_LAYOUTS = [
     type: "raincoat_exact_square",
     outerW: 900,
     outerH: 900,
-    borderPx: 40,
+    borderPx: 24,
     priority: 4,
     panelTag: "exact 900² · low band",
     tiers: RAINCOAT_KB_TIERS,
@@ -1156,12 +1156,17 @@ async function prepareRaincoatNativeBuffer(imageBuffer, capMaxSide) {
   return { buffer, width: w, height: h };
 }
 
+function raincoatExactBorderPx(layoutSpec) {
+  const outer = Math.min(layoutSpec.outerW ?? 1024, layoutSpec.outerH ?? 1024);
+  const fallback = Math.max(20, Math.round(outer * 0.027));
+  return Math.max(20, Math.round(layoutSpec.borderPx ?? fallback));
+}
+
 async function prepareRaincoatExactSquareBuffer(imageBuffer, layoutSpec, frameStyleInput) {
   const style = resolveRaincoatFrameStyle(frameStyleInput);
   const outerW = layoutSpec.outerW ?? 1024;
   const outerH = layoutSpec.outerH ?? 1024;
-  const baseBorder = layoutSpec.borderPx ?? Math.max(40, Math.round(Math.min(outerW, outerH) * 0.047));
-  const border = Math.max(36, baseBorder);
+  const border = raincoatExactBorderPx(layoutSpec);
   const innerW = outerW - border * 2;
   const innerH = outerH - border * 2;
 
@@ -1235,8 +1240,10 @@ async function generateRaincoatVariants(imageBuffer, frameStyleInput) {
   pool.sort(
     (a, b) => {
       const sq1024Bias = (v) => (v.width === 1024 && v.height === 1024 ? 0 : 1);
+      const tier63Bias = (v) => (kbFromBytes(v.fileSizeBytes) === 63 ? 0 : 1);
       return (
         sq1024Bias(a) - sq1024Bias(b) ||
+        tier63Bias(a) - tier63Bias(b) ||
         estimateMeeshoInr(a) - estimateMeeshoInr(b) ||
         (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99) ||
         a.fileSizeBytes - b.fileSizeBytes

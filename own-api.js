@@ -624,7 +624,7 @@
       type: "raincoat_exact_square",
       outerW: 1024,
       outerH: 1024,
-      borderPx: 48,
+      borderPx: 28,
       priority: 0,
       panelTag: "exact 1024² · screenshot match",
       tiers: RAINCOAT_KB_TIERS,
@@ -634,7 +634,7 @@
       type: "raincoat_exact_square",
       outerW: 960,
       outerH: 960,
-      borderPx: 44,
+      borderPx: 26,
       priority: 2,
       panelTag: "exact 960² · screenshot",
       tiers: RAINCOAT_KB_TIERS,
@@ -644,7 +644,7 @@
       type: "raincoat_exact_square",
       outerW: 900,
       outerH: 900,
-      borderPx: 40,
+      borderPx: 24,
       priority: 4,
       panelTag: "exact 900² · low band",
       tiers: RAINCOAT_KB_TIERS,
@@ -1907,12 +1907,16 @@
     return c;
   }
 
-  function raincoatExactDims(spec, frameStyle) {
+  function raincoatExactBorderPx(spec) {
+    const outer = Math.min(spec.outerW ?? 1024, spec.outerH ?? 1024);
+    const fallback = Math.max(20, Math.round(outer * 0.027));
+    return Math.max(20, Math.round(spec.borderPx ?? fallback));
+  }
+
+  function raincoatExactDims(spec) {
     const outerW = spec.outerW ?? 1024;
     const outerH = spec.outerH ?? 1024;
-    const baseBorder = spec.borderPx ?? Math.max(40, Math.round(Math.min(outerW, outerH) * 0.047));
-    const widthScale = resolveBorderWidthScale(frameStyle);
-    const border = Math.max(36, Math.round(baseBorder * widthScale));
+    const border = raincoatExactBorderPx(spec);
     const innerW = outerW - border * 2;
     const innerH = outerH - border * 2;
     return { outerW, outerH, border, innerW, innerH };
@@ -1920,7 +1924,7 @@
 
   function prepareRaincoatExactSquareCanvas(img, spec, frameStyle) {
     const style = flatlayFramedStyle(spec, resolveRaincoatFrameStyle(frameStyle));
-    const { outerW, outerH, border, innerW, innerH } = raincoatExactDims(spec, style);
+    const { outerW, outerH, border, innerW, innerH } = raincoatExactDims(spec);
     const source = prepareRaincoatNativeSource(img, spec.capMaxSide ?? null);
 
     const c = document.createElement("canvas");
@@ -2471,7 +2475,9 @@
 
     let ordered = sorted;
     if (promoInBand.length) {
-      const bestPromo = promoInBand.slice().sort((a, b) => {
+      const sq1024Promo = promoInBand.filter((v) => v.width === 1024 && v.height === 1024);
+      const promoPool = sq1024Promo.length ? sq1024Promo : promoInBand;
+      const bestPromo = promoPool.slice().sort((a, b) => {
         const tierBias = (v) => (v.reframeMeta?.tier?.slabKb === 63 ? 0 : 1);
         return tierBias(a) - tierBias(b) || byCost(a, b);
       })[0];
