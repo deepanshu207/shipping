@@ -60,6 +60,30 @@ const TIERS_SUPPLIERDEN_TALL = [
   { slabKb: 52, label: "52KB" },
 ];
 
+// ── GOWN ───────────────────────────────────────────────────────────────────
+const GOWN_DEFAULT_TEAL = "#06B6D4";
+const GOWN_KB_TIERS = [
+  { slabKb: 58, label: "58KB · low band", lowest: true },
+  { slabKb: 60, label: "60KB · target" },
+  { slabKb: 61, label: "61KB" },
+  { slabKb: 62, label: "62KB" },
+  { slabKb: 63, label: "63KB · ₹63 match", recommended: true },
+  { slabKb: 64, label: "64KB" },
+  { slabKb: 65, label: "65KB" },
+  { slabKb: 66, label: "66KB · backup" },
+];
+const GOWN_LAYOUTS = [
+  {
+    layout: "gown_p1024",
+    type: "native_framed",
+    framedMaxSide: 1024,
+    priority: 0,
+    panelTag: "portrait framed 1024 · gown promo",
+    tiers: GOWN_KB_TIERS,
+  },
+];
+// ── END GOWN ────────────────────────────────────────────────────────────────
+
 const SUPPLIERDEN_TALL_LAYOUTS = [
   {
     layout: "sd_exact703",
@@ -323,6 +347,42 @@ function freeDeliverySvg(scale) {
   </svg>`);
 }
 
+function mostPopularSvg(scale) {
+  const w = 100 * scale;
+  const h = 52 * scale;
+  const pad = 8 * scale;
+  const bw = w + pad * 2;
+  const bh = h + pad * 2;
+  const font = 11.5 * scale;
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(bw)}" height="${Math.ceil(bh)}" viewBox="0 0 ${Math.ceil(bw)} ${Math.ceil(bh)}">
+    <g transform="translate(${pad},${pad})">
+      <rect x="0" y="0" width="${w * 0.45}" height="${h}" rx="${6 * scale}" fill="#D32F2F"/>
+      <text x="${w * 0.225}" y="${h * 0.42}" fill="#FFFFFF" font-family="Arial,sans-serif" font-size="${12 * scale}" font-weight="900" text-anchor="middle">👍</text>
+      <rect x="${w * 0.5}" y="0" width="${w * 0.5}" height="${h}" rx="${6 * scale}" fill="#FFFFFF" stroke="#111827" stroke-width="${1.5 * scale}"/>
+      <text x="${w * 0.75}" y="${h * 0.38}" fill="#111827" font-family="Arial,sans-serif" font-size="${font}" font-weight="900" text-anchor="middle">MOST</text>
+      <text x="${w * 0.75}" y="${h * 0.74}" fill="#111827" font-family="Arial,sans-serif" font-size="${font}" font-weight="900" text-anchor="middle">POPULAR</text>
+    </g>
+  </svg>`);
+}
+
+function flashSaleSvg(scale) {
+  const w = 96 * scale;
+  const h = 52 * scale;
+  const pad = 8 * scale;
+  const bw = w + pad * 2;
+  const bh = h + pad * 2;
+  const font = 12 * scale;
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(bw)}" height="${Math.ceil(bh)}" viewBox="0 0 ${Math.ceil(bw)} ${Math.ceil(bh)}">
+    <g transform="translate(${pad},${pad})">
+      <rect x="0" y="0" width="${w * 0.42}" height="${h}" rx="${6 * scale}" fill="#E53935"/>
+      <text x="${w * 0.21}" y="${h * 0.56}" fill="#FFFFFF" font-family="Arial,sans-serif" font-size="${15 * scale}" font-weight="900" text-anchor="middle">⚡</text>
+      <rect x="${w * 0.47}" y="0" width="${w * 0.53}" height="${h}" rx="${6 * scale}" fill="#FFFFFF" stroke="#111827" stroke-width="${1.5 * scale}"/>
+      <text x="${w * 0.735}" y="${h * 0.38}" fill="#111827" font-family="Arial,sans-serif" font-size="${font}" font-weight="900" text-anchor="middle">FLASH</text>
+      <text x="${w * 0.735}" y="${h * 0.74}" fill="#E53935" font-family="Arial,sans-serif" font-size="${font}" font-weight="900" text-anchor="middle">SALE</text>
+    </g>
+  </svg>`);
+}
+
 function bestChoiceOfferSvg(scale) {
   const d = 96 * scale;
   const pad = 10 * scale;
@@ -398,6 +458,24 @@ function stickerCompositesForTemplate(templateId, border, width, height) {
       left: Math.round(border + width * 0.04),
       top: Math.round(border + height * 0.42 - deliveryH / 2),
     });
+  } else if (template === "gown_promo") {
+    const bestW = 100 * scale * 0.9 + 8 * scale * 2;
+    const bestH = 52 * scale * 0.9 + 8 * scale * 2;
+    composites.push({
+      input: bestPriceSvg(scale * 0.88),
+      left: Math.round(border + width * 0.02),
+      top: Math.round(border + height * 0.03),
+    });
+    composites.push({
+      input: flashSaleSvg(scale * 0.88),
+      left: Math.round(border + width * 0.68),
+      top: Math.round(border + height * 0.03),
+    });
+    composites.push({
+      input: mostPopularSvg(scale * 0.82),
+      left: Math.round(border + width * 0.02),
+      top: Math.round(border + height * 0.60),
+    });
   } else {
     composites.push({ input: specialOfferSvg(scale), left: offerLeft, top: offerTop });
     composites.push({ input: hotSaleSvg(burstScale), left: burstLeft, top: burstTop });
@@ -436,16 +514,33 @@ export function kbFromBytes(bytes) {
 function estimateMeeshoInr(item) {
   const fileKb = kbFromBytes(item.fileSizeBytes);
   const maxSide = Math.max(item.width || 0, item.height || 0);
+  const w = item.width || 0;
+  const h = item.height || 0;
   const path = item.processingPath || "";
   if (path === "supplierden_match_50") {
     if (maxSide > 0 && maxSide <= 1024 && fileKb >= 37 && fileKb <= 55) return Math.min(fileKb, 50);
     if (maxSide > 1024 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 79);
     return Math.min(fileKb, 50);
   }
+  if (path === "gown_framed") {
+    if (h > w && maxSide > 0 && maxSide <= 1024 && fileKb >= 58 && fileKb <= 66) return fileKb;
+    if (fileKb <= 68) return fileKb;
+    if (maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) return Math.min(fileKb, 66);
+    return Math.min(fileKb, 66);
+  }
   if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
     return Math.min(fileKb, 93);
   }
   return fileKb;
+}
+
+function isGownTagName(tagName) {
+  const tag = String(tagName || "").toLowerCase();
+  return (
+    (tag.includes("gown") && tag.includes("lowest")) ||
+    tag.includes("gown outdoor") ||
+    tag.includes("gown framed")
+  );
 }
 
 function isSupplierDenOneStickerTagName(tagName) {
@@ -1097,22 +1192,99 @@ async function generateAutoVariants(imageBuffer, categoryName, frameStyleInput) 
   return built;
 }
 
+async function generateGownVariants(imageBuffer, frameStyleInput) {
+  const style = {
+    ...defaultFrameStyle(),
+    ...parseFrameStyle(frameStyleInput || {}),
+    borderColor: parseFrameStyle(frameStyleInput || {}).borderColor || GOWN_DEFAULT_TEAL,
+    stickerTemplate: parseFrameStyle(frameStyleInput || {}).stickerTemplate || "gown_promo",
+  };
+  const built = [];
+  for (const layoutSpec of GOWN_LAYOUTS) {
+    const profile = {
+      id: `gown_${layoutSpec.layout}`,
+      path: "gown_framed",
+      modeName: `Gown · ${layoutSpec.panelTag}`,
+    };
+    let buffer = await sharp(imageBuffer).rotate().toBuffer();
+    let meta = await sharp(buffer).metadata();
+    let w = meta.width || 1;
+    let h = meta.height || 1;
+    if (Math.max(w, h) > 2000) {
+      buffer = await sharp(buffer).resize(2000, 2000, { fit: "inside", withoutEnlargement: true }).toBuffer();
+      meta = await sharp(buffer).metadata();
+      w = meta.width || w;
+      h = meta.height || h;
+    }
+    const fitted = fitFramedPhotoDims(w, h, layoutSpec.framedMaxSide ?? 1024);
+    if (fitted.w !== w || fitted.h !== h) {
+      buffer = await sharp(buffer).resize(fitted.w, fitted.h, { fit: "fill" }).toBuffer();
+    }
+    const framed = await prepareFramedBuffer(buffer, fitted.w, fitted.h, layoutSpec.framedMaxSide ?? 1024, style);
+
+    for (const tier of GOWN_KB_TIERS) {
+      let jpeg = await compressBusyToSlab(framed.buffer, tier.slabKb);
+      if (jpeg.length > tier.slabKb * 1024) {
+        let factor = 0.94;
+        while (factor >= 0.60) {
+          const sm = await sharp(framed.buffer).resize(
+            Math.max(1, Math.round(framed.width * factor)),
+            Math.max(1, Math.round(framed.height * factor)),
+            { fit: "fill" }
+          ).toBuffer();
+          const attempt = await compressBusyToSlab(sm, tier.slabKb);
+          if (attempt.length <= tier.slabKb * 1024) { jpeg = attempt; break; }
+          if (attempt.length < jpeg.length) jpeg = attempt;
+          factor -= 0.04;
+        }
+      }
+      built.push({
+        buffer: jpeg,
+        fileSizeBytes: jpeg.length,
+        fileSizeKb: kbFromBytes(jpeg.length),
+        tagName: `[${profile.modeName}] ${tier.label} · ${framed.width}×${framed.height}`,
+        recommended: !!tier.recommended,
+        lowest: !!tier.lowest,
+        width: framed.width,
+        height: framed.height,
+        processingPath: profile.path,
+        profileId: profile.id,
+        modeName: profile.modeName,
+        flatlayPriority: layoutSpec.priority,
+      });
+    }
+  }
+
+  const slabCapBytes = 68 * 1024;
+  const inSlab = built.filter((b) => b.fileSizeBytes > 0 && b.fileSizeBytes <= slabCapBytes);
+  const pool = inSlab.length ? inSlab : built;
+  pool.sort((a, b) => estimateMeeshoInr(a) - estimateMeeshoInr(b) || a.fileSizeBytes - b.fileSizeBytes);
+  if (pool.length) {
+    pool[0].autoBest = true;
+    pool[0].recommended = true;
+    pool[0].lowest = true;
+  }
+  return pool.slice(0, 1);
+}
+
 export async function generateAllVariants(imageBuffer, categoryName, frameStyleInput) {
   const rotated = await sharp(imageBuffer).rotate().toBuffer();
   const built = isSupplierDenTagName(categoryName)
     ? await generateSupplierDenVariants(imageBuffer, frameStyleInput, categoryName)
-    : (await (async () => {
-        const profile = resolveProcessingProfile(rotated, categoryName);
-        if (profile.auto) {
-          return generateAutoVariants(imageBuffer, categoryName, frameStyleInput);
-        }
-        const prepared = await prepareInput(imageBuffer, profile, frameStyleInput);
-        const items = [];
-        for (const tier of profile.tiers) {
-          items.push(await buildVariant(prepared, tier));
-        }
-        return items;
-      })());
+    : isGownTagName(categoryName)
+      ? await generateGownVariants(imageBuffer, frameStyleInput)
+      : (await (async () => {
+          const profile = resolveProcessingProfile(rotated, categoryName);
+          if (profile.auto) {
+            return generateAutoVariants(imageBuffer, categoryName, frameStyleInput);
+          }
+          const prepared = await prepareInput(imageBuffer, profile, frameStyleInput);
+          const items = [];
+          for (const tier of profile.tiers) {
+            items.push(await buildVariant(prepared, tier));
+          }
+          return items;
+        })());
 
   const minEstimate = Math.min(...built.map((b) => estimateMeeshoInr(b)));
 
