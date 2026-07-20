@@ -75,34 +75,28 @@ const RAINCOAT_DEFAULT_OLIVE = "#556B2F";
 
 const RAINCOAT_LAYOUTS = [
   {
-    layout: "rc_sq1024",
-    type: "raincoat_exact_square",
-    outerW: 1024,
-    outerH: 1024,
-    borderPx: 48,
+    layout: "rc_p1024",
+    type: "indoor_framed",
+    framedMaxSide: 1024,
     priority: 0,
-    panelTag: "exact 1024² · cover · promo",
+    panelTag: "portrait framed 1024 · promo",
     tiers: RAINCOAT_KB_TIERS,
   },
   {
-    layout: "rc_sq1024_ns",
-    type: "raincoat_exact_square",
-    outerW: 1024,
-    outerH: 1024,
-    borderPx: 48,
+    layout: "rc_p1024_ns",
+    type: "indoor_framed",
+    framedMaxSide: 1024,
     noStickers: true,
     priority: 2,
-    panelTag: "exact 1024² · no stickers",
+    panelTag: "portrait framed 1024 · no stickers",
     tiers: RAINCOAT_KB_TIERS,
   },
   {
-    layout: "rc_sq960",
-    type: "raincoat_exact_square",
-    outerW: 960,
-    outerH: 960,
-    borderPx: 44,
+    layout: "rc_p960",
+    type: "indoor_framed",
+    framedMaxSide: 960,
     priority: 4,
-    panelTag: "exact 960² · low band",
+    panelTag: "portrait framed 960 · promo",
     tiers: RAINCOAT_KB_TIERS,
   },
 ];
@@ -594,6 +588,7 @@ function estimateMeeshoInr(item) {
   if (path === "raincoat_framed") {
     const w = item.width || 0;
     const h = item.height || 0;
+    if (h > w && maxSide > 0 && maxSide <= 1024 && fileKb >= 58 && fileKb <= 66) return fileKb;
     if (w === 1024 && h === 1024 && fileKb >= 58 && fileKb <= 66) return fileKb;
     if (w === h && maxSide <= 1024 && fileKb <= 68) return fileKb;
     if (fileKb <= 68) return fileKb;
@@ -1118,12 +1113,13 @@ async function compressBusyToSlab(buffer, slabKb) {
   return compressBusyToSlabOnce(buffer, slabKb);
 }
 
-async function compressBusyToSlabCapped(buffer, slabKb) {
+async function compressBusyToSlabCapped(buffer, slabKb, aggressive = false) {
   const capBytes = slabKb * 1024;
   let best = await compressBusyToSlabOnce(buffer, slabKb);
   if (best.length <= capBytes) return best;
   let factor = 0.96;
-  while (factor >= 0.78) {
+  const minFactor = aggressive ? 0.7 : 0.78;
+  while (factor >= minFactor) {
     const meta = await sharp(buffer).metadata();
     const w = Math.max(1, Math.round((meta.width || 1) * factor));
     const h = Math.max(1, Math.round((meta.height || 1) * factor));
@@ -1216,7 +1212,7 @@ async function generateRaincoatVariants(imageBuffer, frameStyleInput) {
       modeName: `Raincoat · ${layoutSpec.panelTag}`,
     };
     for (const tier of RAINCOAT_KB_TIERS) {
-      const jpeg = await compressBusyToSlabCapped(prepared.buffer, tier.slabKb);
+      const jpeg = await compressBusyToSlabCapped(prepared.buffer, tier.slabKb, true);
       built.push({
         buffer: jpeg,
         fileSizeBytes: jpeg.length,
@@ -1233,13 +1229,17 @@ async function generateRaincoatVariants(imageBuffer, frameStyleInput) {
       });
     }
   }
-  const capped = built.filter((b) => Math.max(b.width, b.height) <= 1024);
-  const pool = capped.length ? capped : built;
+  const slabCapBytes = 68 * 1024;
+  const inSlab = built.filter((b) => (b.fileSizeBytes || 0) <= slabCapBytes);
+  const capped = inSlab.filter((b) => Math.max(b.width, b.height) <= 1024);
+  const pool = capped.length ? capped : inSlab.length ? inSlab : built;
   pool.sort((a, b) => {
-    const squareBias = (v) => (v.width === 1024 && v.height === 1024 ? 0 : 1);
+    const portraitBias = (v) => ((v.height || 0) > (v.width || 0) ? 0 : 1);
+    const p1024Bias = (v) => (String(v.profileId || "").includes("rc_p1024") ? 0 : 1);
     const tier63Bias = (v) => (kbFromBytes(v.fileSizeBytes) === 63 ? 0 : 1);
     return (
-      squareBias(a) - squareBias(b) ||
+      portraitBias(a) - portraitBias(b) ||
+      p1024Bias(a) - p1024Bias(b) ||
       tier63Bias(a) - tier63Bias(b) ||
       estimateMeeshoInr(a) - estimateMeeshoInr(b) ||
       (a.flatlayPriority ?? 99) - (b.flatlayPriority ?? 99) ||

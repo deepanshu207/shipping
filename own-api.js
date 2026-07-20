@@ -620,34 +620,28 @@
   const RAINCOAT_DEFAULT_OLIVE = "#556B2F";
   const RAINCOAT_LAYOUTS = [
     {
-      layout: "rc_sq1024",
-      type: "raincoat_exact_square",
-      outerW: 1024,
-      outerH: 1024,
-      borderPx: 48,
+      layout: "rc_p1024",
+      type: "indoor_framed",
+      framedMaxSide: 1024,
       priority: 0,
-      panelTag: "exact 1024² · cover · promo",
+      panelTag: "portrait framed 1024 · promo",
       tiers: RAINCOAT_KB_TIERS,
     },
     {
-      layout: "rc_sq1024_ns",
-      type: "raincoat_exact_square",
-      outerW: 1024,
-      outerH: 1024,
-      borderPx: 48,
+      layout: "rc_p1024_ns",
+      type: "indoor_framed",
+      framedMaxSide: 1024,
       noStickers: true,
       priority: 2,
-      panelTag: "exact 1024² · no stickers",
+      panelTag: "portrait framed 1024 · no stickers",
       tiers: RAINCOAT_KB_TIERS,
     },
     {
-      layout: "rc_sq960",
-      type: "raincoat_exact_square",
-      outerW: 960,
-      outerH: 960,
-      borderPx: 44,
+      layout: "rc_p960",
+      type: "indoor_framed",
+      framedMaxSide: 960,
       priority: 4,
-      panelTag: "exact 960² · low band",
+      panelTag: "portrait framed 960 · promo",
       tiers: RAINCOAT_KB_TIERS,
     },
   ];
@@ -981,6 +975,7 @@
       return Math.min(fileKb, 93);
     }
     if (path === "raincoat_framed") {
+      if (h > w && maxSide > 0 && maxSide <= 1024 && fileKb >= 58 && fileKb <= 66) return fileKb;
       if (w === 1024 && h === 1024 && fileKb >= 58 && fileKb <= 66) return fileKb;
       if (w === h && maxSide <= 1024 && fileKb <= 68) return fileKb;
       if (fileKb <= 68) return fileKb;
@@ -2154,6 +2149,7 @@
         allVariants.push(
           await buildVariantForTier(canvas, whiteRatio, profile, tier, {
             showMode: true,
+            reframeHeavyLayout: true,
             reframeMeta: buildReframeMeta(profile, tier, {
               frameStyle: flatlayFramedStyle(profile.flatlaySpec, styled),
               studioLayout: profile.studioLayout,
@@ -2445,12 +2441,14 @@
     return finalizeAutoVariants(pool, options);
   }
 
-  /** Raincoat — exact square 1024² cover-fit @ 58–66 KB for ~₹63 Meesho slab. */
+  /** Raincoat — portrait framed max side ≤1024 @ 58–66 KB (~₹63); drop oversize slab misses. */
   function finalizeRaincoatVariants(variants, options = {}) {
     const maxVariants = options.maxVariants ?? RAINCOAT_MAX_VARIANTS;
     const minVariants = options.minVariants ?? 1;
-    const capped = variants.filter((v) => Math.max(v.width || 0, v.height || 0) <= 1024);
-    const pool = capped.length > 0 ? capped : variants;
+    const slabCapBytes = 68 * 1024;
+    const inSlab = variants.filter((v) => (v.bytes || 0) <= slabCapBytes);
+    const capped = inSlab.filter((v) => Math.max(v.width || 0, v.height || 0) <= 1024);
+    const pool = capped.length > 0 ? capped : inSlab.length > 0 ? inSlab : variants;
     const deduped = dedupeAutoVariants(pool);
 
     const inrOf = (v) => estimateMeeshoInr(v);
@@ -2459,7 +2457,7 @@
     const isNoStickers = (v) =>
       v.reframeMeta?.frameStyle?.stickerTemplate === "none" ||
       String(v.profileId || "").includes("_ns");
-    const isSquare1024 = (v) => v.width === 1024 && v.height === 1024;
+    const isPortraitFramed = (v) => (v.height || 0) > (v.width || 0);
 
     const byCost = (a, b) =>
       inrOf(a) - inrOf(b) ||
@@ -2469,22 +2467,22 @@
     const promoInBand = deduped.filter((v) => isPromo(v) && inrOf(v) <= 66);
     const sorted = deduped.slice().sort((a, b) => {
       const promoBias = (v) => (isPromo(v) ? 0 : isNoStickers(v) ? 2 : 1);
-      const squareBias = (v) => (isSquare1024(v) ? 0 : 1);
+      const portraitBias = (v) => (isPortraitFramed(v) ? 0 : 1);
       return (
         promoBias(a) - promoBias(b) ||
-        squareBias(a) - squareBias(b) ||
+        portraitBias(a) - portraitBias(b) ||
         byCost(a, b)
       );
     });
 
     let ordered = sorted;
     if (promoInBand.length) {
-      const squarePromo = promoInBand.filter(isSquare1024);
-      const promoPool = squarePromo.length ? squarePromo : promoInBand;
+      const portraitPromo = promoInBand.filter(isPortraitFramed);
+      const promoPool = portraitPromo.length ? portraitPromo : promoInBand;
       const bestPromo = promoPool.slice().sort((a, b) => {
         const tierBias = (v) => (v.reframeMeta?.tier?.slabKb === 63 ? 0 : 1);
-        const sqBias = (v) => (isSquare1024(v) ? 0 : 1);
-        return sqBias(a) - sqBias(b) || tierBias(a) - tierBias(b) || byCost(a, b);
+        const p1024Bias = (v) => (String(v.profileId || "").includes("rc_p1024") ? 0 : 1);
+        return p1024Bias(a) - p1024Bias(b) || tierBias(a) - tierBias(b) || byCost(a, b);
       })[0];
       ordered = [bestPromo, ...sorted.filter((v) => v !== bestPromo)];
     }

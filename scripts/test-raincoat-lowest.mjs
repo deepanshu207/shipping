@@ -33,7 +33,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
-    await page.goto(`${BASE}/?v=139`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(`${BASE}/?v=140`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => window.MeeshoProcessor?.optimize, { timeout: 20000 });
 
     const result = await page.evaluate(async () => {
@@ -65,7 +65,8 @@ async function run() {
       const paths = [...new Set(variants.map((v) => v.processingPath))];
       const maxSides = variants.map((v) => Math.max(v.width || 0, v.height || 0));
       const best = variants[0];
-      const isSquare1024 = best?.width === 1024 && best?.height === 1024;
+      const isPortraitFramed = (best?.height || 0) > (best?.width || 0);
+      const notSquare = !(best?.width === 1024 && best?.height === 1024);
       const bestStyle = best?.reframeMeta?.frameStyle || {};
       const oliveForced = String(bestStyle.borderColor || "").toUpperCase() === "#556B2F";
       const hasPromoVariant = variants.some(
@@ -93,7 +94,8 @@ async function run() {
         allWithinSlab,
         inrAtMost66: inrs.every((n) => n <= 66),
         maxSideAtMost1024: maxSides.every((n) => n <= 1024),
-        isSquare1024,
+        isPortraitFramed,
+        notSquare,
         bestDims: `${best?.width}×${best?.height}`,
         best,
       };
@@ -109,7 +111,8 @@ async function run() {
       result.allWithinSlab &&
       result.inrAtMost66 &&
       result.maxSideAtMost1024 &&
-      result.isSquare1024 &&
+      result.isPortraitFramed &&
+      result.notSquare &&
       result.minInr <= 66 &&
       result.minInr >= 56;
 
