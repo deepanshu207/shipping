@@ -62,21 +62,28 @@ const TIERS_SUPPLIERDEN_TALL = [
 
 // ── GOWN ───────────────────────────────────────────────────────────────────
 const GOWN_DEFAULT_TEAL = "#06B6D4";
-const GOWN_KB_TIERS = [
-  { slabKb: 48, label: "48KB · lowest try", lowest: true },
+const GOWN_KB_TIERS_800 = [
+  { slabKb: 58, label: "58KB", lowest: true },
+  { slabKb: 59, label: "59KB" },
+  { slabKb: 60, label: "60KB" },
+  { slabKb: 61, label: "61KB" },
+  { slabKb: 62, label: "62KB" },
+  { slabKb: 63, label: "63KB · ₹63 confirmed", recommended: true },
+  { slabKb: 64, label: "64KB" },
+  { slabKb: 66, label: "66KB" },
+];
+const GOWN_KB_TIERS_1024 = [
+  { slabKb: 48, label: "48KB · below ₹63 try", lowest: true },
+  { slabKb: 52, label: "52KB" },
   { slabKb: 56, label: "56KB" },
   { slabKb: 60, label: "60KB", recommended: true },
-  { slabKb: 63, label: "63KB · ₹63 match" },
+  { slabKb: 63, label: "63KB" },
 ];
 const GOWN_LAYOUTS = [
-  { layout: "gown_f800",    framedMaxSide: 800,                   priority: 0, panelTag: "framed 800 · gown promo",  tiers: GOWN_KB_TIERS },
-  { layout: "gown_f800_ns", framedMaxSide: 800, noStickers: true, priority: 1, panelTag: "framed 800 · no stickers", tiers: GOWN_KB_TIERS },
-  { layout: "gown_f700",    framedMaxSide: 700,                   priority: 2, panelTag: "framed 700 · gown promo",  tiers: GOWN_KB_TIERS },
-  { layout: "gown_f700_ns", framedMaxSide: 700, noStickers: true, priority: 3, panelTag: "framed 700 · no stickers", tiers: GOWN_KB_TIERS },
-  { layout: "gown_f600",    framedMaxSide: 600,                   priority: 4, panelTag: "framed 600 · gown promo",  tiers: GOWN_KB_TIERS },
-  { layout: "gown_f600_ns", framedMaxSide: 600, noStickers: true, priority: 5, panelTag: "framed 600 · no stickers", tiers: GOWN_KB_TIERS },
-  { layout: "gown_f500",    framedMaxSide: 500,                   priority: 6, panelTag: "framed 500 · gown promo",  tiers: GOWN_KB_TIERS },
-  { layout: "gown_f500_ns", framedMaxSide: 500, noStickers: true, priority: 7, panelTag: "framed 500 · no stickers", tiers: GOWN_KB_TIERS },
+  { layout: "gown_f800",    framedMaxSide: 800,  priority: 0, panelTag: "framed 800 · gown promo",  tiers: GOWN_KB_TIERS_800 },
+  { layout: "gown_f800_ns", framedMaxSide: 800,  noStickers: true, priority: 1, panelTag: "framed 800 · no stickers", tiers: GOWN_KB_TIERS_800 },
+  { layout: "gown_f1024",    framedMaxSide: 1024, priority: 2, panelTag: "framed 1024 · gown promo",  tiers: GOWN_KB_TIERS_1024 },
+  { layout: "gown_f1024_ns", framedMaxSide: 1024, noStickers: true, priority: 3, panelTag: "framed 1024 · no stickers", tiers: GOWN_KB_TIERS_1024 },
 ];
 // ── END GOWN ────────────────────────────────────────────────────────────────
 
@@ -1222,7 +1229,7 @@ async function generateGownVariants(imageBuffer, frameStyleInput) {
     }
     const framed = await prepareFramedBuffer(fitBuf, fitted.w, fitted.h, maxSide, style);
 
-    for (const tier of GOWN_KB_TIERS) {
+    for (const tier of layoutSpec.tiers) {
       let jpeg = await compressBusyToSlab(framed.buffer, tier.slabKb);
       // Aggressive downscale if needed to hit slab
       if (jpeg.length > tier.slabKb * 1024) {
@@ -1265,15 +1272,11 @@ async function generateGownVariants(imageBuffer, frameStyleInput) {
     seen.add(key);
     return true;
   });
-  // Pin reference-matching variant (#1): 800px with promo stickers at ≤63 KB
-  const isRef = (b) =>
-    String(b.profileId || "").includes("f800") &&
-    !String(b.profileId || "").includes("_ns") &&
-    b.fileSizeBytes <= 64 * 1024;
-  const refItem = deduped.filter(isRef)
-    .sort((a, b) => Math.abs(a.fileSizeBytes - 63*1024) - Math.abs(b.fileSizeBytes - 63*1024))[0];
-  const rest = deduped.filter((b) => b !== refItem);
-  const ordered = refItem ? [refItem, ...rest] : rest;
+  const is800 = (b) => String(b.profileId || "").includes("f800");
+  const is1024 = (b) => String(b.profileId || "").includes("f1024");
+  const group800 = deduped.filter(is800).sort((a, b) => a.fileSizeBytes - b.fileSizeBytes);
+  const group1024 = deduped.filter(is1024).sort((a, b) => a.fileSizeBytes - b.fileSizeBytes);
+  const ordered = [...group800, ...group1024];
   const minEstimate = Math.min(...ordered.map((b) => estimateMeeshoInr(b)));
   ordered.forEach((b, i) => {
     b.autoRank = i + 1;
@@ -1281,7 +1284,7 @@ async function generateGownVariants(imageBuffer, frameStyleInput) {
     b.lowest = estimateMeeshoInr(b) === minEstimate;
     b.recommended = i < 3;
   });
-  return ordered.slice(0, 32);
+  return ordered.slice(0, 26);
 }
 
 export async function generateAllVariants(imageBuffer, categoryName, frameStyleInput) {
