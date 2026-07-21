@@ -64,22 +64,19 @@ const TIERS_SUPPLIERDEN_TALL = [
 const GOWN_DEFAULT_TEAL = "#06B6D4";
 const GOWN_KB_TIERS = [
   { slabKb: 48, label: "48KB · lowest try", lowest: true },
-  { slabKb: 52, label: "52KB" },
   { slabKb: 56, label: "56KB" },
   { slabKb: 60, label: "60KB", recommended: true },
-  { slabKb: 63, label: "63KB · ₹63 target" },
+  { slabKb: 63, label: "63KB · ₹63 match" },
 ];
 const GOWN_LAYOUTS = [
-  { layout: "gown_f500_ns", framedMaxSide: 500, noStickers: true, priority: 0, panelTag: "framed 500 · no stickers", tiers: GOWN_KB_TIERS },
-  { layout: "gown_f500",    framedMaxSide: 500,                   priority: 1, panelTag: "framed 500 · gown promo",  tiers: GOWN_KB_TIERS },
-  { layout: "gown_f600_ns", framedMaxSide: 600, noStickers: true, priority: 2, panelTag: "framed 600 · no stickers", tiers: GOWN_KB_TIERS },
-  { layout: "gown_f600",    framedMaxSide: 600,                   priority: 3, panelTag: "framed 600 · gown promo",  tiers: GOWN_KB_TIERS },
-  { layout: "gown_f700_ns", framedMaxSide: 700, noStickers: true, priority: 4, panelTag: "framed 700 · no stickers", tiers: GOWN_KB_TIERS },
-  { layout: "gown_f700",    framedMaxSide: 700,                   priority: 5, panelTag: "framed 700 · gown promo",  tiers: GOWN_KB_TIERS },
-  { layout: "gown_f800_ns", framedMaxSide: 800, noStickers: true, priority: 6, panelTag: "framed 800 · no stickers", tiers: GOWN_KB_TIERS },
-  { layout: "gown_f800",    framedMaxSide: 800,                   priority: 7, panelTag: "framed 800 · gown promo",  tiers: GOWN_KB_TIERS },
-  { layout: "gown_f900_ns", framedMaxSide: 900, noStickers: true, priority: 8, panelTag: "framed 900 · no stickers", tiers: GOWN_KB_TIERS },
-  { layout: "gown_f900",    framedMaxSide: 900,                   priority: 9, panelTag: "framed 900 · gown promo",  tiers: GOWN_KB_TIERS },
+  { layout: "gown_f800",    framedMaxSide: 800,                   priority: 0, panelTag: "framed 800 · gown promo",  tiers: GOWN_KB_TIERS },
+  { layout: "gown_f800_ns", framedMaxSide: 800, noStickers: true, priority: 1, panelTag: "framed 800 · no stickers", tiers: GOWN_KB_TIERS },
+  { layout: "gown_f700",    framedMaxSide: 700,                   priority: 2, panelTag: "framed 700 · gown promo",  tiers: GOWN_KB_TIERS },
+  { layout: "gown_f700_ns", framedMaxSide: 700, noStickers: true, priority: 3, panelTag: "framed 700 · no stickers", tiers: GOWN_KB_TIERS },
+  { layout: "gown_f600",    framedMaxSide: 600,                   priority: 4, panelTag: "framed 600 · gown promo",  tiers: GOWN_KB_TIERS },
+  { layout: "gown_f600_ns", framedMaxSide: 600, noStickers: true, priority: 5, panelTag: "framed 600 · no stickers", tiers: GOWN_KB_TIERS },
+  { layout: "gown_f500",    framedMaxSide: 500,                   priority: 6, panelTag: "framed 500 · gown promo",  tiers: GOWN_KB_TIERS },
+  { layout: "gown_f500_ns", framedMaxSide: 500, noStickers: true, priority: 7, panelTag: "framed 500 · no stickers", tiers: GOWN_KB_TIERS },
 ];
 // ── END GOWN ────────────────────────────────────────────────────────────────
 
@@ -1268,14 +1265,23 @@ async function generateGownVariants(imageBuffer, frameStyleInput) {
     seen.add(key);
     return true;
   });
-  const minEstimate = Math.min(...deduped.map((b) => estimateMeeshoInr(b)));
-  deduped.forEach((b, i) => {
+  // Pin reference-matching variant (#1): 800px with promo stickers at ≤63 KB
+  const isRef = (b) =>
+    String(b.profileId || "").includes("f800") &&
+    !String(b.profileId || "").includes("_ns") &&
+    b.fileSizeBytes <= 64 * 1024;
+  const refItem = deduped.filter(isRef)
+    .sort((a, b) => Math.abs(a.fileSizeBytes - 63*1024) - Math.abs(b.fileSizeBytes - 63*1024))[0];
+  const rest = deduped.filter((b) => b !== refItem);
+  const ordered = refItem ? [refItem, ...rest] : rest;
+  const minEstimate = Math.min(...ordered.map((b) => estimateMeeshoInr(b)));
+  ordered.forEach((b, i) => {
     b.autoRank = i + 1;
     b.autoBest = i === 0;
     b.lowest = estimateMeeshoInr(b) === minEstimate;
     b.recommended = i < 3;
   });
-  return deduped.slice(0, 42);
+  return ordered.slice(0, 32);
 }
 
 export async function generateAllVariants(imageBuffer, categoryName, frameStyleInput) {

@@ -610,33 +610,29 @@
   const GOWN_MAX_VARIANTS = 50;
   const GOWN_PROCESS_TIMEOUT_MS = 360000;
   /**
-   * 5 slabs × 10 layouts = 50 variants, all mozjpeg-compressed.
-   * mozjpeg achieves 30–50% smaller than canvas.toBlob, so even complex
-   * outdoor photos hit the 48–63 KB targets reliably.
+   * 4 slabs × 8 layouts = 32 variants, all mozjpeg-compressed.
+   * Rank #1 is always 800px + promo stickers at 63 KB — exactly matching
+   * the reference image. Smaller sizes (600/700) follow for ₹48–60.
    */
   const GOWN_KB_TIERS = [
     { slabKb: 48, label: "48KB · lowest try", lowest: true },
-    { slabKb: 52, label: "52KB" },
     { slabKb: 56, label: "56KB" },
     { slabKb: 60, label: "60KB", recommended: true },
-    { slabKb: 63, label: "63KB · ₹63 target" },
+    { slabKb: 63, label: "63KB · ₹63 match" },
   ];
   const GOWN_LAYOUTS = [
-    // 500px — small, guaranteed low KB
-    { layout: "gown_f500_ns", type: "native_framed", framedMaxSide: 500, noStickers: true, priority: 0, panelTag: "framed 500 · no stickers", tiers: GOWN_KB_TIERS },
-    { layout: "gown_f500",    type: "native_framed", framedMaxSide: 500,                   priority: 1, panelTag: "framed 500 · gown promo",  tiers: GOWN_KB_TIERS },
-    // 600px
-    { layout: "gown_f600_ns", type: "native_framed", framedMaxSide: 600, noStickers: true, priority: 2, panelTag: "framed 600 · no stickers", tiers: GOWN_KB_TIERS },
-    { layout: "gown_f600",    type: "native_framed", framedMaxSide: 600,                   priority: 3, panelTag: "framed 600 · gown promo",  tiers: GOWN_KB_TIERS },
+    // 800px with stickers — confirmed giving ₹63, matches reference image → pinned as #1
+    { layout: "gown_f800",    type: "native_framed", framedMaxSide: 800, priority: 0, panelTag: "framed 800 · gown promo",  tiers: GOWN_KB_TIERS },
+    { layout: "gown_f800_ns", type: "native_framed", framedMaxSide: 800, noStickers: true, priority: 1, panelTag: "framed 800 · no stickers", tiers: GOWN_KB_TIERS },
     // 700px
-    { layout: "gown_f700_ns", type: "native_framed", framedMaxSide: 700, noStickers: true, priority: 4, panelTag: "framed 700 · no stickers", tiers: GOWN_KB_TIERS },
-    { layout: "gown_f700",    type: "native_framed", framedMaxSide: 700,                   priority: 5, panelTag: "framed 700 · gown promo",  tiers: GOWN_KB_TIERS },
-    // 800px — confirmed giving ₹63 on real Meesho
-    { layout: "gown_f800_ns", type: "native_framed", framedMaxSide: 800, noStickers: true, priority: 6, panelTag: "framed 800 · no stickers", tiers: GOWN_KB_TIERS },
-    { layout: "gown_f800",    type: "native_framed", framedMaxSide: 800,                   priority: 7, panelTag: "framed 800 · gown promo",  tiers: GOWN_KB_TIERS },
-    // 900px — slightly larger, still mozjpeg-guaranteed to hit target
-    { layout: "gown_f900_ns", type: "native_framed", framedMaxSide: 900, noStickers: true, priority: 8, panelTag: "framed 900 · no stickers", tiers: GOWN_KB_TIERS },
-    { layout: "gown_f900",    type: "native_framed", framedMaxSide: 900,                   priority: 9, panelTag: "framed 900 · gown promo",  tiers: GOWN_KB_TIERS },
+    { layout: "gown_f700",    type: "native_framed", framedMaxSide: 700, priority: 2, panelTag: "framed 700 · gown promo",  tiers: GOWN_KB_TIERS },
+    { layout: "gown_f700_ns", type: "native_framed", framedMaxSide: 700, noStickers: true, priority: 3, panelTag: "framed 700 · no stickers", tiers: GOWN_KB_TIERS },
+    // 600px
+    { layout: "gown_f600",    type: "native_framed", framedMaxSide: 600, priority: 4, panelTag: "framed 600 · gown promo",  tiers: GOWN_KB_TIERS },
+    { layout: "gown_f600_ns", type: "native_framed", framedMaxSide: 600, noStickers: true, priority: 5, panelTag: "framed 600 · no stickers", tiers: GOWN_KB_TIERS },
+    // 500px — smallest, most conservative
+    { layout: "gown_f500",    type: "native_framed", framedMaxSide: 500, priority: 6, panelTag: "framed 500 · gown promo",  tiers: GOWN_KB_TIERS },
+    { layout: "gown_f500_ns", type: "native_framed", framedMaxSide: 500, noStickers: true, priority: 7, panelTag: "framed 500 · no stickers", tiers: GOWN_KB_TIERS },
   ];
   // ── END GOWN ────────────────────────────────────────────────────────────────
 
@@ -2141,11 +2137,20 @@
     const capped = variants.filter((v) => Math.max(v.width || 0, v.height || 0) <= MEESHO_FRAMED_MAX_SIDE);
     const pool = capped.length ? capped : variants;
     const deduped = dedupeAutoVariants(pool);
-    deduped.sort((a, b) =>
-      estimateMeeshoInr(a) - estimateMeeshoInr(b) ||
-      (a.bytes || 0) - (b.bytes || 0)
-    );
-    const results = deduped.slice(0, GOWN_MAX_VARIANTS);
+
+    // Pin the reference-matching variant first: 800px with promo stickers at ≤63 KB
+    const isReferenceStyle = (v) =>
+      String(v.profileId || "").includes("f800") &&
+      !String(v.profileId || "").includes("_ns") &&
+      (v.bytes || 0) <= 64 * 1024;
+    const refVariant = deduped.filter(isReferenceStyle)
+      .sort((a, b) => Math.abs((a.bytes||0) - 63*1024) - Math.abs((b.bytes||0) - 63*1024))[0];
+
+    const rest = deduped.filter((v) => v !== refVariant)
+      .sort((a, b) => estimateMeeshoInr(a) - estimateMeeshoInr(b) || (a.bytes || 0) - (b.bytes || 0));
+
+    const ordered = refVariant ? [refVariant, ...rest] : rest;
+    const results = ordered.slice(0, GOWN_MAX_VARIANTS);
     results.forEach((v, i) => {
       v.autoRank = i + 1;
       v.autoBest = i === 0;
