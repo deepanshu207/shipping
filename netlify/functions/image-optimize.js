@@ -62,28 +62,22 @@ const TIERS_SUPPLIERDEN_TALL = [
 
 // ── GOWN ───────────────────────────────────────────────────────────────────
 const GOWN_DEFAULT_TEAL = "#06B6D4";
-// Reference image analysis: ₹49 = ~49 KB at tall portrait ~680×1024 (SupplierDen-band)
+// KEY INSIGHT: Reference image is 90 KB → ₹49. Target NATURAL JPEG quality 85-95 KB.
 const GOWN_KB_TIERS_1024 = [
-  { slabKb: 48, label: "48KB · ~₹49 reference match", lowest: true },
-  { slabKb: 49, label: "49KB · ₹49 target", recommended: true },
-  { slabKb: 50, label: "50KB" },
-  { slabKb: 52, label: "52KB" },
-  { slabKb: 56, label: "56KB" },
-  { slabKb: 60, label: "60KB" },
-  { slabKb: 63, label: "63KB" },
+  { slabKb: 85, label: "85KB", lowest: true },
+  { slabKb: 90, label: "90KB · reference match", recommended: true },
+  { slabKb: 93, label: "93KB" },
+  { slabKb: 100, label: "100KB" },
 ];
 const GOWN_KB_TIERS_800 = [
-  { slabKb: 58, label: "58KB", lowest: true },
-  { slabKb: 60, label: "60KB" },
-  { slabKb: 63, label: "63KB · ₹63 confirmed", recommended: true },
-  { slabKb: 66, label: "66KB" },
-  { slabKb: 71, label: "71KB" },
+  { slabKb: 63, label: "63KB · ₹63 confirmed", lowest: true },
+  { slabKb: 71, label: "71KB", recommended: true },
+  { slabKb: 80, label: "80KB" },
+  { slabKb: 91, label: "91KB" },
 ];
 const GOWN_LAYOUTS = [
-  // PRIMARY: tall portrait 1024 → matches ₹49 reference image
   { layout: "gown_f1024",    framedMaxSide: 1024, priority: 0, panelTag: "tall portrait 1024 · gown promo",    tiers: GOWN_KB_TIERS_1024 },
   { layout: "gown_f1024_ns", framedMaxSide: 1024, noStickers: true, priority: 1, panelTag: "tall portrait 1024 · no stickers", tiers: GOWN_KB_TIERS_1024 },
-  // FALLBACK: 800px → confirmed ₹63
   { layout: "gown_f800",    framedMaxSide: 800,  priority: 2, panelTag: "framed 800 · gown promo",  tiers: GOWN_KB_TIERS_800 },
   { layout: "gown_f800_ns", framedMaxSide: 800,  noStickers: true, priority: 3, panelTag: "framed 800 · no stickers", tiers: GOWN_KB_TIERS_800 },
 ];

@@ -610,32 +610,29 @@
   const GOWN_MAX_VARIANTS = 50;
   const GOWN_PROCESS_TIMEOUT_MS = 360000;
   /**
-   * Reference image analysis: ₹49 shipping = ~49 KB file at tall portrait (~680×1024).
-   * Same dimension format as SupplierDen (703×1024 at 48–51 KB = ₹49–50).
+   * KEY INSIGHT: Reference image is 90 KB → ₹49. Over-compression (48-63 KB) may
+   * trigger Meesho's quality penalty → ₹79+. Target NATURAL JPEG quality ~85-95 KB.
    *
-   * GOWN_KB_TIERS_1024: primary — tall portrait ~680×1024 at 48–63 KB → ₹49–63 (reference match)
-   * GOWN_KB_TIERS_800:  fallback — 539×799 at 58–66 KB → ₹63 (confirmed by user)
+   * GOWN_KB_TIERS_1024: 85-95 KB at 703×1024 portrait = natural quality = ₹49
+   * GOWN_KB_TIERS_800:  63-80 KB at 555×799 portrait = ₹63 (also confirmed)
    *
-   * 2 × 7 + 2 × 5 = 24 variants, all mozjpeg-compressed.
+   * 2 × 4 + 2 × 4 = 16 variants. Use compressBusyToSlab (not mozjpeg) so mobile
+   * browser's natural q=0.5 quality produces ~90 KB matching the reference.
    */
   const GOWN_KB_TIERS_1024 = [
-    { slabKb: 48, label: "48KB · ~₹49 reference match", lowest: true },
-    { slabKb: 49, label: "49KB · ₹49 target", recommended: true },
-    { slabKb: 50, label: "50KB" },
-    { slabKb: 52, label: "52KB" },
-    { slabKb: 56, label: "56KB" },
-    { slabKb: 60, label: "60KB" },
-    { slabKb: 63, label: "63KB" },
+    { slabKb: 85, label: "85KB", lowest: true },
+    { slabKb: 90, label: "90KB · reference match", recommended: true },
+    { slabKb: 93, label: "93KB" },
+    { slabKb: 100, label: "100KB" },
   ];
   const GOWN_KB_TIERS_800 = [
-    { slabKb: 58, label: "58KB", lowest: true },
-    { slabKb: 60, label: "60KB" },
-    { slabKb: 63, label: "63KB · ₹63 confirmed", recommended: true },
-    { slabKb: 66, label: "66KB" },
-    { slabKb: 71, label: "71KB" },
+    { slabKb: 63, label: "63KB · ₹63 confirmed", lowest: true },
+    { slabKb: 71, label: "71KB", recommended: true },
+    { slabKb: 80, label: "80KB" },
+    { slabKb: 91, label: "91KB" },
   ];
   const GOWN_LAYOUTS = [
-    // ── 1024px tall portrait — PRIMARY: matches ₹49 reference image ──────────
+    // ── 1024px tall portrait — PRIMARY: ~703×1024 at 85-95 KB = ₹49 (natural quality) ──
     { layout: "gown_f1024",    type: "native_framed", framedMaxSide: 1024, priority: 0, panelTag: "tall portrait 1024 · gown promo",    tiers: GOWN_KB_TIERS_1024 },
     { layout: "gown_f1024_ns", type: "native_framed", framedMaxSide: 1024, noStickers: true, priority: 1, panelTag: "tall portrait 1024 · no stickers", tiers: GOWN_KB_TIERS_1024 },
     // ── 800px — SECONDARY: confirmed ₹63 fallback ────────────────────────────
@@ -4371,7 +4368,7 @@
     const blob = capBytes
       ? await compressToByteCap(canvas, capBytes, compressOpts)
       : profile.gown && tier.slabKb
-        ? await compressGownToSlab(canvas, tier.slabKb)
+        ? await compressBusyToSlab(canvas, tier.slabKb)
         : profile.studio || profile.collageFramed
           ? await compressCanvas(canvas, tier.targetKb * 1024, minQ, whiteRatio, true, profile.absMinQ)
           : await compressBusyToSlab(canvas, tier.slabKb);

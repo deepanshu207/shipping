@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta name="theme-color" content="#059669" />
-  <title>Meesho Image Generator v151</title>
+  <title>Meesho Image Generator v152</title>
   <meta name="description" content="Upload a Meesho product photo. Pick Studio or Framed compression. Download optimized JPEGs." />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -605,7 +605,7 @@
     <div class="brand">
       <img src="/logo-mark.svg?v=2" alt="" />
       <span>Meesho Image Generator</span>
-      <span id="app-version" style="font-size:0.65rem;font-weight:700;background:#06b6d4;color:#fff;border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle;cursor:pointer" title="Tap to force refresh" onclick="(function(){caches&&caches.keys&&caches.keys().then(function(keys){keys.forEach(function(k){caches.delete(k)})});sessionStorage.clear();localStorage.removeItem('meesho:req-index');var url=location.href.split('?')[0]+'?r='+Date.now();location.replace(url);})()">v151 — tap if stuck</span>
+      <span id="app-version" style="font-size:0.65rem;font-weight:700;background:#06b6d4;color:#fff;border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle;cursor:pointer" title="Tap to force refresh" onclick="(function(){caches&&caches.keys&&caches.keys().then(function(keys){keys.forEach(function(k){caches.delete(k)})});sessionStorage.clear();localStorage.removeItem('meesho:req-index');var url=location.href.split('?')[0]+'?r='+Date.now();location.replace(url);})()">v152 — tap if stuck</span>
     </div>
     <button type="button" class="theme-btn" id="theme-btn" aria-label="Toggle theme">
       <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/></svg>
@@ -698,7 +698,7 @@
         <button type="button" class="mode framed gown" data-id="mo_gown_low" data-tag="Gown outdoor dress lowest shipping framed" data-name="Gown Lowest ₹" data-gown="1">
           <p class="mode-title">Gown Lowest ₹</p>
           <p class="mode-for"><b>For:</b> Outdoor gown / dress — teal frame + Best Price · Flash Sale · Most Popular stickers (~₹63)</p>
-          <span class="mode-tag">24 variants · #1–14 = 1024px ~₹49 (reference) · #15–24 = 800px ₹63</span>
+          <span class="mode-tag">16 variants · 703×1024 at 85-95 KB = ₹49 · 555×800 at 63-91 KB = ₹63</span>
           <span class="mode-selected-pill">✓ Selected</span>
         </button>
         <button type="button" class="mode framed tall50" data-id="mo_supplierden_50_one" data-tag="Tall dress kaftan ₹50 supplierden one sticker lowest shipping" data-name="Tall 1 sticker" data-tall50="1" data-tall-one="1">
@@ -888,7 +888,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=151"></script>
+  <script src="/own-api.js?v=152"></script>
   <script>
     // Version check — if gown category is missing, force reload
     window.addEventListener('load', function() {
@@ -2470,7 +2470,7 @@
               "Generates <b>studio white</b> scenarios plus <b>framed copies</b> using your border color and sticker template.";
           } else if (selected && selected.dataset.gown === "1") {
             framedNote.innerHTML =
-              "Pricing is <b>dimension-based</b> (confirmed: your 90 KB reference image at ~703×1024 gave ₹49). <b>Variants #1–14</b> use <b>tall portrait ~703×1024 canvas</b> → estimated <b>₹49</b> regardless of file size. <b>Variants #15–24</b> use <b>~539×800 canvas</b> → estimated <b>₹63</b>. Hard-refresh to see <b>v150</b> badge.";
+              "Your reference image was <b>90 KB at 703×1024</b> → ₹49. Over-compressing to 48 KB can cause Meesho quality penalty (₹79+). <b>Variants #1–8</b> target <b>85–100 KB at ~703×1024</b> (natural quality like reference) → estimated <b>₹49</b>. <b>Variants #9–16</b> use ~539×800 → estimated <b>₹63</b>.";
           } else if (selected && selected.dataset.auto === "1") {
             framedNote.innerHTML =
               "Border &amp; stickers apply to <b>framed variants</b> in this Auto run. Tap any result to change frame after generation.";
