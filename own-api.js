@@ -610,29 +610,36 @@
   const GOWN_MAX_VARIANTS = 50;
   const GOWN_PROCESS_TIMEOUT_MS = 360000;
   /**
-   * 4 slabs × 8 layouts = 32 variants, all mozjpeg-compressed.
-   * Rank #1 is always 800px + promo stickers at 63 KB — exactly matching
-   * the reference image. Smaller sizes (600/700) follow for ₹48–60.
+   * Two tier sets:
+   *  - GOWN_KB_TIERS_800: 8 slabs 58–66 KB for 800px canvas → ALL ~₹63 (confirmed by user)
+   *  - GOWN_KB_TIERS_1024: 5 slabs 48–63 KB for 1024px canvas → try for below ₹63
+   *
+   * 2 × 8 + 2 × 5 = 26 variants total, all mozjpeg-compressed.
    */
-  const GOWN_KB_TIERS = [
-    { slabKb: 48, label: "48KB · lowest try", lowest: true },
+  const GOWN_KB_TIERS_800 = [
+    { slabKb: 58, label: "58KB", lowest: true },
+    { slabKb: 59, label: "59KB" },
+    { slabKb: 60, label: "60KB" },
+    { slabKb: 61, label: "61KB" },
+    { slabKb: 62, label: "62KB" },
+    { slabKb: 63, label: "63KB · ₹63 confirmed", recommended: true },
+    { slabKb: 64, label: "64KB" },
+    { slabKb: 66, label: "66KB" },
+  ];
+  const GOWN_KB_TIERS_1024 = [
+    { slabKb: 48, label: "48KB · below ₹63 try", lowest: true },
+    { slabKb: 52, label: "52KB" },
     { slabKb: 56, label: "56KB" },
     { slabKb: 60, label: "60KB", recommended: true },
-    { slabKb: 63, label: "63KB · ₹63 match" },
+    { slabKb: 63, label: "63KB" },
   ];
   const GOWN_LAYOUTS = [
-    // 800px with stickers — confirmed giving ₹63, matches reference image → pinned as #1
-    { layout: "gown_f800",    type: "native_framed", framedMaxSide: 800, priority: 0, panelTag: "framed 800 · gown promo",  tiers: GOWN_KB_TIERS },
-    { layout: "gown_f800_ns", type: "native_framed", framedMaxSide: 800, noStickers: true, priority: 1, panelTag: "framed 800 · no stickers", tiers: GOWN_KB_TIERS },
-    // 700px
-    { layout: "gown_f700",    type: "native_framed", framedMaxSide: 700, priority: 2, panelTag: "framed 700 · gown promo",  tiers: GOWN_KB_TIERS },
-    { layout: "gown_f700_ns", type: "native_framed", framedMaxSide: 700, noStickers: true, priority: 3, panelTag: "framed 700 · no stickers", tiers: GOWN_KB_TIERS },
-    // 600px
-    { layout: "gown_f600",    type: "native_framed", framedMaxSide: 600, priority: 4, panelTag: "framed 600 · gown promo",  tiers: GOWN_KB_TIERS },
-    { layout: "gown_f600_ns", type: "native_framed", framedMaxSide: 600, noStickers: true, priority: 5, panelTag: "framed 600 · no stickers", tiers: GOWN_KB_TIERS },
-    // 500px — smallest, most conservative
-    { layout: "gown_f500",    type: "native_framed", framedMaxSide: 500, priority: 6, panelTag: "framed 500 · gown promo",  tiers: GOWN_KB_TIERS },
-    { layout: "gown_f500_ns", type: "native_framed", framedMaxSide: 500, noStickers: true, priority: 7, panelTag: "framed 500 · no stickers", tiers: GOWN_KB_TIERS },
+    // ── 800px — CONFIRMED ₹63 range (user verified) ──────────────────────────
+    { layout: "gown_f800",    type: "native_framed", framedMaxSide: 800, priority: 0, panelTag: "framed 800 · gown promo",  tiers: GOWN_KB_TIERS_800 },
+    { layout: "gown_f800_ns", type: "native_framed", framedMaxSide: 800, noStickers: true, priority: 1, panelTag: "framed 800 · no stickers", tiers: GOWN_KB_TIERS_800 },
+    // ── 1024px — below ₹63 attempt (same portrait format as raincoat ₹63 ref) ─
+    { layout: "gown_f1024",    type: "native_framed", framedMaxSide: 1024, priority: 2, panelTag: "framed 1024 · gown promo",  tiers: GOWN_KB_TIERS_1024 },
+    { layout: "gown_f1024_ns", type: "native_framed", framedMaxSide: 1024, noStickers: true, priority: 3, panelTag: "framed 1024 · no stickers", tiers: GOWN_KB_TIERS_1024 },
   ];
   // ── END GOWN ────────────────────────────────────────────────────────────────
 
@@ -2136,20 +2143,25 @@
   function finalizeGownVariants(variants) {
     const capped = variants.filter((v) => Math.max(v.width || 0, v.height || 0) <= MEESHO_FRAMED_MAX_SIDE);
     const pool = capped.length ? capped : variants;
-    const deduped = dedupeAutoVariants(pool);
 
-    // Pin the reference-matching variant first: 800px with promo stickers at ≤63 KB
-    const isReferenceStyle = (v) =>
-      String(v.profileId || "").includes("f800") &&
-      !String(v.profileId || "").includes("_ns") &&
-      (v.bytes || 0) <= 64 * 1024;
-    const refVariant = deduped.filter(isReferenceStyle)
-      .sort((a, b) => Math.abs((a.bytes||0) - 63*1024) - Math.abs((b.bytes||0) - 63*1024))[0];
+    const is800 = (v) => String(v.profileId || "").includes("f800");
+    const is1024 = (v) => String(v.profileId || "").includes("f1024");
 
-    const rest = deduped.filter((v) => v !== refVariant)
-      .sort((a, b) => estimateMeeshoInr(a) - estimateMeeshoInr(b) || (a.bytes || 0) - (b.bytes || 0));
+    // 800px variants (confirmed ₹63) sorted by fileKb ascending
+    const group800 = pool.filter(is800).sort(
+      (a, b) => (a.bytes || 0) - (b.bytes || 0)
+    );
+    // 1024px variants (attempt below ₹63) sorted by fileKb ascending
+    const group1024 = pool.filter(is1024).sort(
+      (a, b) => (a.bytes || 0) - (b.bytes || 0)
+    );
+    // Any remaining
+    const rest = pool.filter((v) => !is800(v) && !is1024(v)).sort(
+      (a, b) => estimateMeeshoInr(a) - estimateMeeshoInr(b) || (a.bytes || 0) - (b.bytes || 0)
+    );
 
-    const ordered = refVariant ? [refVariant, ...rest] : rest;
+    // Order: 800px (confirmed) first, then 1024px (experimental below ₹63), then rest
+    const ordered = [...group800, ...group1024, ...rest];
     const results = ordered.slice(0, GOWN_MAX_VARIANTS);
     results.forEach((v, i) => {
       v.autoRank = i + 1;
