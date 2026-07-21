@@ -605,7 +605,7 @@
     <div class="brand">
       <img src="/logo-mark.svg?v=2" alt="" />
       <span>Meesho Image Generator</span>
-      <span style="font-size:0.65rem;font-weight:700;background:#06b6d4;color:#fff;border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle">v150</span>
+      <span id="app-version" style="font-size:0.65rem;font-weight:700;background:#06b6d4;color:#fff;border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle;cursor:pointer" title="Tap to force refresh" onclick="(function(){caches&&caches.keys&&caches.keys().then(function(keys){keys.forEach(function(k){caches.delete(k)})});sessionStorage.clear();localStorage.removeItem('meesho:req-index');var url=location.href.split('?')[0]+'?r='+Date.now();location.replace(url);})()">v151 — tap if stuck</span>
     </div>
     <button type="button" class="theme-btn" id="theme-btn" aria-label="Toggle theme">
       <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/></svg>
@@ -888,7 +888,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=150"></script>
+  <script src="/own-api.js?v=151"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
