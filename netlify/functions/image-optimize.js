@@ -62,28 +62,30 @@ const TIERS_SUPPLIERDEN_TALL = [
 
 // ── GOWN ───────────────────────────────────────────────────────────────────
 const GOWN_DEFAULT_TEAL = "#06B6D4";
-const GOWN_KB_TIERS_800 = [
-  { slabKb: 58, label: "58KB", lowest: true },
-  { slabKb: 59, label: "59KB" },
-  { slabKb: 60, label: "60KB" },
-  { slabKb: 61, label: "61KB" },
-  { slabKb: 62, label: "62KB" },
-  { slabKb: 63, label: "63KB · ₹63 confirmed", recommended: true },
-  { slabKb: 64, label: "64KB" },
-  { slabKb: 66, label: "66KB" },
-];
+// Reference image analysis: ₹49 = ~49 KB at tall portrait ~680×1024 (SupplierDen-band)
 const GOWN_KB_TIERS_1024 = [
-  { slabKb: 48, label: "48KB · below ₹63 try", lowest: true },
+  { slabKb: 48, label: "48KB · ~₹49 reference match", lowest: true },
+  { slabKb: 49, label: "49KB · ₹49 target", recommended: true },
+  { slabKb: 50, label: "50KB" },
   { slabKb: 52, label: "52KB" },
   { slabKb: 56, label: "56KB" },
-  { slabKb: 60, label: "60KB", recommended: true },
+  { slabKb: 60, label: "60KB" },
   { slabKb: 63, label: "63KB" },
 ];
+const GOWN_KB_TIERS_800 = [
+  { slabKb: 58, label: "58KB", lowest: true },
+  { slabKb: 60, label: "60KB" },
+  { slabKb: 63, label: "63KB · ₹63 confirmed", recommended: true },
+  { slabKb: 66, label: "66KB" },
+  { slabKb: 71, label: "71KB" },
+];
 const GOWN_LAYOUTS = [
-  { layout: "gown_f800",    framedMaxSide: 800,  priority: 0, panelTag: "framed 800 · gown promo",  tiers: GOWN_KB_TIERS_800 },
-  { layout: "gown_f800_ns", framedMaxSide: 800,  noStickers: true, priority: 1, panelTag: "framed 800 · no stickers", tiers: GOWN_KB_TIERS_800 },
-  { layout: "gown_f1024",    framedMaxSide: 1024, priority: 2, panelTag: "framed 1024 · gown promo",  tiers: GOWN_KB_TIERS_1024 },
-  { layout: "gown_f1024_ns", framedMaxSide: 1024, noStickers: true, priority: 3, panelTag: "framed 1024 · no stickers", tiers: GOWN_KB_TIERS_1024 },
+  // PRIMARY: tall portrait 1024 → matches ₹49 reference image
+  { layout: "gown_f1024",    framedMaxSide: 1024, priority: 0, panelTag: "tall portrait 1024 · gown promo",    tiers: GOWN_KB_TIERS_1024 },
+  { layout: "gown_f1024_ns", framedMaxSide: 1024, noStickers: true, priority: 1, panelTag: "tall portrait 1024 · no stickers", tiers: GOWN_KB_TIERS_1024 },
+  // FALLBACK: 800px → confirmed ₹63
+  { layout: "gown_f800",    framedMaxSide: 800,  priority: 2, panelTag: "framed 800 · gown promo",  tiers: GOWN_KB_TIERS_800 },
+  { layout: "gown_f800_ns", framedMaxSide: 800,  noStickers: true, priority: 3, panelTag: "framed 800 · no stickers", tiers: GOWN_KB_TIERS_800 },
 ];
 // ── END GOWN ────────────────────────────────────────────────────────────────
 
@@ -1272,11 +1274,12 @@ async function generateGownVariants(imageBuffer, frameStyleInput) {
     seen.add(key);
     return true;
   });
-  const is800 = (b) => String(b.profileId || "").includes("f800");
   const is1024 = (b) => String(b.profileId || "").includes("f1024");
-  const group800 = deduped.filter(is800).sort((a, b) => a.fileSizeBytes - b.fileSizeBytes);
+  const is800 = (b) => String(b.profileId || "").includes("f800");
   const group1024 = deduped.filter(is1024).sort((a, b) => a.fileSizeBytes - b.fileSizeBytes);
-  const ordered = [...group800, ...group1024];
+  const group800 = deduped.filter(is800).sort((a, b) => a.fileSizeBytes - b.fileSizeBytes);
+  // 1024px tall portrait first (₹49 reference match), then 800px (₹63 fallback)
+  const ordered = [...group1024, ...group800];
   const minEstimate = Math.min(...ordered.map((b) => estimateMeeshoInr(b)));
   ordered.forEach((b, i) => {
     b.autoRank = i + 1;
