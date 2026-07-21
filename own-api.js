@@ -2084,11 +2084,11 @@
     return {
       id: "gown_framed",
       studio: false,
-      tiers: GOWN_KB_TIERS,
+      tiers: GOWN_KB_TIERS_800,
       path: "gown_framed",
       modeName: "Gown Lowest ₹",
       gown: true,
-      framedMaxSide: 1024,
+      framedMaxSide: 800,
     };
   }
 
