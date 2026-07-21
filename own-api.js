@@ -970,8 +970,11 @@
       return Math.min(fileKb, 93);
     }
     if (path === "gown_framed") {
-      // Tall portrait ~680×1024 at 48–55 KB → ~₹49–50 (same dimension as SupplierDen tall format)
-      // Return honest fileKb so user can see actual estimated shipping
+      // Pricing is DIMENSION-BASED (confirmed: 90 KB file at ~703×1024 gave ₹49 on Meesho)
+      // ~700-800×1024 portrait band → ₹49 regardless of file size (same as SupplierDen pricing)
+      // ~540-620×800 portrait band → ₹63 (user confirmed)
+      if (maxSide > 0 && maxSide <= 800 && h > w) return 63;
+      if (maxSide > 0 && maxSide <= 1024 && h > w) return 49;
       return fileKb;
     }
     if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {

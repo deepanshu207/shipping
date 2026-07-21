@@ -605,7 +605,7 @@
     <div class="brand">
       <img src="/logo-mark.svg?v=2" alt="" />
       <span>Meesho Image Generator</span>
-      <span style="font-size:0.65rem;font-weight:700;background:#06b6d4;color:#fff;border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle">v149</span>
+      <span style="font-size:0.65rem;font-weight:700;background:#06b6d4;color:#fff;border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle">v150</span>
     </div>
     <button type="button" class="theme-btn" id="theme-btn" aria-label="Toggle theme">
       <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/></svg>
@@ -888,7 +888,7 @@
     </div>
   </main>
 
-  <script src="/own-api.js?v=149"></script>
+  <script src="/own-api.js?v=150"></script>
   <script>
     (function () {
       var selected = document.querySelector(".mode.selected");
@@ -2455,7 +2455,7 @@
               "Generates <b>studio white</b> scenarios plus <b>framed copies</b> using your border color and sticker template.";
           } else if (selected && selected.dataset.gown === "1") {
             framedNote.innerHTML =
-              "<b>Variants #1–14</b> use <b>tall portrait 1024px canvas</b> (~680×1024) at 48–63 KB — same format as your reference image that showed <b>₹49</b> (teal frame, 3 stickers, tall portrait). <b>Variants #15–24</b> use <b>800px canvas</b> (your confirmed ₹63). Try <b>#1 first</b> (48 KB with stickers) — this should match the ₹49 reference exactly.";
+              "Pricing is <b>dimension-based</b> (confirmed: your 90 KB reference image at ~703×1024 gave ₹49). <b>Variants #1–14</b> use <b>tall portrait ~703×1024 canvas</b> → estimated <b>₹49</b> regardless of file size. <b>Variants #15–24</b> use <b>~539×800 canvas</b> → estimated <b>₹63</b>. Hard-refresh to see <b>v150</b> badge.";
           } else if (selected && selected.dataset.auto === "1") {
             framedNote.innerHTML =
               "Border &amp; stickers apply to <b>framed variants</b> in this Auto run. Tap any result to change frame after generation.";

@@ -528,6 +528,9 @@ function estimateMeeshoInr(item) {
     return Math.min(fileKb, 50);
   }
   if (path === "gown_framed") {
+    // Dimension-based pricing: ~703×1024 portrait → ₹49 (confirmed by user with 90 KB reference)
+    if (maxSide > 0 && maxSide <= 800 && h > w) return 63;
+    if (maxSide > 0 && maxSide <= 1024 && h > w) return 49;
     return fileKb;
   }
   if (MEESHO_FRAMED_DIM_CAP_PATHS.has(path) && maxSide > 0 && maxSide <= MEESHO_FRAMED_MAX_SIDE) {
