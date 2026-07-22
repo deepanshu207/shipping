@@ -607,18 +607,25 @@
   // ── GOWN CATEGORY ──────────────────────────────────────────────────────────
   /** Gown / outdoor dress — teal frame, 20–50 variants at multiple sizes + sticker configs. */
   const GOWN_DEFAULT_TEAL = "#06B6D4";
-  const GOWN_MAX_VARIANTS = 50;
+  const GOWN_MAX_VARIANTS = 56;
   const GOWN_PROCESS_TIMEOUT_MS = 360000;
   /**
    * 4 slabs × 8 layouts = 32 variants, all mozjpeg-compressed.
    * Rank #1 is always 800px + promo stickers at 63 KB — exactly matching
    * the reference image. Smaller sizes (600/700) follow for ₹48–60.
    */
+  /**
+   * User confirmed #1 at 55 KB = ₹55 is good — expand tiers around 48–56 KB
+   * to generate more variants at ₹48–56 for even lower shipping.
+   */
   const GOWN_KB_TIERS = [
-    { slabKb: 48, label: "48KB · lowest try", lowest: true },
-    { slabKb: 56, label: "56KB" },
-    { slabKb: 60, label: "60KB", recommended: true },
-    { slabKb: 63, label: "63KB · ₹63 match" },
+    { slabKb: 48, label: "48KB", lowest: true },
+    { slabKb: 50, label: "50KB" },
+    { slabKb: 52, label: "52KB" },
+    { slabKb: 54, label: "54KB" },
+    { slabKb: 56, label: "56KB · confirmed ₹55", recommended: true },
+    { slabKb: 60, label: "60KB" },
+    { slabKb: 63, label: "63KB" },
   ];
   const GOWN_LAYOUTS = [
     // 800px with stickers — confirmed giving ₹63, matches reference image → pinned as #1

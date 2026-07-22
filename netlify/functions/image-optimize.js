@@ -63,10 +63,13 @@ const TIERS_SUPPLIERDEN_TALL = [
 // ── GOWN ───────────────────────────────────────────────────────────────────
 const GOWN_DEFAULT_TEAL = "#06B6D4";
 const GOWN_KB_TIERS = [
-  { slabKb: 48, label: "48KB · lowest try", lowest: true },
-  { slabKb: 56, label: "56KB" },
-  { slabKb: 60, label: "60KB", recommended: true },
-  { slabKb: 63, label: "63KB · ₹63 match" },
+  { slabKb: 48, label: "48KB", lowest: true },
+  { slabKb: 50, label: "50KB" },
+  { slabKb: 52, label: "52KB" },
+  { slabKb: 54, label: "54KB" },
+  { slabKb: 56, label: "56KB · confirmed ₹55", recommended: true },
+  { slabKb: 60, label: "60KB" },
+  { slabKb: 63, label: "63KB" },
 ];
 const GOWN_LAYOUTS = [
   { layout: "gown_f800",    framedMaxSide: 800,                   priority: 0, panelTag: "framed 800 · gown promo",  tiers: GOWN_KB_TIERS },
